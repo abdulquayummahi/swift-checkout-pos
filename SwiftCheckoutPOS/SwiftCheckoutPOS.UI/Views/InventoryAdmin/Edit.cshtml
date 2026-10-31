@@ -1,0 +1,183 @@
+﻿<!-- Project: SwiftCheckoutPOS.UI -->
+<!-- File: Views/InventoryAdmin/Edit.cshtml -->
+@model SwiftCheckoutPOS.UI.Models.EditProductViewModel
+
+@{
+    ViewData["Title"] = "Edit Product";
+
+    string ResolveImagePath(string path)
+    {
+        if (string.IsNullOrWhiteSpace(path)) return "/images/products/default.png";
+        if (path.Contains("/")) return path;
+        return "/images/products/" + path;
+    }
+}
+
+<div class="container mt-4 mb-5">
+    <div class="row justify-content-center">
+        <div class="col-lg-10">
+            <div class="card shadow-sm border-0">
+                <div class="card-header bg-dark text-white py-3 d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0 fw-bold">Modify Master Product</h5>
+                    <span class="badge bg-secondary font-monospace">ID: @Model.ProductId</span>
+                </div>
+                <div class="card-body p-4 bg-light">
+
+                    <form asp-action="Edit" method="post" enctype="multipart/form-data">
+                        <div asp-validation-summary="ModelOnly" class="text-danger mb-3 fw-bold"></div>
+                        <input type="hidden" asp-for="ProductId" />
+                        <input type="hidden" asp-for="ExistingImagePath" />
+
+                        <div class="row g-3 mb-3">
+                            <div class="col-md-6">
+                                <label asp-for="Barcode" class="form-label fw-bold"></label>
+                                <input asp-for="Barcode" class="form-control font-monospace border-secondary shadow-sm" autocomplete="off" />
+                                <span asp-validation-for="Barcode" class="text-danger small fw-bold"></span>
+                            </div>
+                            <div class="col-md-6">
+                                <label asp-for="ProductName" class="form-label fw-bold"></label>
+                                <input asp-for="ProductName" class="form-control border-secondary shadow-sm" autocomplete="off" />
+                                <span asp-validation-for="ProductName" class="text-danger small fw-bold"></span>
+                            </div>
+                        </div>
+
+                        <div class="row g-3 mb-4">
+                            <div class="col-md-6">
+                                <label asp-for="CategoryId" class="form-label fw-bold d-flex justify-content-between">
+                                    Category
+                                    <a href="#" onclick="quickAdd('Category')" class="text-decoration-none text-success">+ Add New</a>
+                                </label>
+                                <select asp-for="CategoryId" asp-items="Model.AvailableCategories" class="form-select border-secondary shadow-sm">
+                                    <option value="">-- Select Category --</option>
+                                </select>
+                                <span asp-validation-for="CategoryId" class="text-danger small fw-bold"></span>
+                            </div>
+                            <div class="col-md-6">
+                                <label asp-for="VendorId" class="form-label fw-bold d-flex justify-content-between">
+                                    Primary Supplier
+                                    <a href="#" onclick="quickAdd('Vendor')" class="text-decoration-none text-success">+ Add New</a>
+                                </label>
+                                <select asp-for="VendorId" asp-items="Model.AvailableVendors" class="form-select border-secondary shadow-sm">
+                                    <option value="">-- Select Supplier --</option>
+                                </select>
+                                <span asp-validation-for="VendorId" class="text-danger small fw-bold"></span>
+                            </div>
+                        </div>
+
+                        <div class="row g-3 mb-4 border-top pt-3">
+                            <div class="col-md-4">
+                                <label asp-for="CostPrice" class="form-label fw-bold text-muted"></label>
+                                <div class="input-group shadow-sm">
+                                    <span class="input-group-text bg-white">BDT</span>
+                                    <!-- ARCHITECT FIX: asp-format="{0:F0}" strictly parses the value attribute as an integer -->
+                                    <input asp-for="CostPrice" class="form-control" type="number" step="1" asp-format="{0:F0}" />
+                                </div>
+                                <span asp-validation-for="CostPrice" class="text-danger small fw-bold"></span>
+                            </div>
+                            <div class="col-md-4">
+                                <label asp-for="SellingPrice" class="form-label fw-bold text-primary"></label>
+                                <div class="input-group shadow-sm">
+                                    <span class="input-group-text bg-white text-primary">BDT</span>
+                                    <!-- ARCHITECT FIX: asp-format="{0:F0}" strictly parses the value attribute as an integer -->
+                                    <input asp-for="SellingPrice" class="form-control border-primary" type="number" step="1" asp-format="{0:F0}" />
+                                </div>
+                                <span asp-validation-for="SellingPrice" class="text-danger small fw-bold"></span>
+                            </div>
+                            <div class="col-md-4">
+                                <label asp-for="TaxRate" class="form-label fw-bold text-danger"></label>
+                                <div class="input-group shadow-sm">
+                                    <!-- ARCHITECT FIX: asp-format="{0:F0}" strictly parses the value attribute as an integer -->
+                                    <input asp-for="TaxRate" class="form-control border-danger" type="number" step="1" asp-format="{0:F0}" />
+                                    <span class="input-group-text bg-white text-danger">%</span>
+                                </div>
+                                <span asp-validation-for="TaxRate" class="text-danger small fw-bold"></span>
+                            </div>
+                        </div>
+
+                        <div class="row g-3 mb-4 border-top pt-3">
+                            <div class="col-md-4">
+                                <label asp-for="StockQuantity" class="form-label fw-bold"></label>
+                                <input asp-for="StockQuantity" class="form-control shadow-sm" type="number" />
+                                <span asp-validation-for="StockQuantity" class="text-danger small fw-bold"></span>
+                            </div>
+                            <div class="col-md-4">
+                                <label asp-for="ReorderLevel" class="form-label fw-bold text-warning"></label>
+                                <input asp-for="ReorderLevel" class="form-control border-warning shadow-sm" type="number" />
+                                <span asp-validation-for="ReorderLevel" class="text-danger small fw-bold"></span>
+                            </div>
+                            <div class="col-md-4">
+                                <label asp-for="UnitOfMeasure" class="form-label fw-bold"></label>
+                                <select asp-for="UnitOfMeasure" class="form-select shadow-sm">
+                                    <option value="pcs">Pieces (pcs)</option>
+                                    <option value="kg">Kilograms (kg)</option>
+                                    <option value="ltr">Liters (ltr)</option>
+                                    <option value="box">Box</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="row g-3 mb-4 border-top pt-3">
+                            <div class="col-md-2 text-center">
+                                <img src="@ResolveImagePath(Model.ExistingImagePath)" alt="Product Image" class="img-thumbnail shadow-sm bg-white" style="height: 100px; width: 100%; object-fit: contain;" onerror="this.onerror=null;this.src='/images/products/default.png';" />
+                            </div>
+                            <div class="col-md-10">
+                                <label asp-for="ImageFile" class="form-label fw-bold"></label>
+                                <input asp-for="ImageFile" type="file" class="form-control shadow-sm" accept="image/*" />
+                                <div class="form-text">Leave blank to keep the existing image.</div>
+                            </div>
+                            <div class="col-md-12 mt-3">
+                                <label asp-for="Description" class="form-label fw-bold"></label>
+                                <textarea asp-for="Description" class="form-control shadow-sm" rows="2"></textarea>
+                            </div>
+                        </div>
+
+                        <div class="mb-4 bg-white p-3 rounded border shadow-sm">
+                            <div class="form-check form-switch fs-5">
+                                <input class="form-check-input" type="checkbox" asp-for="IsActive" id="activeSwitch">
+                                <label class="form-check-label fw-bold" for="activeSwitch" style="cursor: pointer;">
+                                    @Html.DisplayNameFor(m => m.IsActive)
+                                </label>
+                                <div class="form-text mt-1 text-muted fs-6">
+                                    Disabling this prevents cashiers from scanning or searching for this item at the POS terminal. Historical records remain intact.
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="d-flex justify-content-between mt-4 pt-2">
+                            <a asp-action="Index" class="btn btn-outline-secondary px-4 fw-bold">Cancel (ESC)</a>
+                            <button type="submit" class="btn btn-primary px-5 fw-bold shadow-sm">Save Changes (ENTER)</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    @{
+        await Html.RenderPartialAsync("_ValidationScriptsPartial");
+    }
+    <script>
+        document.addEventListener('keydown', function(event) {
+            if (event.key === 'Escape') { window.location.href = '@Url.Action("Index", "InventoryAdmin")'; }
+        });
+
+        async function quickAdd(type) {
+            let input = prompt(`Enter new ${type} name:`);
+            if (!input || input.trim() === '') return;
+
+            let formData = new FormData();
+            formData.append(type === 'Category' ? 'categoryName' : 'vendorName', input.trim());
+
+            try {
+                let response = await fetch(`/InventoryAdmin/QuickAdd${type}`, { method: 'POST', body: formData });
+                let result = await response.json();
+                if (result.success) {
+                    alert(`${type} added successfully! Form will refresh to update dropdowns.`);
+                    window.location.reload();
+                } else { alert(`Error: ${result.message}`); }
+            } catch (error) { alert("Terminal error communicating with the local server."); }
+        }
+    </script>
+}

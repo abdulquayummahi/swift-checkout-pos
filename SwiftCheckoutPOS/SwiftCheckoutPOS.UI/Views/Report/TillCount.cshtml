@@ -1,0 +1,20 @@
+﻿@model decimal
+<!-- Controller passes expected as a hidden security token if needed, or calculates in BLL -->
+<div class="container mt-5">
+    <div class="card shadow-lg border-0 col-md-6 mx-auto">
+        <div class="card-header bg-dark text-white fw-bold">Blind Till Reconciliation</div>
+        <div class="card-body p-4">
+            <form asp-action="SubmitTillCount" method="post">
+                <div class="mb-3">
+                    <label class="form-label fw-bold">Enter Total Cash Counted in Drawer:</label>
+                    <input type="number" step="0.01" name="countedAmount" class="form-control form-control-lg" autofocus required />
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Notes / Shift Comments:</label>
+                    <textarea name="notes" class="form-control"></textarea>
+                </div>
+                <button type="submit" class="btn btn-primary w-100 py-3 fw-bold">Submit Count for Audit</button>
+            </form>
+        </div>
+    </div>
+</div>

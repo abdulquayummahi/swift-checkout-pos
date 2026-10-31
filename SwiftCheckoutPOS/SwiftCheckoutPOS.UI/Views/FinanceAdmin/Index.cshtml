@@ -1,0 +1,413 @@
+﻿@model SwiftCheckoutPOS.BLL.DTOs.FinanceDashboardDTO
+
+@{
+    ViewData["Title"] = "Financial Ledger";
+}
+
+<style>
+    :root {
+        --dash-bg: #f8f9fa;
+    }
+
+    .dashboard-container {
+        background-color: var(--dash-bg);
+        padding: 2rem;
+        min-height: calc(100vh - 60px);
+    }
+
+    .metric-card {
+        border-radius: 1rem;
+        padding: 1.25rem;
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
+        height: 100%;
+        min-height: 140px;
+        border: none;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.02);
+        transition: transform 0.2s;
+    }
+
+    .metric-icon {
+        width: 40px;
+        height: 40px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin-bottom: 1rem;
+        font-size: 1.15rem;
+    }
+
+    .metric-value {
+        font-size: 1.5rem;
+        font-weight: 800;
+        margin-bottom: 0.15rem;
+        color: #181c32;
+    }
+
+    .metric-label {
+        font-size: 0.8rem;
+        font-weight: 700;
+        color: #a1a5b7;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+    }
+
+    .card-blue {
+        background-color: #e0f2fe;
+    }
+
+        .card-blue .metric-icon {
+            background-color: #0284c7;
+            color: white;
+        }
+
+        .card-blue .metric-value {
+            color: #0284c7;
+        }
+
+    .card-red {
+        background-color: #fee2e2;
+    }
+
+        .card-red .metric-icon {
+            background-color: #dc2626;
+            color: white;
+        }
+
+        .card-red .metric-value {
+            color: #dc2626;
+        }
+
+    .card-orange {
+        background-color: #ffedd5;
+    }
+
+        .card-orange .metric-icon {
+            background-color: #ea580c;
+            color: white;
+        }
+
+        .card-orange .metric-value {
+            color: #ea580c;
+        }
+
+    .card-teal {
+        background-color: #ccfbf1;
+    }
+
+        .card-teal .metric-icon {
+            background-color: #0d9488;
+            color: white;
+        }
+
+        .card-teal .metric-value {
+            color: #0d9488;
+        }
+
+    .filter-panel {
+        background: #fff;
+        border-radius: 1rem;
+        padding: 1.5rem;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.03);
+        border: 1px solid #e4e6ef;
+    }
+
+    .form-control, .form-select {
+        border-radius: 0.5rem;
+        border: 2px solid #e4e6ef;
+        padding: 0.75rem 1rem;
+        font-weight: 600;
+        color: #3f4254;
+        height: 50px;
+    }
+
+        .form-control:focus {
+            border-color: #3699ff;
+            box-shadow: 0 0 0 0.2rem rgba(54, 153, 255, 0.1);
+        }
+
+    .btn-filter-clear {
+        height: 50px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 0.5rem;
+    }
+
+    .roi-panel {
+        background: #fff;
+        border-radius: 1rem;
+        padding: 2rem;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.03);
+        border: 1px solid #e4e6ef;
+    }
+</style>
+
+<div class="dashboard-container">
+
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h2 class="fw-bold mb-1" style="color: #181c32;">Financial Ledger</h2>
+            <span class="text-muted fw-bold" style="font-size: 0.9rem;">Capital & Operational Expense Tracking</span>
+        </div>
+        <button class="btn btn-primary fw-bold px-4 shadow-sm" style="height: 50px;" data-bs-toggle="modal" data-bs-target="#addEntryModal" id="newEntryBtn">
+            + New Record (Insert)
+        </button>
+    </div>
+
+    @if (TempData["Error"] != null)
+    {
+        <div class="alert alert-danger fw-bold border-0 shadow-sm">@TempData["Error"]</div>
+    }
+    @if (TempData["Success"] != null)
+    {
+        <div class="alert alert-success fw-bold border-0 shadow-sm">@TempData["Success"]</div>
+    }
+
+    <div class="roi-panel mb-4">
+        <h5 class="fw-bold mb-1" style="color: #181c32;">Return on Investment (ROI) Tracker</h5>
+        <p class="text-muted small fw-bold mb-4">Tracking total historical net profit against initial capital injection.</p>
+
+        <div class="progress mb-4 shadow-sm" style="height: 30px; border-radius: 1rem; background-color: #e4e6ef;">
+            <div class="progress-bar bg-success progress-bar-striped progress-bar-animated text-end pe-3 fw-bold fs-6" role="progressbar" style="width: @Model.PaybackPercentage.ToString("0.0")%;" aria-valuenow="@Model.PaybackPercentage" aria-valuemin="0" aria-valuemax="100">
+                @Model.PaybackPercentage.ToString("0.0")% Recovered
+            </div>
+        </div>
+
+        <div class="row text-center mt-2">
+            <div class="col-md-3 border-end">
+                <span class="d-block text-muted fw-bold small text-uppercase mb-1">Total CapEx Invested</span>
+                <span class="fs-5 fw-bold" style="color: #181c32;">@Model.LifetimeCapital.ToString("N0") BDT</span>
+            </div>
+            <div class="col-md-3 border-end">
+                <span class="d-block text-muted fw-bold small text-uppercase mb-1">Lifetime Net Profit</span>
+                <span class="fs-5 fw-bold @(Model.LifetimeNetProfit >= 0 ? "text-success" : "text-danger")">@Model.LifetimeNetProfit.ToString("N0") BDT</span>
+            </div>
+            <div class="col-md-3 border-end">
+                <span class="d-block text-muted fw-bold small text-uppercase mb-1">Avg. Monthly Profit</span>
+                <span class="fs-5 fw-bold text-primary">@Model.AverageMonthlyProfit.ToString("N0") BDT</span>
+            </div>
+            <div class="col-md-3">
+                <span class="d-block text-muted fw-bold small text-uppercase mb-1">Break-Even Horizon</span>
+                @if (Model.EstimatedMonthsToBreakEven <= 0 && Model.PaybackPercentage >= 100)
+                {
+                    <span class="fs-5 fw-bold text-success">Goal Reached 🏆</span>
+                }
+                else if (Model.AverageMonthlyProfit <= 0)
+                {
+                    <span class="fs-5 fw-bold text-danger">Unprofitable 📉</span>
+                }
+                else
+                {
+                    <span class="fs-5 fw-bold text-warning">~@Model.EstimatedMonthsToBreakEven Months ⏳</span>
+                }
+            </div>
+        </div>
+    </div>
+
+    <div class="filter-panel mb-4">
+        <form asp-action="Index" method="get" id="filterForm" class="row g-3 align-items-end">
+            <div class="col-md-3">
+                <label class="form-label text-muted fw-bold text-uppercase small">Start Date</label>
+                <input type="date" name="startDate" id="startDate" value="@ViewBag.StartDate" class="form-control" />
+            </div>
+            <div class="col-md-3">
+                <label class="form-label text-muted fw-bold text-uppercase small">End Date</label>
+                <input type="date" name="endDate" id="endDate" value="@ViewBag.EndDate" class="form-control" />
+            </div>
+            <div class="col-md-5">
+                <label class="form-label text-muted fw-bold text-uppercase small">Search Category/Notes (Press F2)</label>
+                <input type="text" name="searchQuery" id="searchInput" value="@ViewBag.SearchQuery" class="form-control" placeholder="e.g. Utility, Damage..." autocomplete="off" />
+            </div>
+            <div class="col-md-1">
+                <a href="@Url.Action("Index", "FinanceAdmin")" class="btn btn-light w-100 border fw-bold shadow-sm text-muted btn-filter-clear">Clear</a>
+            </div>
+        </form>
+    </div>
+
+    <div class="row g-4 mb-4">
+        <div class="col-md-6 col-xl-3"><div class="metric-card card-blue"><div class="metric-icon">🏦</div><div><div class="metric-value">@Model.TotalCapitalInflow.ToString("N0")</div><div class="metric-label">Capital Investments</div></div></div></div>
+        <div class="col-md-6 col-xl-3"><div class="metric-card card-red"><div class="metric-icon">📄</div><div><div class="metric-value">@Model.OperatingExpenses.ToString("N0")</div><div class="metric-label">Operating Expenses</div></div></div></div>
+        <div class="col-md-6 col-xl-3"><div class="metric-card card-orange"><div class="metric-icon">📦</div><div><div class="metric-value">@Model.InventoryCosts.ToString("N0")</div><div class="metric-label">Inventory Costs</div></div></div></div>
+        <div class="col-md-6 col-xl-3"><div class="metric-card card-teal"><div class="metric-icon">⚖️</div><div><div class="metric-value @(Model.NetLedgerBalance < 0 ? "text-danger" : "")">@Model.NetLedgerBalance.ToString("N0")</div><div class="metric-label">Net Balance (Period)</div></div></div></div>
+    </div>
+
+    <div class="card border-0 shadow-sm rounded-4">
+        <div class="card-body p-0">
+            <div class="table-responsive" style="max-height: 600px; overflow-y: auto;">
+                <table class="table table-hover m-0 align-middle">
+                    <thead class="bg-dark text-white" style="position: sticky; top: 0; z-index: 1;">
+                        <tr>
+                            <th class="fw-bold px-4 py-3 text-nowrap" style="font-size: 0.8rem;">Date / Time</th>
+                            <th class="fw-bold px-4 py-3" style="font-size: 0.8rem;">Category</th>
+                            <th class="fw-bold px-4 py-3" style="font-size: 0.8rem;">Type</th>
+                            <th class="fw-bold px-4 py-3" style="font-size: 0.8rem;">Description</th>
+                            <th class="fw-bold px-4 py-3 text-end" style="font-size: 0.8rem;">Amount (BDT)</th>
+                            <th class="fw-bold px-4 py-3 text-center" style="font-size: 0.8rem;">Recorded By</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @if (!Model.Entries.Any())
+                        {
+                            <tr><td colspan="6" class="text-center text-muted py-5 fw-bold">No ledger entries found for this period.</td></tr>
+                        }
+                        else
+                        {
+                            foreach (var entry in Model.Entries)
+                            {
+                                <tr>
+                                    <td class="px-4 py-3 text-muted fw-bold text-nowrap" style="font-size: 0.85rem;">@entry.TransactionDate.ToString("MMM dd, yyyy - hh:mm tt")</td>
+                                    <td class="px-4 py-3 fw-bold text-dark">@entry.Category</td>
+                                    <td class="px-4 py-3">
+                                        @if (entry.TransactionType == "Inflow")
+                                        {
+                                            <span class="badge bg-success">Inflow</span>
+                                        }
+                                        else
+                                        {
+
+                                            <span class="badge bg-danger">Outflow</span>
+                                        }
+                                    </td>
+                                    <td class="px-4 py-3 text-muted" style="max-width: 300px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="@entry.Description">
+                                        @(string.IsNullOrWhiteSpace(entry.Description) ? "—" : entry.Description)
+                                    </td>
+                                    <td class="px-4 py-3 text-end fw-bold @(entry.TransactionType == "Inflow" ? "text-success" : "text-danger")">
+                                        @(entry.TransactionType == "Outflow" ? "-" : "")@entry.Amount.ToString("N2")
+                                    </td>
+                                    <td class="px-4 py-3 text-center text-muted small font-monospace">@entry.RecordedBy</td>
+                                </tr>
+                            }
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="addEntryModal" tabindex="-1" data-bs-backdrop="static">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content rounded-4 border-0 shadow-lg">
+            <div class="modal-header border-0 bg-dark text-white rounded-top-4">
+                <h5 class="modal-title fw-bold">Record Ledger Entry</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <form asp-action="AddEntry" method="post" id="addEntryForm">
+                <div class="modal-body p-4">
+                    <div class="row g-3 mb-3">
+                        <div class="col-md-6">
+                            <label class="form-label fw-bold text-muted small text-uppercase">Type</label>
+                            <select name="transactionType" id="transactionTypeSelect" class="form-select form-select-lg bg-light" required>
+                                <option value="Outflow" selected>Expense / Outflow</option>
+                                <option value="Inflow">Capital / Inflow</option>
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-bold text-muted small text-uppercase">Category</label>
+                            <select name="category" id="categorySelect" class="form-select form-select-lg bg-light" required>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-bold text-muted small text-uppercase">Amount (BDT)</label>
+                        <input type="number" name="amount" id="amountInput" step="0.01" class="form-control form-control-lg bg-light fw-bold text-end" required autocomplete="off" placeholder="0.00" />
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-bold text-muted small text-uppercase">Description / Notes</label>
+                        <input type="text" name="description" id="descInput" class="form-control form-control-lg bg-light" autocomplete="off" placeholder="e.g. June electricity bill..." />
+                    </div>
+                </div>
+                <div class="modal-footer border-0 p-4 pt-0 d-flex gap-2">
+                    <button type="button" class="btn btn-light border fw-bold flex-grow-1 py-2" data-bs-dismiss="modal">Cancel (ESC)</button>
+                    <button type="submit" class="btn btn-primary fw-bold flex-grow-1 py-2">Save Record (ENTER)</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+    const form = document.getElementById('filterForm');
+    const searchInput = document.getElementById('searchInput');
+    const startDate = document.getElementById('startDate');
+    const endDate = document.getElementById('endDate');
+    let debounceTimer;
+
+    const typeSelect = document.getElementById('transactionTypeSelect');
+    const categorySelect = document.getElementById('categorySelect');
+    const descInput = document.getElementById('descInput');
+
+    const ledgerCategories = {
+        'Outflow': [
+            { value: 'Utility', text: 'Utility Bills (Elec/Water)' },
+            { value: 'Payroll', text: 'Staff Payroll' },
+            { value: 'Rent', text: 'Shop Rent' },
+            { value: 'Capital', text: 'Business Capital (Withdrawal)' },
+            { value: 'Damaged', text: 'Missing/Damaged Goods' },
+            { value: 'Misc', text: 'Miscellaneous Expense' }
+        ],
+        'Inflow': [
+            { value: 'Capital', text: 'Business Capital (Injection)' },
+            { value: 'Loan', text: 'Bank / Private Loan' },
+            { value: 'Misc', text: 'Miscellaneous Income' }
+        ]
+    };
+
+    function mapCategoriesToType() {
+        const selectedType = typeSelect.value;
+        categorySelect.innerHTML = '';
+
+        ledgerCategories[selectedType].forEach(cat => {
+            const option = document.createElement('option');
+            option.value = cat.value;
+            option.textContent = cat.text;
+            categorySelect.appendChild(option);
+        });
+
+        if(selectedType === 'Outflow') {
+            descInput.placeholder = "e.g. June electricity bill...";
+        } else {
+            descInput.placeholder = "e.g. Initial business funding...";
+        }
+    }
+
+    typeSelect.addEventListener('change', mapCategoriesToType);
+    mapCategoriesToType();
+
+    document.addEventListener("DOMContentLoaded", function () {
+        if (searchInput && searchInput.value.length > 0) {
+            searchInput.focus();
+            var val = searchInput.value;
+            searchInput.value = '';
+            searchInput.value = val;
+        }
+    });
+
+    startDate.addEventListener('change', () => form.submit());
+    endDate.addEventListener('change', () => form.submit());
+
+    searchInput.addEventListener('input', function () {
+        clearTimeout(debounceTimer);
+        debounceTimer = setTimeout(() => { form.submit(); }, 800);
+    });
+
+    document.addEventListener('keydown', function (e) {
+        if (e.key === 'Insert') {
+            e.preventDefault();
+            document.getElementById('newEntryBtn').click();
+        }
+        if (e.key === 'F2') {
+            e.preventDefault();
+            searchInput.focus();
+            searchInput.select();
+        }
+    });
+
+    var addModal = document.getElementById('addEntryModal');
+    addModal.addEventListener('shown.bs.modal', function () {
+        document.getElementById('amountInput').focus();
+    });
+</script>

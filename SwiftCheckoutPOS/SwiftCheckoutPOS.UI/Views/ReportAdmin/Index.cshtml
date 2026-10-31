@@ -1,0 +1,441 @@
+﻿@model SwiftCheckoutPOS.BLL.DTOs.ReportDashboardDTO
+
+@{
+    ViewData["Title"] = "Advanced Financial Report";
+}
+
+<style>
+    :root {
+        --dash-bg: #f8f9fa;
+    }
+
+    .dashboard-container {
+        background-color: var(--dash-bg);
+        padding: 2rem;
+        min-height: calc(100vh - 60px);
+    }
+
+    .metric-card {
+        border-radius: 1rem;
+        padding: 1.25rem;
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
+        height: 100%;
+        min-height: 140px;
+        border: none;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.02);
+        transition: transform 0.2s;
+    }
+
+    .metric-icon {
+        width: 40px;
+        height: 40px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin-bottom: 1rem;
+        font-size: 1.15rem;
+    }
+
+    .metric-value {
+        font-size: 1.5rem;
+        font-weight: 800;
+        margin-bottom: 0.15rem;
+        color: #181c32;
+    }
+
+    .metric-label {
+        font-size: 0.8rem;
+        font-weight: 700;
+        color: #a1a5b7;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+    }
+
+    .card-blue {
+        background-color: #e0f2fe;
+    }
+
+        .card-blue .metric-icon {
+            background-color: #0284c7;
+            color: white;
+        }
+
+        .card-blue .metric-value {
+            color: #0284c7;
+        }
+
+    .card-green {
+        background-color: #dcfce7;
+    }
+
+        .card-green .metric-icon {
+            background-color: #16a34a;
+            color: white;
+        }
+
+        .card-green .metric-value {
+            color: #16a34a;
+        }
+
+    .card-purple {
+        background-color: #f3e8ff;
+    }
+
+        .card-purple .metric-icon {
+            background-color: #9333ea;
+            color: white;
+        }
+
+        .card-purple .metric-value {
+            color: #9333ea;
+        }
+
+    .card-orange {
+        background-color: #ffedd5;
+    }
+
+        .card-orange .metric-icon {
+            background-color: #ea580c;
+            color: white;
+        }
+
+        .card-orange .metric-value {
+            color: #ea580c;
+        }
+
+    .card-teal {
+        background-color: #ccfbf1;
+    }
+
+        .card-teal .metric-icon {
+            background-color: #0d9488;
+            color: white;
+        }
+
+        .card-teal .metric-value {
+            color: #0d9488;
+        }
+
+    .card-red {
+        background-color: #fee2e2;
+    }
+
+        .card-red .metric-icon {
+            background-color: #dc2626;
+            color: white;
+        }
+
+        .card-red .metric-value {
+            color: #dc2626;
+        }
+
+    .card-yellow {
+        background-color: #fef08a;
+    }
+
+        .card-yellow .metric-icon {
+            background-color: #ca8a04;
+            color: white;
+        }
+
+        .card-yellow .metric-value {
+            color: #ca8a04;
+        }
+
+    .card-darkblue {
+        background-color: #dbeafe;
+    }
+
+        .card-darkblue .metric-icon {
+            background-color: #2563eb;
+            color: white;
+        }
+
+        .card-darkblue .metric-value {
+            color: #2563eb;
+        }
+
+    .filter-panel {
+        background: #fff;
+        border-radius: 1rem;
+        padding: 1.5rem;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.03);
+        border: 1px solid #e4e6ef;
+    }
+
+    .form-control, .form-select {
+        border-radius: 0.5rem;
+        border: 2px solid #e4e6ef;
+        padding: 0.75rem 1rem;
+        font-weight: 600;
+        color: #3f4254;
+        height: 50px;
+    }
+
+        .form-control:focus {
+            border-color: #3699ff;
+            box-shadow: 0 0 0 0.2rem rgba(54, 153, 255, 0.1);
+        }
+
+    .btn-filter-clear {
+        height: 50px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 0.5rem;
+    }
+
+    .hw-toast {
+        position: fixed;
+        bottom: 20px;
+        right: 20px;
+        min-width: 300px;
+        z-index: 1050;
+        display: none;
+    }
+</style>
+
+<div class="dashboard-container">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h2 class="fw-bold mb-1" style="color: #181c32;">Advanced Financial Report</h2>
+            <span class="text-muted fw-bold" style="font-size: 0.9rem;">Analytical Auditing Engine</span>
+        </div>
+        <button class="btn btn-dark fw-bold px-4 shadow-sm" style="height: 50px;" id="btnPreviewZReport">
+            🖨️ Print Z-Report (F8)
+        </button>
+    </div>
+
+    <div class="filter-panel mb-4">
+        <form asp-action="Index" method="get" id="filterForm" class="row g-3 align-items-end">
+            <div class="col-md-3">
+                <label class="form-label text-muted fw-bold text-uppercase small">Start Date</label>
+                <input type="date" name="startDate" id="startDate" value="@Model.AppliedStartDate.ToString("yyyy-MM-dd")" class="form-control" />
+            </div>
+            <div class="col-md-3">
+                <label class="form-label text-muted fw-bold text-uppercase small">End Date</label>
+                <input type="date" name="endDate" id="endDate" value="@Model.AppliedEndDate.ToString("yyyy-MM-dd")" class="form-control" />
+            </div>
+            <div class="col-md-5">
+                <label class="form-label text-muted fw-bold text-uppercase small">Search Invoice (Press F2)</label>
+                <input type="text" name="searchQuery" id="searchInput" value="@ViewBag.SearchQuery" class="form-control" placeholder="e.g. INV-2026..." autocomplete="off" />
+            </div>
+            <div class="col-md-1">
+                <a href="@Url.Action("Index", "ReportAdmin")" class="btn btn-light w-100 border fw-bold shadow-sm text-muted btn-filter-clear">Clear</a>
+            </div>
+        </form>
+    </div>
+
+    <div class="row g-4 mb-4">
+        <div class="col-md-3"><div class="metric-card card-blue"><div class="metric-icon">💰</div><div><div class="metric-value">@Model.GrossRevenue.ToString("N0")</div><div class="metric-label">Gross Revenue</div></div></div></div>
+        <div class="col-md-3"><div class="metric-card card-green"><div class="metric-icon">📈</div><div><div class="metric-value">@Model.EstimatedProfit.ToString("N0")</div><div class="metric-label">Est. Profit</div></div></div></div>
+        <div class="col-md-3"><div class="metric-card card-purple"><div class="metric-icon">🏷️</div><div><div class="metric-value">@Model.TotalDiscounts.ToString("N0")</div><div class="metric-label">Discounts</div></div></div></div>
+        <div class="col-md-3"><div class="metric-card card-orange"><div class="metric-icon">📄</div><div><div class="metric-value">@Model.CompletedOrders</div><div class="metric-label">Completed Orders</div></div></div></div>
+        <div class="col-md-3"><div class="metric-card card-teal"><div class="metric-icon">📦</div><div><div class="metric-value">@Model.ItemsSold</div><div class="metric-label">Items Sold</div></div></div></div>
+        <div class="col-md-3"><div class="metric-card card-red"><div class="metric-icon">🏛️</div><div><div class="metric-value">@Model.TaxLiabilities.ToString("N0")</div><div class="metric-label">Tax Liabilities</div></div></div></div>
+        <div class="col-md-3"><div class="metric-card card-yellow"><div class="metric-icon">⏳</div><div><div class="metric-value">@Model.HeldTransactions</div><div class="metric-label">Held Transactions</div></div></div></div>
+        <div class="col-md-3"><div class="metric-card card-darkblue"><div class="metric-icon">↩️</div><div><div class="metric-value">@Model.RefundedTransactions</div><div class="metric-label">Refunded Transactions</div></div></div></div>
+    </div>
+
+    <div class="card border-0 shadow-sm rounded-4">
+        <div class="card-body p-0">
+            <div class="table-responsive" style="max-height: 600px; overflow-y: auto;">
+                <table class="table table-hover m-0 align-middle">
+                    <thead class="bg-dark text-white" style="position: sticky; top: 0; z-index: 1;">
+                        <tr>
+                            <th class="fw-bold px-4 py-3">Date / Time</th>
+                            <th class="fw-bold px-4 py-3">Invoice No.</th>
+                            <th class="fw-bold px-4 py-3">Customer</th>
+                            <th class="fw-bold px-4 py-3">Cashier</th>
+                            <th class="fw-bold px-4 py-3 text-end">Subtotal</th>
+                            <th class="fw-bold px-4 py-3 text-end">Discount</th>
+                            <th class="fw-bold px-4 py-3 text-end">Total</th>
+                            <th class="fw-bold px-4 py-3 text-end">Est. Profit</th>
+                            <th class="fw-bold px-4 py-3 text-center">Status</th>
+                            <th class="fw-bold px-4 py-3 text-center">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @if (Model.Transactions == null || !Model.Transactions.Any())
+                        {
+                            <tr><td colspan="10" class="text-center text-muted py-5 fw-bold">No transactions logged for this period.</td></tr>
+                        }
+                        else
+                        {
+                            foreach (var tx in Model.Transactions)
+                            {
+                                <tr>
+                                    <td class="px-4 py-3 text-muted fw-bold">@tx.SaleDate.ToString("MMM dd, yyyy - hh:mm tt")</td>
+                                    <td class="px-4 py-3 fw-bold text-dark font-monospace">@tx.ReceiptNumber</td>
+                                    <td class="px-4 py-3 text-muted">@(string.IsNullOrWhiteSpace(tx.CustomerName) ? "Walk-in" : tx.CustomerName)</td>
+                                    <td class="px-4 py-3 text-muted fw-bold">@(string.IsNullOrWhiteSpace(tx.CashierName) ? "System Admin" : tx.CashierName)</td>
+                                    <td class="px-4 py-3 text-end">@tx.SubTotal.ToString("N2")</td>
+                                    <td class="px-4 py-3 text-end">@tx.DiscountAmount.ToString("N2")</td>
+                                    <td class="px-4 py-3 text-end fw-bold text-dark">@tx.TotalAmount.ToString("N2")</td>
+                                    <td class="px-4 py-3 text-end fw-bold text-success">@tx.EstimatedProfit.ToString("N2")</td>
+                                    <td class="px-4 py-3 text-center">
+                                        @if (tx.OrderStatus == "Completed")
+                                        {
+                                            <span class="badge bg-success">Completed</span>
+                                        }
+                                        else if (tx.OrderStatus == "Refunded")
+                                        {
+
+                                            <span class="badge bg-danger">Refunded</span>
+                                        }
+                                        else
+                                        {
+
+                                            <span class="badge bg-warning text-dark">@tx.OrderStatus</span>
+                                        }
+                                    </td>
+                                    <td class="px-4 py-3 text-center">
+                                        <button class="btn btn-sm btn-outline-primary rounded-pill px-3 fw-bold">View</button>
+                                    </td>
+                                </tr>
+                            }
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="zReportPreviewModal" tabindex="-1" aria-hidden="true" data-bs-backdrop="static">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content rounded-4 border-0 shadow-lg">
+            <div class="modal-header border-0 bg-dark text-white rounded-top-4">
+                <h5 class="modal-title fw-bold">Z-Report Preview</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body p-4 text-center">
+                <pre id="previewContent" class="text-start bg-light p-3 rounded border border-2 font-monospace" style="white-space: pre-wrap; font-size: 0.9rem; color: #181c32;"></pre>
+
+                <div class="d-flex gap-2 mt-4">
+                    <button type="button" class="btn btn-light border fw-bold flex-grow-1" data-bs-dismiss="modal">Cancel (ESC)</button>
+                    <button type="button" class="btn btn-primary fw-bold flex-grow-1" id="confirmPrintBtn">Print to Hardware (ENTER)</button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div id="hwToast" class="hw-toast alert fw-bold shadow-lg border-0"></div>
+@Html.AntiForgeryToken()
+
+<script>
+    const form = document.getElementById('filterForm');
+    const searchInput = document.getElementById('searchInput');
+    const startDate = document.getElementById('startDate');
+    const endDate = document.getElementById('endDate');
+    const hwToast = document.getElementById('hwToast');
+    const previewModalEl = document.getElementById('zReportPreviewModal');
+    let previewModal;
+    let debounceTimer;
+
+    document.addEventListener("DOMContentLoaded", function () {
+        previewModal = new bootstrap.Modal(previewModalEl);
+        if (searchInput && searchInput.value.length > 0) {
+            searchInput.focus();
+            var val = searchInput.value;
+            searchInput.value = '';
+            searchInput.value = val;
+        }
+    });
+
+    function showHardwareToast(message, isSuccess) {
+        hwToast.textContent = message;
+        hwToast.className = `hw-toast alert fw-bold shadow-lg border-0 ${isSuccess ? 'alert-success' : 'alert-danger'}`;
+        hwToast.style.display = 'block';
+        setTimeout(() => { hwToast.style.display = 'none'; }, 4000);
+    }
+
+    // ARCHITECT FIX: Bind both dates into the Query String for the BLL engine
+    function fetchPreview() {
+        const start = startDate.value;
+        const end = endDate.value;
+
+        fetch(`/ReportAdmin/GetZReportPreview?startDate=${start}&endDate=${end}`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                document.getElementById('previewContent').textContent = data.preview;
+                previewModal.show();
+            } else {
+                showHardwareToast(data.message, false);
+            }
+        })
+        .catch(error => {
+            showHardwareToast("NETWORK FAULT: Unable to generate preview.", false);
+        });
+    }
+
+    // ARCHITECT FIX: Bind both dates into the API POST request
+    function dispatchHardwarePrint() {
+        const start = startDate.value;
+        const end = endDate.value;
+        const token = document.querySelector('input[name="__RequestVerificationToken"]').value;
+
+        const printBtn = document.getElementById('confirmPrintBtn');
+        printBtn.disabled = true;
+        printBtn.textContent = "Dispatching...";
+
+        fetch(`/ReportAdmin/PrintZReport?startDate=${start}&endDate=${end}`, {
+            method: 'POST',
+            headers: { 'RequestVerificationToken': token }
+        })
+        .then(response => response.json())
+        .then(data => {
+            previewModal.hide();
+            printBtn.disabled = false;
+            printBtn.textContent = "Print to Hardware (ENTER)";
+            showHardwareToast(data.message, data.success);
+        })
+        .catch(error => {
+            previewModal.hide();
+            printBtn.disabled = false;
+            printBtn.textContent = "Print to Hardware (ENTER)";
+            showHardwareToast("NETWORK FAULT: Unable to reach hardware controller.", false);
+        });
+    }
+
+    document.getElementById('btnPreviewZReport').addEventListener('click', fetchPreview);
+    document.getElementById('confirmPrintBtn').addEventListener('click', dispatchHardwarePrint);
+
+    startDate.addEventListener('change', () => {
+        if(startDate.value && endDate.value) form.submit();
+    });
+
+    endDate.addEventListener('change', () => {
+        if(startDate.value && endDate.value) form.submit();
+    });
+
+    searchInput.addEventListener('input', function () {
+        clearTimeout(debounceTimer);
+        debounceTimer = setTimeout(() => { form.submit(); }, 800);
+    });
+
+    document.addEventListener('keydown', function (e) {
+        if (e.key === 'F2') {
+            e.preventDefault();
+            searchInput.focus();
+            searchInput.select();
+        }
+
+        if (previewModalEl.classList.contains('show')) {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                dispatchHardwarePrint();
+            }
+        } else {
+            if (e.key === 'F8') {
+                e.preventDefault();
+                fetchPreview();
+            }
+        }
+    });
+</script>

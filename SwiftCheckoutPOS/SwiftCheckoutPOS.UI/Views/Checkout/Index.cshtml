@@ -1,0 +1,1035 @@
+﻿<!-- Project: SwiftCheckoutPOS.UI -->
+<!-- File: Views/Checkout/Index.cshtml -->
+@model SwiftCheckoutPOS.UI.Models.CheckoutViewModel
+
+@{
+    ViewData["Title"] = "Terminal 01";
+    Layout = null;
+
+    bool canPay = Model.Cart.Items.Any();
+    if (Model.Cart.CustomerType == "Loyalty" && !Model.Cart.CustomerId.HasValue)
+    {
+        canPay = false;
+    }
+
+    string ResolveImagePath(string path)
+    {
+        if (string.IsNullOrWhiteSpace(path)) return "/images/products/default.png";
+        if (path.Contains("/")) return path;
+        return "/images/products/" + path;
+    }
+}
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>POS Terminal - SwiftCheckout</title>
+    <link rel="stylesheet" href="~/lib/bootstrap/dist/css/bootstrap.min.css" />
+    <style>
+            :root {
+                --pos-bg: #f8f9fa;
+                --pos-surface: #ffffff;
+                --pos-border: #e2e8f0;
+                --pos-primary: #0d6efd;
+                --text-main: #334155;
+                --text-muted: #64748b;
+            }
+
+            body {
+                background-color: var(--pos-bg);
+                font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen-Sans, Ubuntu, Cantarell, "Helvetica Neue", sans-serif;
+                font-size: 0.95rem;
+                color: var(--text-main);
+                height: 100vh;
+                display: flex;
+                flex-direction: column;
+                overflow: hidden;
+                user-select: none;
+                letter-spacing: -0.01em;
+            }
+
+            .pos-header {
+                padding: 0.6rem 1.25rem;
+                background: var(--pos-surface);
+                border-bottom: 1px solid var(--pos-border);
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+            }
+
+            .search-container {
+                background: var(--pos-bg);
+                border: 1px solid var(--pos-border);
+                border-radius: 0.375rem;
+                padding: 0.5rem 0.75rem;
+                display: flex;
+                align-items: center;
+                width: 50%;
+                transition: border-color 0.15s ease-in-out, box-shadow 0.15s ease-in-out;
+            }
+
+                .search-container:focus-within {
+                    border-color: #93c5fd;
+                    background: #fff;
+                    box-shadow: 0 0 0 3px rgba(13, 110, 253, 0.15);
+                }
+
+            .search-input {
+                border: none;
+                background: transparent;
+                width: 100%;
+                margin-left: 0.5rem;
+                outline: none;
+                font-size: 0.95rem;
+            }
+
+            .pos-body {
+                display: flex;
+                flex-grow: 1;
+                padding: 1rem;
+                gap: 1rem;
+                overflow: hidden;
+            }
+
+            .panel {
+                background: var(--pos-surface);
+                border: 1px solid var(--pos-border);
+                border-radius: 0.5rem;
+                display: flex;
+                flex-direction: column;
+                overflow: hidden;
+                box-shadow: 0 1px 2px rgba(0,0,0,0.02);
+            }
+
+            .catalog-panel {
+                flex: 6;
+            }
+
+            .grid-header {
+                display: grid;
+                grid-template-columns: 50px 2fr 1.5fr 1fr 1fr 80px;
+                padding: 0.6rem 1.25rem;
+                background: #f8fafc;
+                border-bottom: 1px solid var(--pos-border);
+                font-weight: 600;
+                text-transform: uppercase;
+                font-size: 0.75rem;
+                color: var(--text-muted);
+                letter-spacing: 0.05em;
+            }
+
+            .catalog-list {
+                overflow-y: auto;
+                list-style: none;
+                padding: 0;
+                margin: 0;
+            }
+
+            .catalog-row {
+                display: grid;
+                grid-template-columns: 50px 2fr 1.5fr 1fr 1fr 80px;
+                align-items: center;
+                padding: 0.6rem 1.25rem;
+                border-bottom: 1px solid #f1f5f9;
+                cursor: pointer;
+                transition: background-color 0.1s;
+            }
+
+                .catalog-row:hover {
+                    background: #f8fafc;
+                }
+
+                .catalog-row:active {
+                    background: #e2e8f0;
+                }
+
+            .product-thumb {
+                width: 40px;
+                height: 40px;
+                object-fit: cover;
+                border-radius: 0.25rem;
+                border: 1px solid var(--pos-border);
+            }
+
+            .cart-panel {
+                flex: 4;
+                justify-content: space-between;
+            }
+
+            .cart-header {
+                padding: 1rem 1.25rem;
+                border-bottom: 1px solid var(--pos-border);
+                background: var(--pos-surface);
+            }
+
+            .customer-toggle {
+                display: flex;
+                gap: 0.5rem;
+                margin-bottom: 0.75rem;
+            }
+
+            .toggle-btn {
+                flex: 1;
+                padding: 0.4rem;
+                text-align: center;
+                border: 1px solid var(--pos-border);
+                background: #f8fafc;
+                color: var(--text-muted);
+                font-weight: 500;
+                cursor: pointer;
+                border-radius: 0.375rem;
+                transition: all 0.15s;
+            }
+
+                .toggle-btn.active {
+                    background: #0f172a;
+                    color: white;
+                    border-color: #0f172a;
+                    font-weight: 600;
+                }
+
+            .cart-items {
+                flex-grow: 1;
+                overflow-y: auto;
+            }
+
+            .cart-item-row {
+                display: grid;
+                grid-template-columns: 3fr 1fr 100px 1fr 45px;
+                gap: 0.5rem;
+                align-items: center;
+                padding: 0.75rem 1.25rem;
+                border-bottom: 1px solid #f1f5f9;
+            }
+
+            .qty-controls {
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                border: 1px solid var(--pos-border);
+                border-radius: 0.25rem;
+                background: #f8fafc;
+            }
+
+            .qty-btn {
+                background: none;
+                border: none;
+                padding: 0.15rem 0.5rem;
+                font-weight: bold;
+                color: var(--text-muted);
+                cursor: pointer;
+            }
+
+            .qty-val {
+                padding: 0 0.2rem;
+                font-weight: 600;
+                width: 32px;
+                text-align: center;
+                font-size: 0.9rem;
+            }
+
+            .btn-trash {
+                background: #fee2e2;
+                border: 1px solid #fecaca;
+                color: #ef4444;
+                border-radius: 0.25rem;
+                padding: 0.4rem;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                transition: all 0.15s;
+                cursor: pointer;
+            }
+
+                .btn-trash:hover {
+                    background: #fecaca;
+                    border-color: #f87171;
+                    color: #dc2626;
+                }
+
+            /* ARCHITECT FIX: Optical de-emphasis for currency symbols */
+            .currency-bdt {
+                font-size: 0.75em;
+                font-weight: 700;
+                opacity: 0.6;
+                margin-right: 0.15rem;
+                letter-spacing: 0.02em;
+                vertical-align: baseline;
+            }
+
+            .totals-container {
+                background: #ffffff;
+                border-top: 1px solid var(--pos-border);
+                padding: 1.5rem;
+                box-shadow: 0 -4px 12px rgba(0,0,0,0.02);
+                z-index: 10;
+            }
+
+            .summary-row {
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                margin-bottom: 0.75rem;
+                font-size: 1rem;
+            }
+
+            .discount-group {
+                display: flex;
+                background: #f8fafc;
+                border: 1px solid var(--pos-border);
+                border-radius: 0.5rem;
+                overflow: hidden;
+                transition: border-color 0.2s;
+            }
+
+                .discount-group:focus-within {
+                    border-color: var(--pos-primary);
+                    box-shadow: 0 0 0 3px rgba(13, 110, 253, 0.15);
+                }
+
+            .discount-input {
+                border: none;
+                background: transparent;
+                width: 80px;
+                text-align: right;
+                padding: 0.4rem 0.5rem;
+                font-weight: 600;
+                outline: none;
+                color: #334155;
+            }
+
+            .discount-select {
+                border: none;
+                background: #e2e8f0;
+                padding: 0 0.5rem;
+                font-weight: 700;
+                color: var(--text-muted);
+                outline: none;
+                cursor: pointer;
+            }
+
+            .total-box {
+                background: #f0fdf4;
+                border: 1px solid #bbf7d0;
+                border-radius: 0.75rem;
+                padding: 1rem 1.25rem;
+                margin-top: 1rem;
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+            }
+
+                .total-box span:first-child {
+                    color: #065f46;
+                    font-weight: 800;
+                    font-size: 1.1rem;
+                    text-transform: uppercase;
+                    letter-spacing: 0.05em;
+                }
+
+            .price-display {
+                display: flex;
+                align-items: baseline;
+                gap: 0.25rem;
+            }
+
+            .total-box .currency-bdt {
+                font-size: 1.2rem;
+                opacity: 0.8;
+                color: #059669;
+            }
+
+            .total-box #cartTotal {
+                color: #059669;
+                font-weight: 800;
+                font-size: 2.2rem;
+                line-height: 1;
+            }
+
+            .payment-grid {
+                display: grid;
+                grid-template-columns: 1fr 1fr 1fr;
+                gap: 0.75rem;
+                margin-top: 1.25rem;
+            }
+
+            /* ARCHITECT FIX: Refined Button Proportions */
+            .btn-pay {
+                border: none;
+                border-radius: 0.75rem;
+                padding: 0.85rem 0.5rem; /* Reduced height to remove visual bloat */
+                font-weight: 700;
+                font-size: 1rem;
+                color: white;
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                justify-content: center;
+                gap: 0.3rem; /* Tighter grouping */
+                transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+                box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+            }
+
+                .btn-pay:hover:not(:disabled) {
+                    transform: translateY(-3px);
+                    box-shadow: 0 8px 15px rgba(0,0,0,0.1);
+                }
+
+                .btn-pay:active:not(:disabled) {
+                    transform: translateY(0);
+                }
+
+                .btn-pay:disabled {
+                    opacity: 0.5;
+                    cursor: not-allowed;
+                    filter: grayscale(80%);
+                    box-shadow: none;
+                    transform: none;
+                }
+
+                /* Smaller, crisper icons */
+                .btn-pay svg {
+                    width: 24px;
+                    height: 24px;
+                    stroke-width: 2.5px;
+                }
+
+                .btn-pay small {
+                    font-size: 0.75rem;
+                    font-weight: 700;
+                    opacity: 0.9;
+                    background: rgba(0,0,0,0.15);
+                    padding: 0.2rem 0.5rem;
+                    border-radius: 0.25rem;
+                    margin-top: 0.1rem;
+                    letter-spacing: 0.05em;
+                }
+
+            .btn-cash {
+                background: linear-gradient(135deg, #10b981, #059669);
+            }
+
+            .btn-card {
+                background: linear-gradient(135deg, #3b82f6, #2563eb);
+            }
+
+            .btn-mfs {
+                background: #facc15;
+                color: #451a03 !important;
+            }
+
+                .btn-mfs small {
+                    background: rgba(0,0,0,0.08);
+                }
+
+            ::-webkit-scrollbar {
+                width: 6px;
+            }
+
+            ::-webkit-scrollbar-track {
+                background: transparent;
+            }
+
+            ::-webkit-scrollbar-thumb {
+                background: #cbd5e1;
+                border-radius: 3px;
+            }
+    </style>
+</head>
+<body>
+
+    @if (TempData["Error"] != null)
+    {
+        <div class="position-absolute top-0 start-50 translate-middle-x mt-2 alert alert-danger shadow-sm z-3 py-2 px-4 rounded-3 border-0 fw-bold auto-dismiss-alert">@TempData["Error"]</div>
+    }
+    @if (TempData["Success"] != null)
+    {
+        <div class="position-absolute top-0 start-50 translate-middle-x mt-2 alert alert-success shadow-sm z-3 py-2 px-4 rounded-3 border-0 fw-bold auto-dismiss-alert">@TempData["Success"]</div>
+    }
+
+    <header class="pos-header">
+        <form asp-action="ScanBarcode" method="post" id="scanForm" class="search-container m-0">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" stroke-width="2"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+            <input type="text" id="searchInput" name="barcode" class="search-input" placeholder="Scan barcode or type SKU (Press F2 to focus)..." autocomplete="off" autofocus>
+            <button type="submit" class="d-none"></button>
+        </form>
+
+        <div class="d-flex align-items-center gap-3">
+            <div class="text-end lh-sm">
+                <div class="fw-bold" style="font-size: 0.95rem;">@User.Identity?.Name</div>
+                <div class="text-muted" style="font-size: 0.8rem;">Terminal 01</div>
+            </div>
+            <form asp-controller="Account" asp-action="Logout" method="post" class="m-0">
+                <button type="submit" class="btn btn-sm btn-danger fw-bold rounded-2 px-3 shadow-sm">Logout</button>
+            </form>
+        </div>
+    </header>
+
+    <div class="pos-body">
+
+        <div class="panel catalog-panel">
+            <div class="grid-header">
+                <div>Img</div>
+                <div>Product Name</div>
+                <div>Barcode / SKU</div>
+                <div class="text-end">Price</div>
+                <div class="text-end">Stock</div>
+                <div class="text-end">Action</div>
+            </div>
+
+            <ul class="catalog-list" id="productList">
+                @foreach (var product in Model.AvailableProducts)
+                {
+                    <li class="catalog-row product-item" data-name="@product.ProductName.ToLower()" data-barcode="@product.Barcode" onclick="document.getElementById('add-@product.ProductId').submit();">
+
+                        <div>
+                            <img src="@ResolveImagePath(product.ImagePath)" class="product-thumb" alt="IMG" onerror="this.onerror=null;this.src='/images/products/default.png';" />
+                        </div>
+
+                        <div class="fw-bold text-dark text-truncate">@product.ProductName</div>
+                        <div class="text-muted font-monospace" style="font-size: 0.85rem;">@product.Barcode</div>
+                        <div class="fw-bold text-primary text-end">
+                            <span class="currency-bdt text-muted">BDT</span>@product.SellingPrice.ToString("N0")
+                        </div>
+
+                        <div class="text-end">
+                            <span class="fw-bold @(product.StockQuantity <= 0 ? "text-danger" : "text-success")">
+                                @product.StockQuantity
+                            </span>
+                            <br /><small class="text-muted" style="font-size: 0.7rem;">@product.UnitOfMeasure</small>
+                        </div>
+
+                        <div class="text-end">
+                            <form asp-action="AddById" method="post" id="add-@product.ProductId" class="m-0 d-inline add-form" onsubmit="return validateStockBeforeAdd(event, @product.StockQuantity);">
+                                <input type="hidden" name="productId" value="@product.ProductId" />
+                                <button type="submit" class="btn btn-sm btn-light border p-1 px-2 text-muted" @(product.StockQuantity <= 0 ? "disabled" : "") style="font-size: 0.8rem;">Add ↵</button>
+                            </form>
+                        </div>
+                    </li>
+                }
+            </ul>
+        </div>
+
+        <div class="panel cart-panel">
+            <div class="cart-header">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <h5 class="mb-0 fw-bold">Current Order</h5>
+                    <div class="d-flex gap-2">
+                        <form asp-action="ClearCart" method="post" class="m-0" onsubmit="return confirm('Clear active order?');">
+                            <button type="submit" class="btn btn-sm btn-outline-danger fw-bold" @(Model.Cart.Items.Any() ? "" : "disabled")>Clear</button>
+                        </form>
+                        <form asp-action="HoldOrder" method="post" class="m-0">
+                            <button type="submit" class="btn btn-sm btn-warning fw-bold text-dark" @(Model.Cart.Items.Any() ? "" : "disabled")>Hold</button>
+                        </form>
+                        <button type="button" class="btn btn-sm btn-dark fw-bold" data-bs-toggle="modal" data-bs-target="#heldOrdersModal">
+                            Held (@Model.HeldOrders.Count)
+                        </button>
+                    </div>
+                </div>
+
+                <div class="customer-toggle">
+                    <form asp-action="SetCustomerType" method="post" class="flex-grow-1 m-0">
+                        <input type="hidden" name="type" value="Walk-in" />
+                        <button type="submit" class="toggle-btn w-100 @(Model.Cart.CustomerType == "Walk-in" ? "active" : "")">Walk-in</button>
+                    </form>
+                    <form asp-action="SetCustomerType" method="post" class="flex-grow-1 m-0">
+                        <input type="hidden" name="type" value="Loyalty" />
+                        <button type="submit" class="toggle-btn w-100 @(Model.Cart.CustomerType == "Loyalty" ? "active" : "")">Loyalty Customer</button>
+                    </form>
+                </div>
+
+                @if (Model.Cart.CustomerType == "Loyalty")
+                {
+                    <div class="mt-2">
+                        <input type="text" id="loyaltyPhoneInput" class="form-control form-control-sm border-secondary"
+                               placeholder="Enter phone (e.g. 555-0199)..." autocomplete="off" />
+                        <div id="loyaltyResult" class="mt-1 fw-bold" style="font-size: 0.85rem;">
+                            @if (!string.IsNullOrEmpty(Model.Cart.CustomerName))
+                            {
+                                <span class="text-success">✔ Linked: @Model.Cart.CustomerName</span>
+                            }
+                            else
+                            {
+                                <span class="text-danger">✖ Unlinked (Checkout Disabled)</span>
+                            }
+                        </div>
+                    </div>
+                }
+
+                <div class="d-flex justify-content-between align-items-center mt-3 pt-2 border-top">
+                    <span class="text-muted small fw-bold">Invoice:</span>
+                    <span class="font-monospace fw-bold text-dark" style="font-size: 0.85rem;">@Model.Cart.InvoiceNumber</span>
+                </div>
+            </div>
+
+            <div class="grid-header" style="grid-template-columns: 3fr 1fr 100px 1fr 45px; background: #fff; border-bottom: 2px solid var(--pos-border);">
+                <div>Item</div>
+                <div class="text-end">Price</div>
+                <div class="text-center">Qty</div>
+                <div class="text-end">Total</div>
+                <div></div>
+            </div>
+
+            <div class="cart-items">
+                @foreach (var item in Model.Cart.Items)
+                {
+                    <div class="cart-item-row">
+                        <div class="fw-bold text-dark text-truncate" title="@item.ProductName">@item.ProductName</div>
+                        <div class="text-muted text-end" style="font-size: 0.85rem;">@item.UnitPrice.ToString("N0")</div>
+
+                        <div class="qty-controls">
+                            <form asp-action="UpdateQuantity" method="post" class="m-0"><input type="hidden" name="productId" value="@item.ProductId" /><input type="hidden" name="change" value="-1" /><button type="submit" class="qty-btn">-</button></form>
+                            <span class="qty-val">@item.Quantity</span>
+                            <form asp-action="UpdateQuantity" method="post" class="m-0"><input type="hidden" name="productId" value="@item.ProductId" /><input type="hidden" name="change" value="1" /><button type="submit" class="qty-btn">+</button></form>
+                        </div>
+
+                        <div class="fw-bold text-end text-dark">@item.LineTotal.ToString("N0")</div>
+
+                        <form asp-action="RemoveItem" method="post" class="m-0 text-end">
+                            <input type="hidden" name="productId" value="@item.ProductId" />
+                            <button type="submit" class="btn-trash ms-auto" tabindex="-1" title="Remove Item">
+                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
+                            </button>
+                        </form>
+                    </div>
+                }
+            </div>
+
+            <div class="totals-container">
+
+                <div class="summary-row">
+                    <span class="text-muted fw-bold">Subtotal</span>
+                    <span class="fw-bold text-dark fs-5">
+                        <span class="currency-bdt text-muted">BDT</span>@Model.Cart.GrossSubTotal.ToString("N0")
+                    </span>
+                </div>
+
+                <div class="summary-row mt-2">
+                    <span class="text-muted fw-bold d-flex align-items-center gap-2">
+                        Discount
+                        @if (Model.Cart.CalculatedDiscount > 0)
+                        {
+                            <span class="badge bg-danger rounded-pill"><span style="opacity: 0.8; font-weight: 500;">-BDT</span> @Model.Cart.CalculatedDiscount.ToString("N0")</span>
+                        }
+                    </span>
+                    <form asp-action="ApplyBillDiscount" method="post" id="discountForm" class="m-0">
+                        <div class="discount-group">
+                            <input type="number" name="discountValue" id="discountInput" class="discount-input" step="1"
+                                   data-subtotal="@Model.Cart.GrossSubTotal"
+                                   placeholder="0" onchange="capAndSubmitDiscount()"
+                                   value="@(Model.Cart.BillDiscountPercentage > 0 ? Model.Cart.BillDiscountPercentage : Model.Cart.BillDiscountAmount > 0 ? Model.Cart.BillDiscountAmount : "")" />
+
+                            <select name="discountType" id="discountType" class="discount-select" onchange="capAndSubmitDiscount()">
+                                <option value="Percent" selected="@(Model.Cart.BillDiscountPercentage > 0 && Model.Cart.BillDiscountAmount == 0)">%</option>
+                                <option value="Flat" selected="@(Model.Cart.BillDiscountAmount > 0 || (Model.Cart.BillDiscountPercentage == 0 && Model.Cart.BillDiscountAmount == 0))">BDT</option>
+                            </select>
+                        </div>
+                    </form>
+                </div>
+
+                <div class="total-box shadow-sm">
+                    <span>Total Pay</span>
+                    <div class="price-display">
+                        <span class="currency-bdt">BDT</span>
+                        <span id="cartTotal">@Model.Cart.TotalAmount.ToString("N0")</span>
+                    </div>
+                </div>
+
+                <form asp-action="Finalize" method="post" id="finalizeForm" class="d-none">
+                    <input type="hidden" name="paymentMethod" id="hiddenPaymentMethod" value="" />
+                    <input type="hidden" id="currentReceiptNum" value="@Model.Cart.InvoiceNumber" />
+                </form>
+
+                <div class="d-flex justify-content-end align-items-center mt-3 mb-1">
+                    <div class="form-check form-switch cursor-pointer d-flex align-items-center">
+                        <input class="form-check-input shadow-sm m-0" type="checkbox" id="showPreviewCheck" style="cursor: pointer; width: 2.25em; height: 1.15em;">
+                        <label class="form-check-label fw-bold text-muted ms-2 mt-1" for="showPreviewCheck" style="cursor: pointer; font-size: 0.9rem;">
+                            Invoice Preview <kbd class="bg-dark ms-1 shadow-sm px-2">F9</kbd>
+                        </label>
+                    </div>
+                </div>
+
+                <div class="payment-grid">
+                    <button type="button" id="btnPayCash" class="btn-pay btn-cash" onclick="initiatePayment('Cash')" @(canPay ? "" : "disabled")>
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="2" y="6" width="20" height="12" rx="2"></rect><circle cx="12" cy="12" r="2"></circle><path d="M6 12h.01M18 12h.01"></path></svg>
+                        <span>CASH</span>
+                        <small>[F4]</small>
+                    </button>
+                    <button type="button" id="btnPayCard" class="btn-pay btn-card" onclick="initiatePayment('Card')" @(canPay ? "" : "disabled")>
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="1" y="4" width="22" height="16" rx="2"></rect><line x1="1" y1="10" x2="23" y2="10"></line></svg>
+                        <span>CARD</span>
+                        <small>[F7]</small>
+                    </button>
+                    <button type="button" id="btnPayMfs" class="btn-pay btn-mfs" onclick="initiatePayment('Mobile Wallet')" @(canPay ? "" : "disabled")>
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="5" y="2" width="14" height="20" rx="2"></rect><line x1="12" y1="18" x2="12.01" y2="18"></line></svg>
+                        <span>M-FS</span>
+                        <small>[F8]</small>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modals -->
+    <div class="modal fade" id="paymentModal" tabindex="-1" aria-hidden="true" data-bs-backdrop="static">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content border-0 shadow-lg rounded-4">
+                <div class="modal-body p-4 text-center">
+                    <h4 class="fw-bold mb-3">Confirm Payment</h4>
+                    <p class="text-muted mb-4 fs-5">
+                        Process <strong id="modalPaymentType" class="text-dark">Cash</strong> payment for <br />
+                    </p>
+                    <div id="modalAmountContainer" class="d-flex justify-content-center align-items-baseline gap-2 mb-4">
+                        <span class="currency-bdt">BDT</span>
+                        <span id="modalAmount">@Model.Cart.TotalAmount.ToString("N0")</span>
+                    </div>
+                    <div class="d-flex gap-3 mt-4">
+                        <button type="button" class="btn btn-light w-50 fw-bold py-2 border" data-bs-dismiss="modal">Cancel (ESC)</button>
+                        <button type="button" class="btn w-50 fw-bold py-2" id="confirmPaymentBtn">Confirm (ENTER)</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal fade" id="previewModal" tabindex="-1" aria-hidden="true" data-bs-backdrop="static">
+        <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable" style="max-width: 440px;">
+            <div class="modal-content border-0 shadow-lg rounded-4 bg-light">
+                <div class="modal-header bg-dark text-white rounded-top-4 border-0 py-2">
+                    <h6 class="modal-title fw-bold m-0"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="me-1"><polyline points="6 9 6 2 18 2 18 9"></polyline><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path><rect x="6" y="14" width="12" height="8"></rect></svg> Print Preview</h6>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body p-3 text-center">
+                    <pre id="previewContent" class="m-0 p-3 bg-white text-dark mx-auto border text-start shadow-sm d-inline-block" style="font-family: 'Courier New', Courier, monospace; font-size: 0.85rem; line-height: 1.2; white-space: pre; overflow-x: hidden;"></pre>
+                </div>
+                <div class="modal-footer bg-white border-top-0 d-flex gap-2 rounded-bottom-4">
+                    <button type="button" class="btn btn-light border fw-bold flex-grow-1" data-bs-dismiss="modal">Cancel (ESC)</button>
+                    <button type="button" class="btn btn-primary fw-bold flex-grow-1" id="printFromPreviewBtn">Print (ENTER)</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal fade" id="heldOrdersModal" tabindex="-1">
+        <div class="modal-dialog modal-dialog-centered modal-lg">
+            <div class="modal-content rounded-3 border-0 shadow">
+                <div class="modal-header bg-dark text-white rounded-top-3 border-0">
+                    <h6 class="modal-title fw-bold">Held Orders</h6>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body p-0">
+                    <ul class="list-group list-group-flush rounded-bottom-3">
+                        @foreach (var held in Model.HeldOrders)
+                        {
+                            string customerDisplay = held.Customer != null ? $"Loyalty: {held.Customer.FullName}" : "Walk-in Customer";
+
+                            <li class="list-group-item d-flex justify-content-between align-items-center p-3">
+                                <div>
+                                    <div class="fw-bold fs-6">@held.ReceiptNumber</div>
+                                    <div class="text-muted small">@held.SaleDate.ToString("HH:mm") | @customerDisplay | @held.SaleItems.Sum(i => i.Quantity) Items</div>
+                                </div>
+                                <div class="d-flex align-items-center gap-3">
+                                    <div class="fw-bold text-success fs-5">
+                                        <span class="currency-bdt">BDT</span>@held.TotalAmount.ToString("N0")
+                                    </div>
+                                    <form asp-action="ResumeOrder" method="post" class="m-0">
+                                        <input type="hidden" name="saleId" value="@held.SaleId" />
+                                        <button type="submit" class="btn btn-primary fw-bold px-4">Resume</button>
+                                    </form>
+                                </div>
+                            </li>
+                        }
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal fade" id="logoutConfirmModal" tabindex="-1" aria-hidden="true" data-bs-backdrop="static">
+        <div class="modal-dialog modal-dialog-centered modal-sm">
+            <div class="modal-content rounded-4 border-0 shadow-lg">
+                <div class="modal-body p-4 text-center">
+                    <div class="text-danger mb-3 d-flex justify-content-center">
+                        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
+                            <polyline points="16 17 21 12 16 7"></polyline>
+                            <line x1="21" y1="12" x2="9" y2="12"></line>
+                        </svg>
+                    </div>
+                    <h4 class="fw-bold mb-2 text-dark">Confirm Logout</h4>
+                    <p class="text-muted mb-4 small fw-bold">Are you sure you want to end your shift and secure this terminal?</p>
+                    <div class="d-flex gap-2">
+                        <button type="button" class="btn btn-light border fw-bold flex-grow-1" data-bs-dismiss="modal">Cancel (ESC)</button>
+                        <button type="button" class="btn btn-danger fw-bold flex-grow-1" id="confirmLogoutBtn">Logout (ENTER)</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="~/lib/bootstrap/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        function validateStockBeforeAdd(e, maxStock) {
+        if (maxStock <= 0) {
+        e.preventDefault();
+        alert("Cannot add to cart. Physical stock is exactly 0.");
+        return false;
+        }
+        return true;
+        }
+
+        const searchInput = document.getElementById('searchInput');
+        const items = document.querySelectorAll('.product-item');
+
+        searchInput.addEventListener('input', function(e) {
+        const term = e.target.value.trim().toLowerCase();
+        let exactMatchFound = false;
+
+        items.forEach(item => {
+        const name = item.getAttribute('data-name');
+        const barcode = item.getAttribute('data-barcode');
+
+        if (name.includes(term) || barcode.includes(term)) { item.style.display = 'grid'; }
+        else { item.style.display = 'none'; }
+
+        if (term === barcode && !exactMatchFound) {
+        exactMatchFound = true;
+        e.target.value = '';
+        item.querySelector('form').submit();
+        }
+        });
+        });
+
+        function capAndSubmitDiscount() {
+        const input = document.getElementById('discountInput');
+        const type = document.getElementById('discountType').value;
+        const subtotal = parseFloat(input.getAttribute('data-subtotal')) || 0;
+        let val = parseFloat(input.value) || 0;
+        if (type === 'Flat' && val > subtotal) { input.value = Math.floor(subtotal); }
+        else if (type === 'Percent' && val > 100) { input.value = 100; }
+        document.getElementById('discountForm').submit();
+        }
+
+        let paymentModalInstance;
+        let previewModalInstance;
+
+        document.addEventListener("DOMContentLoaded", function() {
+        paymentModalInstance = new bootstrap.Modal(document.getElementById('paymentModal'));
+        previewModalInstance = new bootstrap.Modal(document.getElementById('previewModal'));
+
+        setTimeout(() => {
+        const alerts = document.querySelectorAll('.auto-dismiss-alert');
+        alerts.forEach(a => {
+        a.style.transition = 'opacity 0.5s ease';
+        a.style.opacity = '0';
+        setTimeout(() => a.remove(), 500);
+        });
+        }, 4000);
+
+        const previewToggle = document.getElementById('showPreviewCheck');
+        if (previewToggle) {
+        const savedState = localStorage.getItem('swiftPos_invoicePreviewState');
+        if (savedState !== null) {
+        previewToggle.checked = (savedState === 'true');
+        }
+        previewToggle.addEventListener('change', function () {
+        localStorage.setItem('swiftPos_invoicePreviewState', this.checked);
+        });
+        }
+
+        const logoutForms = document.querySelectorAll('form[action$="/Logout"], form[action$="/Account/Logout"]');
+        const logoutModalEl = document.getElementById('logoutConfirmModal');
+        let logoutModal;
+        let activeLogoutForm = null;
+
+        if (logoutModalEl && logoutForms.length > 0) {
+        logoutModal = new bootstrap.Modal(logoutModalEl);
+        logoutForms.forEach(form => {
+        form.addEventListener('submit', function (e) {
+        if (!activeLogoutForm) {
+        e.preventDefault();
+        activeLogoutForm = this;
+        logoutModal.show();
+        }
+        });
+        });
+        logoutModalEl.addEventListener('shown.bs.modal', function () {
+        document.getElementById('confirmLogoutBtn').focus();
+        });
+        logoutModalEl.addEventListener('hidden.bs.modal', function () {
+        activeLogoutForm = null;
+        });
+        document.getElementById('confirmLogoutBtn').addEventListener('click', function () {
+        if (activeLogoutForm) activeLogoutForm.submit();
+        });
+        }
+        });
+
+        function initiatePayment(method) {
+        const typeEl = document.getElementById('modalPaymentType');
+        const amountContainerEl = document.getElementById('modalAmountContainer');
+        const btnEl = document.getElementById('confirmPaymentBtn');
+
+        typeEl.innerText = method;
+        document.getElementById('hiddenPaymentMethod').value = method;
+
+        btnEl.className = 'btn w-50 fw-bold py-2';
+        amountContainerEl.className = 'fs-1 fw-bold d-flex justify-content-center align-items-baseline gap-2 mb-4';
+
+        if (method === 'Cash') { btnEl.classList.add('btn-success'); amountContainerEl.classList.add('text-success'); }
+        else if (method === 'Card') { btnEl.classList.add('btn-primary'); amountContainerEl.classList.add('text-primary'); }
+        else if (method === 'Mobile Wallet') { btnEl.classList.add('btn-warning', 'text-dark'); amountContainerEl.classList.add('text-warning'); }
+
+        paymentModalInstance.show();
+        }
+
+        document.getElementById('confirmPaymentBtn').addEventListener('click', function() {
+        const isPreviewEnabled = document.getElementById('showPreviewCheck').checked;
+
+        if (isPreviewEnabled) {
+        this.innerText = 'Loading...';
+        this.disabled = true;
+
+        fetch('/Checkout/GetInvoicePreview')
+        .then(response => response.json())
+        .then(data => {
+        this.innerText = 'Confirm (ENTER)';
+        this.disabled = false;
+
+        if (data.success) {
+        document.getElementById('previewContent').innerText = data.preview;
+        paymentModalInstance.hide();
+        previewModalInstance.show();
+        } else {
+        alert(data.message);
+        }
+        });
+        } else {
+        this.disabled = true;
+        this.innerText = 'Printing & Processing...';
+        triggerHardwarePrint();
+        setTimeout(() => { document.getElementById('finalizeForm').submit(); }, 500);
+        }
+        });
+
+        document.getElementById('printFromPreviewBtn').addEventListener('click', function() {
+        this.disabled = true;
+        this.innerText = 'Printing...';
+        triggerHardwarePrint();
+        setTimeout(() => { document.getElementById('finalizeForm').submit(); }, 500);
+        });
+
+        function triggerHardwarePrint() {
+        const receiptData = {
+        receiptNumber: document.getElementById('currentReceiptNum').value,
+        totalAmount: parseFloat(document.getElementById('cartTotal').innerText.replace(/[^0-9.-]+/g,"")) || 0
+        };
+        fetch('/Checkout/TriggerHardwarePrint', { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: new URLSearchParams(receiptData) })
+        .catch(error => { console.error("CRITICAL ERROR: COM Port unavailable."); });
+        }
+
+        let hidBuffer = "";
+        let lastKeyTime = Date.now();
+        const SCANNER_THRESHOLD_MS = 30;
+
+        document.addEventListener('keydown', function(e) {
+
+        const logoutModalEl = document.getElementById('logoutConfirmModal');
+        if (logoutModalEl && logoutModalEl.classList.contains('show')) {
+        if (e.key === 'Enter') { e.preventDefault(); document.getElementById('confirmLogoutBtn').click(); }
+        return;
+        }
+
+        if (document.getElementById('previewModal').classList.contains('show')) {
+        if (e.key === 'Enter') { e.preventDefault(); document.getElementById('printFromPreviewBtn').click(); }
+        return;
+        }
+
+        if (document.getElementById('paymentModal').classList.contains('show')) {
+        if (e.key === 'Enter') { e.preventDefault(); document.getElementById('confirmPaymentBtn').click(); }
+        return;
+        }
+
+        if (e.key === 'F4') { e.preventDefault(); const btn = document.getElementById('btnPayCash'); if(btn && !btn.disabled) btn.click(); return; }
+        if (e.key === 'F7') { e.preventDefault(); const btn = document.getElementById('btnPayCard'); if(btn && !btn.disabled) btn.click(); return; }
+        if (e.key === 'F8') { e.preventDefault(); const btn = document.getElementById('btnPayMfs'); if(btn && !btn.disabled) btn.click(); return; }
+
+        if (e.key === 'F2') { e.preventDefault(); const sb = document.getElementById('searchInput'); sb.focus(); sb.select(); return; }
+
+        if (e.key === 'F9') {
+        e.preventDefault();
+        const cb = document.getElementById('showPreviewCheck');
+        cb.checked = !cb.checked;
+        cb.dispatchEvent(new Event('change'));
+        return;
+        }
+
+        if (e.key === 'Enter' && document.activeElement === searchInput) {
+        e.preventDefault();
+        const term = e.target.value.trim();
+        if (!term) return;
+
+        const firstVisible = Array.from(items).find(r => r.style.display !== 'none');
+        if (firstVisible) { searchInput.value = ''; firstVisible.querySelector('form').submit(); }
+        return;
+        }
+
+        if (document.activeElement.tagName === 'INPUT' && document.activeElement.id !== 'searchInput') {
+        return;
+        }
+
+        if (e.ctrlKey || e.altKey || e.metaKey || (e.key.length > 1 && e.key !== 'Enter')) return;
+
+        const currentTime = Date.now();
+        if ((currentTime - lastKeyTime) > SCANNER_THRESHOLD_MS) { hidBuffer = ""; }
+        lastKeyTime = currentTime;
+
+        if (e.key !== 'Enter') { hidBuffer += e.key; }
+        else {
+        if (hidBuffer.length >= 4) {
+        e.preventDefault();
+        processHardwareScan(hidBuffer);
+        hidBuffer = "";
+        }
+        }
+        }, true);
+
+        function processHardwareScan(barcode) {
+        const searchBox = document.getElementById('searchInput');
+        if (document.activeElement === searchBox) {
+        searchBox.value = '';
+        items.forEach(item => item.style.display = 'grid');
+        }
+
+        const matchedItem = Array.from(items).find(r => r.getAttribute('data-barcode') === barcode);
+        if (matchedItem) { matchedItem.querySelector('form').submit(); }
+        else { alert(`UNRECOGNIZED BARCODE: ${barcode}\nPlease search manually (F2).`); }
+        }
+
+        const phoneInput = document.getElementById('loyaltyPhoneInput');
+        const loyaltyResult = document.getElementById('loyaltyResult');
+        let lookupTimeout = null;
+
+        if (phoneInput) {
+        phoneInput.addEventListener('input', function(e) {
+        clearTimeout(lookupTimeout);
+        const phone = e.target.value.trim();
+
+        if (phone.length < 5) { loyaltyResult.innerHTML = '<span class="text-danger">✖ Unlinked (Checkout Disabled)</span>'; return; }
+        loyaltyResult.innerHTML = '<span class="text-muted">Searching...</span>';
+
+        lookupTimeout = setTimeout(() => {
+        fetch(`/Checkout/LookupLoyaltyCustomer?phone=${encodeURIComponent(phone)}`)
+        .then(res => res.json())
+        .then(data => {
+        if (data.success) { window.location.reload(); }
+        else { loyaltyResult.innerHTML = `<span class="text-danger">✖ ${data.message}</span>`; }
+        });
+        }, 600);
+        });
+        }
+    </script>
+</body>
+</html>

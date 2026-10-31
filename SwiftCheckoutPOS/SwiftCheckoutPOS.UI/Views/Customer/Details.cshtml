@@ -1,0 +1,353 @@
+﻿<!-- Project: SwiftCheckoutPOS.UI -->
+<!-- File: Views/Customer/Details.cshtml -->
+@model SwiftCheckoutPOS.BLL.DTOs.CustomerProfileDTO
+
+@{
+    ViewData["Title"] = "Customer Profile";
+}
+
+<style>
+    :root {
+        --dash-bg: #f8f9fa;
+    }
+
+    .dashboard-container {
+        background-color: var(--dash-bg);
+        padding: 2rem;
+        min-height: calc(100vh - 60px);
+    }
+
+    .metric-card {
+        border-radius: 1rem;
+        padding: 1.5rem;
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
+        height: 100%;
+        border: none;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.02);
+    }
+
+    .metric-icon {
+        width: 45px;
+        height: 45px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin-bottom: 1.5rem;
+        font-size: 1.25rem;
+    }
+
+    .metric-value {
+        font-size: 1.6rem;
+        font-weight: 800;
+        margin-bottom: 0.25rem;
+        color: #181c32;
+    }
+
+    .metric-label {
+        font-size: 0.85rem;
+        font-weight: 700;
+        color: #a1a5b7;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+    }
+
+    .card-blue {
+        background-color: #e0f2fe;
+    }
+
+        .card-blue .metric-icon {
+            background-color: #0284c7;
+            color: white;
+        }
+
+        .card-blue .metric-value {
+            color: #0284c7;
+        }
+
+    .card-green {
+        background-color: #dcfce7;
+    }
+
+        .card-green .metric-icon {
+            background-color: #16a34a;
+            color: white;
+        }
+
+        .card-green .metric-value {
+            color: #16a34a;
+        }
+
+    .card-red {
+        background-color: #fee2e2;
+    }
+
+        .card-red .metric-icon {
+            background-color: #dc2626;
+            color: white;
+        }
+
+        .card-red .metric-value {
+            color: #dc2626;
+        }
+
+    .card-teal {
+        background-color: #ccfbf1;
+    }
+
+        .card-teal .metric-icon {
+            background-color: #0d9488;
+            color: white;
+        }
+
+        .card-teal .metric-value {
+            color: #0d9488;
+        }
+</style>
+
+<div class="dashboard-container">
+    <a asp-action="Index" class="btn btn-sm btn-light border mb-4 fw-bold text-muted shadow-sm" id="backBtn">← Back to List (ESC)</a>
+
+    @if (TempData["Error"] != null)
+    {
+        <div class="alert alert-danger fw-bold border-0 shadow-sm">@TempData["Error"]</div>
+    }
+    @if (TempData["Success"] != null)
+    {
+        <div class="alert alert-success fw-bold border-0 shadow-sm">@TempData["Success"]</div>
+    }
+
+    <div class="row g-4">
+        <!-- Profile Panel -->
+        <div class="col-md-4">
+            <div class="card border-0 shadow-sm rounded-4 h-100">
+                <div class="card-body p-4 text-center">
+                    <div class="bg-light-primary text-primary mx-auto rounded-circle d-flex align-items-center justify-content-center mb-3" style="width: 80px; height: 80px; background:#e0f2fe; color:#0284c7;">
+                        <span class="fs-2 fw-bold">@Model.FullName.Substring(0, 1).ToUpper()</span>
+                    </div>
+                    <h4 class="fw-bold m-0" style="color: #181c32;">@Model.FullName</h4>
+                    <p class="text-muted font-monospace mb-1">@Model.PhoneNumber</p>
+                    <p class="text-muted small fw-bold mb-4">@(string.IsNullOrWhiteSpace(Model.Address) ? "No Address Provided" : Model.Address)</p>
+
+                    <div class="bg-light rounded-3 p-3 mb-4 border">
+                        <div class="text-muted small fw-bold text-uppercase mb-1">Total Loyalty Points</div>
+                        <h2 class="m-0 text-success fw-bold">@Model.LoyaltyPoints</h2>
+                    </div>
+
+                    <button class="btn btn-outline-dark fw-bold w-100 shadow-sm py-2" data-bs-toggle="modal" data-bs-target="#editCustomerModal" id="editCustomerBtn">
+                        Edit Profile (F2)
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-8">
+            <div class="row g-3 mb-4">
+                <div class="col-md-3">
+                    <div class="metric-card card-blue p-3">
+                        <div class="metric-icon mb-2" style="width:30px; height:30px; font-size:1rem;">💰</div>
+                        <div><div class="metric-value fs-4">@Model.TotalRevenue.ToString("N0")</div><div class="metric-label" style="font-size:0.7rem;">Total Spent</div></div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="metric-card card-green p-3">
+                        <div class="metric-icon mb-2" style="width:30px; height:30px; font-size:1rem;">📈</div>
+                        <div><div class="metric-value fs-4">@Model.EstimatedProfit.ToString("N0")</div><div class="metric-label" style="font-size:0.7rem;">Generated Profit</div></div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="metric-card card-red p-3">
+                        <div class="metric-icon mb-2" style="width:30px; height:30px; font-size:1rem;">🏷️</div>
+                        <div><div class="metric-value fs-4">-@Model.TotalDiscounts.ToString("N0")</div><div class="metric-label" style="font-size:0.7rem;">Discounts Received</div></div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="metric-card card-teal p-3">
+                        <div class="metric-icon mb-2" style="width:30px; height:30px; font-size:1rem;">📦</div>
+                        <div><div class="metric-value fs-4">@Model.TotalItemsSold</div><div class="metric-label" style="font-size:0.7rem;">Items Bought</div></div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card border-0 shadow-sm rounded-4">
+                <div class="card-header bg-white border-bottom-0 pt-4 pb-0 px-4">
+                    <h5 class="fw-bold m-0" style="color: #181c32;">Purchase History Ledger</h5>
+                </div>
+                <div class="card-body p-0 mt-3">
+                    <div class="table-responsive" style="max-height: 400px; overflow-y: auto;">
+                        <table class="table table-hover m-0 align-middle">
+                            <thead class="bg-light" style="border-bottom: 2px solid #e4e6ef; position: sticky; top: 0; z-index: 1;">
+                                <tr>
+                                    <th class="text-muted fw-bold text-uppercase px-4 py-2" style="font-size: 0.75rem;">Invoice No.</th>
+                                    <th class="text-muted fw-bold text-uppercase px-4 py-2" style="font-size: 0.75rem;">Date</th>
+                                    <th class="text-muted fw-bold text-uppercase px-4 py-2" style="font-size: 0.75rem;">Status</th>
+                                    <th class="text-end text-muted fw-bold text-uppercase px-4 py-2" style="font-size: 0.75rem;">Total (BDT)</th>
+                                    <th class="text-center text-muted fw-bold text-uppercase px-4 py-2" style="font-size: 0.75rem;">Action</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @if (!Model.PurchaseHistory.Any())
+                                {
+                                    <tr><td colspan="5" class="text-center text-muted py-5 fw-bold">No purchase history found for this customer.</td></tr>
+                                }
+                                else
+                                {
+                                    foreach (var txn in Model.PurchaseHistory)
+                                    {
+                                        <tr>
+                                            <td class="px-4 py-3 font-monospace fw-bold text-dark">@txn.ReceiptNumber</td>
+                                            <td class="px-4 py-3 text-muted">@txn.SaleDate.ToString("yyyy-MM-dd HH:mm")</td>
+                                            <td class="px-4 py-3">
+                                                @if (txn.OrderStatus == "Refunded")
+                                                {
+                                                    <span class="badge" style="background:#fee2e2; color:#dc2626;">Refunded</span>
+                                                }
+                                                else if (txn.OrderStatus == "Held")
+                                                {
+
+                                                    <span class="badge" style="background:#fef08a; color:#b45309;">Held Order</span>
+                                                }
+                                                else
+                                                {
+
+                                                    <span class="badge" style="background:#dcfce7; color:#16a34a;">Completed</span>
+                                                }
+                                            </td>
+                                            <td class="px-4 py-3 text-end fw-bold text-dark">@txn.TotalAmount.ToString("N2")</td>
+                                            <td class="px-4 py-3 text-center"><button class="btn btn-sm btn-outline-primary fw-bold px-3 rounded-pill" data-bs-toggle="modal" data-bs-target="#modal-@txn.SaleId">View</button></td>
+                                        </tr>
+                                    }
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="editCustomerModal" tabindex="-1" data-bs-backdrop="static">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content rounded-4 border-0 shadow-lg">
+            <div class="modal-header border-0 bg-dark text-white rounded-top-4">
+                <h5 class="modal-title fw-bold">Edit Customer</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <form asp-action="Edit" method="post" id="editCustomerForm">
+                <input type="hidden" name="customerId" value="@Model.CustomerId" />
+                <div class="modal-body p-4">
+                    <div class="mb-3">
+                        <label class="form-label fw-bold text-muted small text-uppercase">Full Name</label>
+                        <input type="text" name="fullName" id="editFullName" value="@Model.FullName" class="form-control form-control-lg bg-light" required autocomplete="off" />
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-bold text-muted small text-uppercase">Phone Number</label>
+                        <input type="tel" name="phoneNumber" value="@Model.PhoneNumber" class="form-control form-control-lg bg-light font-monospace" required autocomplete="off" />
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-bold text-muted small text-uppercase">Physical Address</label>
+                        <input type="text" name="address" value="@Model.Address" class="form-control form-control-lg bg-light" autocomplete="off" placeholder="e.g. Gulshan, Dhaka" />
+                    </div>
+                </div>
+                <div class="modal-footer border-0 p-4 pt-0 d-flex gap-2">
+                    <button type="button" class="btn btn-light border fw-bold flex-grow-1 py-2" data-bs-dismiss="modal">Cancel (ESC)</button>
+                    <button type="submit" class="btn btn-primary fw-bold flex-grow-1 py-2">Save Changes (ENTER)</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Expanded Zero-Latency Modals -->
+@foreach (var txn in Model.PurchaseHistory)
+{
+    <div class="modal fade" id="modal-@txn.SaleId" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content rounded-4 border-0 shadow-lg">
+                <div class="modal-header border-0 bg-dark text-white rounded-top-4 py-3">
+                    <h5 class="modal-title fw-bold font-monospace">@txn.ReceiptNumber</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body p-0">
+                    <div class="bg-light p-3 border-bottom d-flex justify-content-between align-items-center">
+                        <div class="text-muted fw-bold small">@txn.SaleDate.ToString("MMM dd, yyyy HH:mm")</div>
+                        <div>
+                            @if (txn.OrderStatus == "Refunded")
+                            {
+                                <span class="badge bg-danger">Refunded</span>
+                            }
+                            else if (txn.OrderStatus == "Held")
+                            {
+
+                                <span class="badge bg-warning text-dark">Held Order</span>
+                            }
+                            else
+                            {
+
+                                <span class="badge bg-success">Completed</span>
+                            }
+                        </div>
+                    </div>
+                    <div class="p-3 bg-white border-bottom">
+                        <div class="d-flex justify-content-between align-items-center mb-1">
+                            <span class="text-muted small fw-bold">Customer: <span class="text-dark">@txn.CustomerName</span></span>
+                            @if (!string.IsNullOrEmpty(txn.CustomerPhone))
+                            {
+                                <span class="text-muted small font-monospace">@txn.CustomerPhone</span>
+                            }
+                        </div>
+                        <div class="d-flex justify-content-between align-items-center">
+                            <span class="text-muted small fw-bold">Discount: <span class="text-danger">-BDT @txn.DiscountAmount.ToString("N2")</span></span>
+                            <span class="text-muted small fw-bold">Est. Profit: <span class="text-success">BDT @txn.EstimatedProfit.ToString("N2")</span></span>
+                        </div>
+                    </div>
+                    <div style="max-height: 350px; overflow-y: auto;">
+                        <table class="table m-0">
+                            <thead class="bg-white" style="position: sticky; top: 0;">
+                                <tr>
+                                    <th class="small text-muted text-uppercase border-0">Item</th>
+                                    <th class="small text-muted text-uppercase text-center border-0">Qty</th>
+                                    <th class="small text-muted text-uppercase text-end border-0">Price</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var item in txn.SaleItems)
+                                {
+                                    <tr>
+                                        <td class="fw-bold text-dark" style="font-size: 0.9rem;">@item.ProductName</td>
+                                        <td class="text-center fw-bold">@item.Quantity</td>
+                                        <td class="text-end fw-bold text-muted">@item.LineTotal.ToString("N0")</td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                <div class="modal-footer bg-light border-top-0 d-flex justify-content-between align-items-center p-4">
+                    <span class="text-muted fw-bold">Tender: @txn.PaymentMethod</span>
+                    <h4 class="fw-bold m-0 text-dark">BDT @txn.TotalAmount.ToString("N0")</h4>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+<script>
+    document.addEventListener('keydown', function (e) {
+        if (e.key === 'F2') { e.preventDefault(); document.getElementById('editCustomerBtn').click(); return; }
+        if (e.key === 'Escape') {
+            var isModalOpen = document.getElementById('editCustomerModal').classList.contains('show');
+            if (!isModalOpen) { e.preventDefault(); document.getElementById('backBtn').click(); }
+        }
+    });
+
+    var editModal = document.getElementById('editCustomerModal');
+    editModal.addEventListener('shown.bs.modal', function () {
+        var input = document.getElementById('editFullName');
+        input.focus();
+        input.select();
+    });
+</script>

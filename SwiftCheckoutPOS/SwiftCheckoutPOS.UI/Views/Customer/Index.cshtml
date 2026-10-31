@@ -1,0 +1,232 @@
+﻿<!-- Project: SwiftCheckoutPOS.UI -->
+<!-- File: Views/Customer/Index.cshtml -->
+@model IEnumerable<SwiftCheckoutPOS.BLL.DTOs.CustomerProfileDTO>
+
+@{
+    ViewData["Title"] = "Customer Management";
+}
+
+<style>
+    .filter-panel {
+        background: #fff;
+        border-radius: 1rem;
+        padding: 1.5rem;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.03);
+        border: 1px solid #e4e6ef;
+    }
+
+    .form-control, .form-select {
+        border-radius: 0.5rem;
+        border: 2px solid #e4e6ef;
+        padding: 0.75rem 1rem;
+        font-weight: 600;
+        color: #3f4254;
+        transition: all 0.2s;
+        height: 50px;
+    }
+
+        .form-control:focus, .form-select:focus {
+            border-color: #3699ff;
+            box-shadow: 0 0 0 0.2rem rgba(54, 153, 255, 0.1);
+        }
+
+    .input-group-text {
+        border: 2px solid #e4e6ef;
+        border-right: none;
+        background: #f8f9fa;
+    }
+
+    .table-custom th {
+        color: #b5b5c3;
+        font-weight: 700;
+        text-transform: uppercase;
+        font-size: 0.7rem;
+        letter-spacing: 0.05em;
+        border-bottom: 2px solid #e4e6ef;
+        padding: 1rem;
+    }
+
+    .table-custom td {
+        padding: 1rem;
+        font-weight: 600;
+        color: #3f4254;
+        border-bottom: 1px dashed #e4e6ef;
+        vertical-align: middle;
+    }
+</style>
+
+<div class="container-fluid p-4" style="background-color: #f8f9fa; min-height: calc(100vh - 60px);">
+
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h3 class="fw-bold m-0" style="color: #181c32;">Loyalty Customers</h3>
+            <span class="text-muted fw-bold">CRM & Enrollment Engine</span>
+        </div>
+        <button class="btn btn-primary fw-bold px-4 shadow-sm py-2" data-bs-toggle="modal" data-bs-target="#addCustomerModal" id="newCustomerBtn" style="height:50px;">
+            + New Customer (Insert)
+        </button>
+    </div>
+
+    @if (TempData["Error"] != null)
+    {
+        <div class="alert alert-danger fw-bold border-0 shadow-sm">@TempData["Error"]</div>
+    }
+    @if (TempData["Success"] != null)
+    {
+        <div class="alert alert-success fw-bold border-0 shadow-sm">@TempData["Success"]</div>
+    }
+
+    <!-- Reactive Auto-Search & Sort Panel -->
+    <div class="filter-panel mb-4">
+        <form asp-action="Index" method="get" id="filterForm" class="row g-3 align-items-end">
+            <div class="col-md-9">
+                <label class="form-label text-muted fw-bold text-uppercase small">Global Search (Press F2)</label>
+                <div class="input-group">
+                    <span class="input-group-text text-muted">🔍</span>
+                    <input type="text" name="searchQuery" id="searchInput" value="@ViewBag.SearchQuery" class="form-control border-start-0" placeholder="Search by Name, Phone, or Address..." autocomplete="off" />
+                </div>
+            </div>
+            <div class="col-md-3">
+                <label class="form-label text-muted fw-bold text-uppercase small">Sort Hierarchy</label>
+                <select name="sortOrder" id="sortOrder" class="form-control form-select">
+                    <option value="" selected="@(string.IsNullOrEmpty(ViewBag.SortOrder))">Alphabetical (A-Z)</option>
+                    <option value="spent_desc" selected="@(ViewBag.SortOrder == "spent_desc")">Total Spent (High to Low)</option>
+                    <option value="spent_asc" selected="@(ViewBag.SortOrder == "spent_asc")">Total Spent (Low to High)</option>
+                    <option value="profit_desc" selected="@(ViewBag.SortOrder == "profit_desc")">Est. Profit (High to Low)</option>
+                    <option value="profit_asc" selected="@(ViewBag.SortOrder == "profit_asc")">Est. Profit (Low to High)</option>
+                    <option value="discount_desc" selected="@(ViewBag.SortOrder == "discount_desc")">Discounts (High to Low)</option>
+                    <option value="discount_asc" selected="@(ViewBag.SortOrder == "discount_asc")">Discounts (Low to High)</option>
+                    <option value="refunded_desc" selected="@(ViewBag.SortOrder == "refunded_desc")">Refunded (High to Low)</option>
+                    <option value="refunded_asc" selected="@(ViewBag.SortOrder == "refunded_asc")">Refunded (Low to High)</option>
+                    <option value="points_desc" selected="@(ViewBag.SortOrder == "points_desc")">Points (High to Low)</option>
+                </select>
+            </div>
+        </form>
+    </div>
+
+    <!-- CRM Data Grid -->
+    <div class="card border-0 shadow-sm rounded-4">
+        <div class="card-body p-0">
+            <div class="table-responsive" style="max-height: calc(100vh - 350px); overflow-y: auto;">
+                <table class="table table-custom table-hover m-0 align-middle">
+                    <thead class="bg-light" style="position: sticky; top: 0; z-index: 1;">
+                        <tr>
+                            <th class="text-nowrap">Full Name</th>
+                            <th>Phone Number</th>
+                            <th>Address</th>
+                            <th class="text-center">Points</th>
+                            <th class="text-end">Total Spent</th>
+                            <th class="text-end">Est. Profit</th>
+                            <th class="text-end">Discounts</th>
+                            <th class="text-end">Refunded</th>
+                            <th class="text-center">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @if (!Model.Any())
+                        {
+                            <tr><td colspan="9" class="text-center text-muted py-5 fw-bold">No loyalty customers found matching criteria.</td></tr>
+                        }
+                        else
+                        {
+                            foreach (var customer in Model)
+                            {
+                                <tr>
+                                    <td class="fw-bold text-dark text-nowrap">@customer.FullName</td>
+                                    <td class="font-monospace text-muted">@customer.PhoneNumber</td>
+                                    <td class="text-muted small" style="max-width: 200px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="@customer.Address">
+                                        @(string.IsNullOrWhiteSpace(customer.Address) ? "—" : customer.Address)
+                                    </td>
+                                    <td class="text-center">
+                                        <span class="badge bg-light-success text-success p-2" style="background:#dcfce7; color:#16a34a;">@customer.LoyaltyPoints Pts</span>
+                                    </td>
+                                    <td class="text-end fw-bold text-dark">@customer.TotalRevenue.ToString("N0")</td>
+                                    <td class="text-end fw-bold @(customer.EstimatedProfit < 0 ? "text-danger" : "text-success")">@customer.EstimatedProfit.ToString("N0")</td>
+                                    <td class="text-end fw-bold @(customer.TotalDiscounts > 0 ? "text-danger" : "text-muted")">@(customer.TotalDiscounts > 0 ? $"-{customer.TotalDiscounts.ToString("N0")}" : "0")</td>
+                                    <td class="text-end fw-bold text-secondary">@customer.TotalRefunded.ToString("N0")</td>
+                                    <td class="text-center">
+                                        <a asp-controller="Customer" asp-action="Details" asp-route-id="@customer.CustomerId" class="btn btn-sm btn-light border fw-bold text-primary px-3 rounded-pill">View Profile</a>
+                                    </td>
+                                </tr>
+                            }
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Hardware-Optimized Add Customer Modal -->
+<div class="modal fade" id="addCustomerModal" tabindex="-1" data-bs-backdrop="static">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content rounded-4 border-0 shadow-lg">
+            <div class="modal-header border-0 bg-dark text-white rounded-top-4">
+                <h5 class="modal-title fw-bold">Enroll Customer</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <form asp-action="Add" method="post" id="addCustomerForm">
+                <div class="modal-body p-4">
+                    <div class="mb-3">
+                        <label class="form-label fw-bold text-muted small text-uppercase">Full Name</label>
+                        <input type="text" name="fullName" id="addFullName" class="form-control form-control-lg bg-light" required autocomplete="off" />
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-bold text-muted small text-uppercase">Phone Number</label>
+                        <input type="tel" name="phoneNumber" class="form-control form-control-lg bg-light font-monospace" required autocomplete="off" placeholder="e.g. 01700000000" />
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-bold text-muted small text-uppercase">Physical Address</label>
+                        <input type="text" name="address" class="form-control form-control-lg bg-light" autocomplete="off" placeholder="e.g. Gulshan, Dhaka" />
+                    </div>
+                </div>
+                <div class="modal-footer border-0 p-4 pt-0 d-flex gap-2">
+                    <button type="button" class="btn btn-light border fw-bold flex-grow-1 py-2" data-bs-dismiss="modal">Cancel (ESC)</button>
+                    <button type="submit" class="btn btn-primary fw-bold flex-grow-1 py-2">Enroll (ENTER)</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+    const form = document.getElementById('filterForm');
+    const searchInput = document.getElementById('searchInput');
+    const sortDropdown = document.getElementById('sortOrder');
+    let debounceTimer;
+
+    // ARCHITECT FIX: DOM Load Focus Restoration
+    document.addEventListener("DOMContentLoaded", function () {
+        if (searchInput && searchInput.value.length > 0) {
+            searchInput.focus();
+            var val = searchInput.value;
+            searchInput.value = '';
+            searchInput.value = val;
+        }
+    });
+
+    sortDropdown.addEventListener('change', () => form.submit());
+
+    // ARCHITECT FIX: Increased debounce to 800ms
+    searchInput.addEventListener('input', function () {
+        clearTimeout(debounceTimer);
+        debounceTimer = setTimeout(() => { form.submit(); }, 800);
+    });
+
+    document.addEventListener('keydown', function (e) {
+        if (e.key === 'Insert') {
+            e.preventDefault();
+            document.getElementById('newCustomerBtn').click();
+        }
+        if (e.key === 'F2') {
+            e.preventDefault();
+            searchInput.focus();
+            searchInput.select();
+        }
+    });
+
+    var addModal = document.getElementById('addCustomerModal');
+    addModal.addEventListener('shown.bs.modal', function () {
+        document.getElementById('addFullName').focus();
+    });
+</script>

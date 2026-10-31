@@ -1,0 +1,62 @@
+﻿<!-- Project: SwiftCheckoutPOS.UI -->
+<!-- File: Views/Reconciliation/Index.cshtml -->
+@model SwiftCheckoutPOS.BLL.DTOs.ReconciliationDTO
+
+@{
+    ViewData["Title"] = "Till Reconciliation";
+}
+
+<div class="container mt-5" style="max-width: 600px;">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2 class="fw-bold text-dark m-0">End of Shift Reconciliation</h2>
+    </div>
+
+    @if (TempData["Error"] != null)
+    {
+        <div class="alert alert-danger fw-bold shadow-sm border-0 py-2">@TempData["Error"]</div>
+    }
+
+    <div class="card shadow-sm border-0 rounded-3">
+        <div class="card-header bg-dark text-white py-3">
+            <h6 class="mb-0 fw-bold">Z-Report: Shift Closure</h6>
+        </div>
+        <div class="card-body p-4 bg-light">
+
+            <div class="mb-4 text-muted small fw-bold text-uppercase">
+                Shift Started: <span class="text-dark">@Model.ShiftStartTime.ToString("yyyy-MM-dd HH:mm:ss")</span>
+            </div>
+
+            <!-- Blind Count Form -->
+            <form asp-action="CloseTill" method="post" id="reconciliationForm">
+
+                <div class="mb-4">
+                    <label class="form-label fw-bold text-dark fs-5">Actual Cash in Drawer (BDT)</label>
+                    <input type="number" name="actualCashCount" class="form-control form-control-lg border-primary shadow-sm text-end fw-bold" style="font-size: 1.5rem;" step="1" required autofocus autocomplete="off" placeholder="0" />
+                    <small class="text-muted mt-2 d-block">Please count all physical currency in the till, including the opening float.</small>
+                </div>
+
+                <div class="mb-4">
+                    <label class="form-label fw-bold text-dark">Shift Notes / Discrepancy Reasons</label>
+                    <textarea name="notes" class="form-control border-secondary shadow-sm" rows="2" placeholder="Optional notes..."></textarea>
+                </div>
+
+                <div class="d-flex gap-3 mt-4">
+                    <!-- ARCHITECT FIX: Dynamic Server-Side Routing -->
+                    <a href="@Url.Action("Index", "AdminDashboard")" class="btn btn-light border fw-bold w-50 py-3">Cancel (ESC)</a>
+                    <button type="submit" class="btn btn-danger fw-bold w-50 py-3 shadow" onclick="return confirm('WARNING: This will permanently close the current shift and commit the Z-Report. Proceed?');">
+                        Commit Z-Report (ENTER)
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+    document.addEventListener('keydown', function(event) {
+        if (event.key === 'Escape') {
+            // ARCHITECT FIX: Server-injected accurate URL parsing
+            window.location.href = '@Url.Action("Index", "AdminDashboard")';
+        }
+    });
+</script>

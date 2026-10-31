@@ -1,0 +1,108 @@
+﻿<!-- Project: SwiftCheckoutPOS.UI -->
+<!-- File: Views/SettingsAdmin/Index.cshtml -->
+@{
+    ViewData["Title"] = "System Settings";
+}
+
+<style>
+    :root {
+        --dash-bg: #f8f9fa;
+    }
+
+    .dashboard-container {
+        background-color: var(--dash-bg);
+        padding: 2rem;
+        min-height: calc(100vh - 60px);
+    }
+
+    .settings-panel {
+        background: #fff;
+        border-radius: 1rem;
+        padding: 2rem;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.03);
+        border: 1px solid #e4e6ef;
+        max-width: 800px;
+    }
+
+    .form-control {
+        border-radius: 0.5rem;
+        border: 2px solid #e4e6ef;
+        padding: 0.75rem 1rem;
+        font-weight: 600;
+        color: #3f4254;
+        transition: all 0.2s;
+        height: 50px;
+    }
+
+        .form-control:focus {
+            border-color: #3699ff;
+            box-shadow: 0 0 0 0.2rem rgba(54, 153, 255, 0.1);
+        }
+</style>
+
+<div class="dashboard-container">
+    <div class="mb-4">
+        <h2 class="fw-bold mb-1" style="color: #181c32;">System Settings</h2>
+        <span class="text-muted fw-bold" style="font-size: 0.9rem;">Global Application Configuration</span>
+    </div>
+
+    @if (TempData["Error"] != null)
+    {
+        <div class="alert alert-danger fw-bold border-0 shadow-sm" style="max-width: 800px;">@TempData["Error"]</div>
+    }
+    @if (TempData["Success"] != null)
+    {
+        <div class="alert alert-success fw-bold border-0 shadow-sm" style="max-width: 800px;">@TempData["Success"]</div>
+    }
+
+    <div class="settings-panel">
+        <h5 class="fw-bold text-dark border-bottom pb-3 mb-4">Terminal Behavior</h5>
+
+        <form asp-action="UpdateRetention" method="post" id="systemSettingsForm">
+            <div class="row align-items-center mb-4">
+                <div class="col-md-8">
+                    <label class="fw-bold text-dark mb-1">Held Order Retention Window (Hours)</label>
+                    <p class="text-muted small mb-0 fw-bold">
+                        Determines how far back the POS terminals will search for abandoned/held carts.
+                        Warning: Values above 720 hours (30 days) may impact terminal speed during high-volume shifts.
+                    </p>
+                </div>
+                <div class="col-md-4">
+                    <div class="input-group">
+                        <!-- ARCHITECT FIX: Aligned UI validation (min="0") with BLL domain rules -->
+                        <input type="number" name="retentionHours" id="retentionInput" class="form-control text-end fs-5" value="@ViewBag.RetentionHours" required min="0" max="87600" autocomplete="off" />
+                        <span class="input-group-text bg-light text-muted fw-bold">HRS</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="d-flex justify-content-end border-top pt-4">
+                <button type="submit" class="btn btn-primary fw-bold px-5" style="height: 50px;">Save Configuration (ENTER)</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+    document.addEventListener('keydown', function (e) {
+        if (e.key === 'Enter' && document.activeElement.tagName !== 'BUTTON') {
+            e.preventDefault();
+
+            // Trigger strict client-side DOM validation before executing POST
+            var form = document.getElementById('systemSettingsForm');
+            if(form.checkValidity()) {
+                form.submit();
+            } else {
+                form.reportValidity();
+            }
+        }
+    });
+
+    document.addEventListener("DOMContentLoaded", function () {
+        const input = document.getElementById('retentionInput');
+        if (input) {
+            input.focus();
+            input.select();
+        }
+    });
+</script>

@@ -1,0 +1,83 @@
+﻿<!-- Project: SwiftCheckoutPOS.UI -->
+<!-- File: Views/UserAdmin/Create.cshtml -->
+@model SwiftCheckoutPOS.UI.Models.UserViewModel
+
+@{
+    ViewData["Title"] = "Provision Employee";
+}
+
+<div class="container mt-4">
+    <div class="row justify-content-center">
+        <div class="col-md-8">
+            <div class="card shadow-sm border-0">
+                <div class="card-header bg-dark text-white py-3">
+                    <h5 class="mb-0 fw-bold">Provision New Employee Account</h5>
+                </div>
+                <div class="card-body p-4 bg-light">
+
+                    <form asp-action="Create" method="post">
+                        <!-- Global Validation Summary -->
+                        <div asp-validation-summary="ModelOnly" class="text-danger mb-3 fw-bold"></div>
+
+                        <!-- We default new users to active, hidden from the form to simplify creation -->
+                        <input type="hidden" asp-for="IsActive" value="true" />
+
+                        <div class="row g-3 mb-3">
+                            <div class="col-md-6">
+                                <label asp-for="Username" class="form-label fw-bold"></label>
+                                <!-- Autofocus allows instant typing upon page load -->
+                                <input asp-for="Username" class="form-control border-secondary" placeholder="e.g., jsmith_01" autocomplete="off" autofocus />
+                                <span asp-validation-for="Username" class="text-danger small fw-bold"></span>
+                            </div>
+
+                            <div class="col-md-6">
+                                <label asp-for="Role" class="form-label fw-bold"></label>
+                                <select asp-for="Role" class="form-select border-secondary">
+                                    <option value="">-- Select Security Role --</option>
+                                    <option value="Cashier">Cashier (Standard Access)</option>
+                                    <option value="Admin">Administrator (Full Access)</option>
+                                </select>
+                                <span asp-validation-for="Role" class="text-danger small fw-bold"></span>
+                            </div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label asp-for="FullName" class="form-label fw-bold"></label>
+                            <input asp-for="FullName" class="form-control border-secondary" placeholder="e.g., John Smith" autocomplete="off" />
+                            <span asp-validation-for="FullName" class="text-danger small fw-bold"></span>
+                        </div>
+
+                        <div class="mb-4 border-top pt-3 mt-2">
+                            <label asp-for="Password" class="form-label fw-bold text-primary"></label>
+                            <input asp-for="Password" type="password" class="form-control border-primary" placeholder="Enter a secure password..." autocomplete="new-password" />
+                            <span asp-validation-for="Password" class="text-danger small fw-bold"></span>
+                            <div class="form-text mt-1 text-muted fs-6">
+                                The password will be cryptographically hashed offline using PBKDF2 before database insertion.
+                            </div>
+                        </div>
+
+                        <div class="d-flex justify-content-between mt-4 pt-2">
+                            <a asp-action="Index" class="btn btn-outline-secondary px-4 fw-bold">Cancel (ESC)</a>
+                            <button type="submit" class="btn btn-primary px-5 fw-bold shadow-sm">Provision Account (ENTER)</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    @{
+        await Html.RenderPartialAsync("_ValidationScriptsPartial");
+    }
+
+    <script>
+        // UX Enhancement: Allow ESC key to cancel and return to the personnel grid
+        document.addEventListener('keydown', function(event) {
+            if (event.key === 'Escape') {
+                window.location.href = '@Url.Action("Index", "UserAdmin")';
+            }
+        });
+    </script>
+}

@@ -1,0 +1,92 @@
+﻿<!-- Project: SwiftCheckoutPOS.UI -->
+<!-- File: Views/UserAdmin/Edit.cshtml -->
+@model SwiftCheckoutPOS.UI.Models.UserViewModel
+
+@{
+    ViewData["Title"] = "Modify Employee Data";
+}
+
+<div class="container mt-4">
+    <div class="row justify-content-center">
+        <div class="col-md-8">
+            <div class="card shadow-sm border-0">
+                <div class="card-header bg-dark text-white py-3 d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0 fw-bold">Modify Employee Data</h5>
+                    <span class="badge bg-secondary font-monospace">ID: @Model.UserId</span>
+                </div>
+                <div class="card-body p-4 bg-light">
+
+                    <form asp-action="Edit" method="post">
+                        <!-- Global Validation Summary -->
+                        <div asp-validation-summary="ModelOnly" class="text-danger mb-3 fw-bold"></div>
+
+                        <input type="hidden" asp-for="UserId" />
+
+                        <div class="row g-3 mb-3">
+                            <div class="col-md-6">
+                                <label asp-for="Username" class="form-label fw-bold"></label>
+                                <input asp-for="Username" class="form-control font-monospace border-secondary" autocomplete="off" />
+                                <span asp-validation-for="Username" class="text-danger small fw-bold"></span>
+                            </div>
+
+                            <div class="col-md-6">
+                                <label asp-for="Role" class="form-label fw-bold"></label>
+                                <select asp-for="Role" class="form-select border-secondary">
+                                    <option value="">-- Select Security Role --</option>
+                                    <option value="Cashier">Cashier (Standard Access)</option>
+                                    <option value="Admin">Administrator (Full Access)</option>
+                                </select>
+                                <span asp-validation-for="Role" class="text-danger small fw-bold"></span>
+                            </div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label asp-for="FullName" class="form-label fw-bold"></label>
+                            <input asp-for="FullName" class="form-control border-secondary" autocomplete="off" />
+                            <span asp-validation-for="FullName" class="text-danger small fw-bold"></span>
+                        </div>
+
+                        <div class="mb-4 border-top pt-3 mt-2">
+                            <label asp-for="Password" class="form-label fw-bold text-muted">Update Password (Optional)</label>
+                            <input asp-for="Password" type="password" class="form-control border-secondary" placeholder="Leave blank to retain current password" autocomplete="new-password" />
+                            <span asp-validation-for="Password" class="text-danger small fw-bold"></span>
+                        </div>
+
+                        <!-- Soft Delete Toggle -->
+                        <div class="mb-4 bg-white p-3 rounded border">
+                            <div class="form-check form-switch fs-5">
+                                <input class="form-check-input" type="checkbox" asp-for="IsActive" role="switch" id="activeSwitch">
+                                <label class="form-check-label fw-bold" for="activeSwitch" style="cursor: pointer;">
+                                    @Html.DisplayNameFor(m => m.IsActive)
+                                </label>
+                                <div class="form-text mt-1 text-muted fs-6">
+                                    Disabling this will immediately revoke the employee's ability to log into the POS terminal. Historical sales records attached to this user will remain intact.
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="d-flex justify-content-between mt-4 pt-2">
+                            <a asp-action="Index" class="btn btn-outline-secondary px-4 fw-bold">Cancel (ESC)</a>
+                            <button type="submit" class="btn btn-primary px-5 fw-bold shadow-sm">Save Changes (ENTER)</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    @{
+        await Html.RenderPartialAsync("_ValidationScriptsPartial");
+    }
+
+    <script>
+        // UX Enhancement: Allow ESC key to cancel and return to the personnel grid
+        document.addEventListener('keydown', function(event) {
+            if (event.key === 'Escape') {
+                window.location.href = '@Url.Action("Index", "UserAdmin")';
+            }
+        });
+    </script>
+}

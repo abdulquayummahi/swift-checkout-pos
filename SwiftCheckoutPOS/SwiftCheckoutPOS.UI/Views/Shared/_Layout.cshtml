@@ -1,0 +1,208 @@
+﻿<!-- Project: SwiftCheckoutPOS.UI -->
+<!-- File: Views/Shared/_Layout.cshtml -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>@ViewData["Title"] - SwiftCheckoutPOS</title>
+    <link rel="stylesheet" href="~/lib/bootstrap/dist/css/bootstrap.min.css" />
+    <style>
+            body {
+                background-color: #f4f6f8;
+                font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            }
+
+            /* Top Navigation Bar */
+            .admin-navbar {
+                background-color: #212529;
+                box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            }
+
+            .navbar-brand {
+                font-weight: 800;
+                letter-spacing: 0.05em;
+                color: #ffffff !important;
+            }
+
+            /* Dynamic Active Nav State */
+            .nav-link {
+                color: #adb5bd !important;
+                font-weight: 500;
+                transition: color 0.2s;
+                padding: 0.5rem 1rem;
+                border-radius: 0.25rem;
+            }
+
+                .nav-link:hover {
+                    color: #ffffff !important;
+                    background-color: rgba(255,255,255,0.05);
+                }
+
+                .nav-link.active {
+                    color: #ffffff !important;
+                    background-color: rgba(255,255,255,0.1);
+                    font-weight: 700;
+                }
+
+            /* Main Content Container */
+            .main-content {
+                min-height: calc(100vh - 120px);
+                padding: 2rem 0;
+            }
+
+            /* Footer */
+            .footer {
+                background-color: #ffffff;
+                border-top: 1px solid #e2e8f0;
+                padding: 1.5rem 0;
+                color: #64748b;
+                font-size: 0.85rem;
+            }
+    </style>
+</head>
+<body>
+
+    <!-- ARCHITECT FIX: UI Authentication State Isolation -->
+    @if (User.Identity != null && User.Identity.IsAuthenticated)
+    {
+        <header>
+            <nav class="navbar navbar-expand-lg admin-navbar py-2">
+                <div class="container-fluid px-4">
+                    <a class="navbar-brand me-4" asp-controller="AdminDashboard" asp-action="Index">SWIFTPOS ADMIN</a>
+
+                    <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#adminNav">
+                        <span class="navbar-toggler-icon"></span>
+                    </button>
+
+                    <div class="collapse navbar-collapse" id="adminNav">
+                        <ul class="navbar-nav me-auto mb-2 mb-lg-0 gap-1">
+                            @{
+                                var currentController = ViewContext.RouteData.Values["Controller"]?.ToString();
+                            }
+                            <li class="nav-item">
+                                <a class="nav-link @(currentController == "AdminDashboard" ? "active" : "")" asp-controller="AdminDashboard" asp-action="Index">Dashboard</a>
+                            </li>
+                            <li class="nav-item">
+                                <a class="nav-link @(currentController == "InventoryAdmin" ? "active" : "")" asp-controller="InventoryAdmin" asp-action="Index">Inventory</a>
+                            </li>
+                            <li class="nav-item">
+                                <a class="nav-link @(currentController == "ReportAdmin" ? "active" : "")" asp-controller="ReportAdmin" asp-action="Index">Reports</a>
+                            </li>
+                            <li class="nav-item">
+                                <a class="nav-link @(currentController == "UserAdmin" ? "active" : "")" asp-controller="UserAdmin" asp-action="Index">Users</a>
+                            </li>
+                            <li class="nav-item">
+                                <a class="nav-link @(currentController == "Customer" ? "active" : "")" asp-controller="Customer" asp-action="Index">Customers</a>
+                            </li>
+                            <li class="nav-item">
+                                <a class="nav-link @(currentController == "FinanceAdmin" ? "active" : "")" asp-controller="FinanceAdmin" asp-action="Index">Finance</a>
+                            </li>
+                            <li class="nav-item">
+                                <a class="nav-link @(currentController == "SettingsAdmin" ? "active" : "")" asp-controller="SettingsAdmin" asp-action="Index">Settings</a>
+                            </li>
+                        </ul>
+
+                        <div class="d-flex align-items-center text-white">
+                            <div class="me-3 text-end lh-sm">
+                                <div class="fw-bold fs-6">@User.Identity.Name</div>
+                                <div class="text-muted" style="font-size: 0.75rem;">+880 System Admin</div>
+                            </div>
+                            <form asp-controller="Account" asp-action="Logout" method="post" class="m-0">
+                                <button type="submit" class="btn btn-sm btn-outline-light fw-bold">Logout</button>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+            </nav>
+        </header>
+    }
+
+    <div class="container-fluid px-4 main-content">
+        <main role="main">
+            @RenderBody()
+        </main>
+    </div>
+
+    <footer class="footer text-center mt-auto">
+        <div class="container">
+            &copy; 2026 - SwiftCheckoutPOS Offline Terminal System
+        </div>
+    </footer>
+
+    @if (User.Identity != null && User.Identity.IsAuthenticated)
+    {
+        <!-- Global Secure Logout Interceptor -->
+        <div class="modal fade" id="logoutConfirmModal" tabindex="-1" aria-hidden="true" data-bs-backdrop="static">
+            <div class="modal-dialog modal-dialog-centered modal-sm">
+                <div class="modal-content rounded-4 border-0 shadow-lg">
+                    <div class="modal-body p-4 text-center">
+                        <div class="text-danger mb-3 d-flex justify-content-center">
+                            <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
+                                <polyline points="16 17 21 12 16 7"></polyline>
+                                <line x1="21" y1="12" x2="9" y2="12"></line>
+                            </svg>
+                        </div>
+                        <h4 class="fw-bold mb-2 text-dark">Confirm Logout</h4>
+                        <p class="text-muted mb-4 small fw-bold">Are you sure you want to end your shift and secure this terminal?</p>
+                        <div class="d-flex gap-2">
+                            <button type="button" class="btn btn-light border fw-bold flex-grow-1" data-bs-dismiss="modal">Cancel (ESC)</button>
+                            <button type="button" class="btn btn-danger fw-bold flex-grow-1" id="globalConfirmLogoutBtn">Logout (ENTER)</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    }
+
+    <script src="~/lib/bootstrap/dist/js/bootstrap.bundle.min.js"></script>
+
+    @if (User.Identity != null && User.Identity.IsAuthenticated)
+    {
+        <script>
+            document.addEventListener("DOMContentLoaded", function () {
+            const logoutForms = document.querySelectorAll('form[action$="/Logout"], form[action$="/Account/Logout"]');
+            const logoutModalEl = document.getElementById('logoutConfirmModal');
+            let logoutModal;
+            let activeLogoutForm = null;
+
+            if (logoutModalEl && logoutForms.length > 0) {
+            logoutModal = new bootstrap.Modal(logoutModalEl);
+
+            logoutForms.forEach(form => {
+            form.addEventListener('submit', function (e) {
+            if (!activeLogoutForm) {
+            e.preventDefault();
+            activeLogoutForm = this;
+            logoutModal.show();
+            }
+            });
+            });
+
+            logoutModalEl.addEventListener('shown.bs.modal', function () {
+            document.getElementById('globalConfirmLogoutBtn').focus();
+            });
+
+            logoutModalEl.addEventListener('hidden.bs.modal', function () {
+            activeLogoutForm = null;
+            });
+
+            document.getElementById('globalConfirmLogoutBtn').addEventListener('click', function () {
+            if (activeLogoutForm) activeLogoutForm.submit();
+            });
+            }
+
+            document.addEventListener('keydown', function (e) {
+            if (e.key === 'Enter' && logoutModalEl && logoutModalEl.classList.contains('show')) {
+            e.preventDefault();
+            if (activeLogoutForm) activeLogoutForm.submit();
+            }
+            });
+            });
+        </script>
+    }
+
+    @await RenderSectionAsync("Scripts", required: false)
+</body>
+</html>

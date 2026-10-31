@@ -1,0 +1,348 @@
+﻿<!-- Project: SwiftCheckoutPOS.UI -->
+<!-- File: Views/InventoryAdmin/Index.cshtml -->
+@model IEnumerable<SwiftCheckoutPOS.BLL.DTOs.ProductDTO>
+
+@{
+    ViewData["Title"] = "Master Inventory";
+
+    string ResolveImagePath(string path)
+    {
+        if (string.IsNullOrWhiteSpace(path)) return "/images/products/default.png";
+        if (path.Contains("/")) return path;
+        return "/images/products/" + path;
+    }
+}
+
+<style>
+    .filter-panel {
+        background: #fff;
+        border-radius: 1rem;
+        padding: 1.5rem;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.03);
+        border: 1px solid #e4e6ef;
+    }
+
+    .form-control, .form-select {
+        border-radius: 0.5rem;
+        border: 2px solid #e4e6ef;
+        padding: 0.75rem 1rem;
+        font-weight: 600;
+        color: #3f4254;
+        transition: all 0.2s;
+        height: 50px;
+    }
+
+        .form-control:focus, .form-select:focus {
+            border-color: #3699ff;
+            box-shadow: 0 0 0 0.2rem rgba(54, 153, 255, 0.1);
+        }
+
+    .input-group-text {
+        border: 2px solid #e4e6ef;
+        border-right: none;
+        background: #f8f9fa;
+    }
+
+    .btn-filter-clear {
+        height: 50px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 0.5rem;
+    }
+
+    .table-custom th {
+        color: #fff;
+        font-weight: 700;
+        text-transform: capitalize;
+        font-size: 0.85rem;
+        letter-spacing: 0.05em;
+        border-bottom: 2px solid #212529;
+        padding: 1.25rem 1rem;
+    }
+
+    .table-custom td {
+        padding: 1rem;
+        font-weight: 600;
+        color: #3f4254;
+        border-bottom: 1px dashed #e4e6ef;
+        vertical-align: middle;
+    }
+
+    .product-img {
+        width: 45px;
+        height: 45px;
+        object-fit: cover;
+        border-radius: 0.35rem;
+        border: 1px solid #e4e6ef;
+        background-color: #fff;
+    }
+</style>
+
+<div class="container-fluid p-4" style="background-color: #f8f9fa; min-height: calc(100vh - 60px);">
+
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h2 class="fw-bold mb-1" style="color: #181c32;">Master Inventory</h2>
+        </div>
+        <div class="d-flex gap-2">
+            <button class="btn btn-warning fw-bold px-4 shadow-sm text-dark d-flex align-items-center" style="height: 50px;" data-bs-toggle="modal" data-bs-target="#restockModal" id="btnRestock">
+                Restock (F3)
+            </button>
+            <button class="btn btn-danger fw-bold px-4 shadow-sm d-flex align-items-center" style="height: 50px;" data-bs-toggle="modal" data-bs-target="#rtvModal" id="btnRtv">
+                Return RTV (F4)
+            </button>
+            <a asp-action="Create" class="btn btn-success fw-bold px-4 shadow-sm" style="height: 50px; display: flex; align-items: center;">
+                + Add New Product
+            </a>
+        </div>
+    </div>
+
+    @if (TempData["Success"] != null)
+    {
+        <div class="alert alert-success fw-bold shadow-sm border-0 py-2">@TempData["Success"]</div>
+    }
+    @if (TempData["Error"] != null)
+    {
+        <div class="alert alert-danger fw-bold shadow-sm border-0 py-2">@TempData["Error"]</div>
+    }
+
+    <!-- Reactive Auto-Search & Sort Panel -->
+    <div class="filter-panel mb-4">
+        <form asp-action="Index" method="get" id="filterForm" class="row g-3 align-items-end">
+            <div class="col-md-8">
+                <label class="form-label text-muted fw-bold text-uppercase small">Global Search (Press F2)</label>
+                <div class="input-group">
+                    <span class="input-group-text text-muted">🔍</span>
+                    <input type="text" name="searchQuery" id="searchInput" value="@ViewBag.SearchQuery" class="form-control border-start-0" placeholder="Search by Barcode, Product Name, or Category..." autocomplete="off" />
+                </div>
+            </div>
+            <div class="col-md-3">
+                <label class="form-label text-muted fw-bold text-uppercase small">Sort Hierarchy</label>
+                <select name="sortOrder" id="sortOrder" class="form-control form-select">
+                    <option value="" selected="@(string.IsNullOrEmpty(ViewBag.SortOrder))">Alphabetical (A-Z)</option>
+                    <option value="name_desc" selected="@(ViewBag.SortOrder == "name_desc")">Alphabetical (Z-A)</option>
+                    <option value="stock_desc" selected="@(ViewBag.SortOrder == "stock_desc")">Stock (High to Low)</option>
+                    <option value="stock_asc" selected="@(ViewBag.SortOrder == "stock_asc")">Stock (Low to High)</option>
+                    <option value="margin_desc" selected="@(ViewBag.SortOrder == "margin_desc")">Margin (High to Low)</option>
+                    <option value="margin_asc" selected="@(ViewBag.SortOrder == "margin_asc")">Margin (Low to High)</option>
+                    <option value="retail_desc" selected="@(ViewBag.SortOrder == "retail_desc")">Retail Price (High to Low)</option>
+                    <option value="retail_asc" selected="@(ViewBag.SortOrder == "retail_asc")">Retail Price (Low to High)</option>
+                    <option value="cost_desc" selected="@(ViewBag.SortOrder == "cost_desc")">Cost Price (High to Low)</option>
+                    <option value="cost_asc" selected="@(ViewBag.SortOrder == "cost_asc")">Cost Price (Low to High)</option>
+                    <option value="status_asc" selected="@(ViewBag.SortOrder == "status_asc")">Status (Active First)</option>
+                    <option value="status_desc" selected="@(ViewBag.SortOrder == "status_desc")">Status (Inactive First)</option>
+                </select>
+            </div>
+            <div class="col-md-1">
+                <a href="@Url.Action("Index", "InventoryAdmin")" class="btn btn-light w-100 border fw-bold shadow-sm text-muted btn-filter-clear" title="Reset Filters (ESC)">Clear</a>
+            </div>
+        </form>
+    </div>
+
+    <!-- Inventory Data Grid -->
+    <div class="card shadow-sm border-0 rounded-3 overflow-hidden">
+        <div class="table-responsive" style="max-height: calc(100vh - 350px); overflow-y: auto;">
+            <table class="table table-custom table-hover mb-0 align-middle">
+                <thead class="table-dark" style="position: sticky; top: 0; z-index: 1;">
+                    <tr>
+                        <th class="text-center" style="width: 60px;">Img</th>
+                        <th>Barcode</th>
+                        <th>Product Name</th>
+                        <th class="text-center">Category</th>
+                        <th class="text-end">Cost</th>
+                        <th class="text-end">Retail Price</th>
+                        <th class="text-end">Margin</th>
+                        <th class="text-center">Stock</th>
+                        <th class="text-center">Status</th>
+                        <th class="text-center pe-4">Actions</th>
+                    </tr>
+                </thead>
+                <tbody class="bg-white">
+                    @if (!Model.Any())
+                    {
+                        <tr>
+                            <td colspan="10" class="text-center py-5 text-muted fw-bold">No products found matching criteria.</td>
+                        </tr>
+                    }
+                    else
+                    {
+                        foreach (var product in Model)
+                        {
+                            <tr>
+                                <td class="text-center">
+                                    <img src="@ResolveImagePath(product.ImagePath)" class="product-img" alt="IMG" onerror="this.onerror=null;this.src='/images/products/default.png';" />
+                                </td>
+                                <td class="font-monospace fw-bold text-muted">@product.Barcode</td>
+                                <td class="fw-bold text-dark">@product.ProductName</td>
+                                <td class="text-center"><span class="badge bg-secondary rounded-pill px-3 py-2 text-white">@product.CategoryName</span></td>
+                                <td class="text-end text-muted">BDT @product.CostPrice.ToString("N0")</td>
+                                <td class="text-end fw-bold text-dark fs-6">BDT @product.SellingPrice.ToString("N0")</td>
+
+                                <td class="text-end fw-bold @(product.MarginPercentage >= 0 ? "text-success" : "text-danger")">
+                                    @product.MarginPercentage.ToString("0.0")%
+                                </td>
+
+                                <td class="text-center fw-bold fs-6">
+                                    @if (product.StockQuantity <= product.ReorderLevel)
+                                    {
+                                        <span class="text-danger">@product.StockQuantity (Low)</span>
+                                    }
+                                    else
+                                    {
+                                        @product.StockQuantity
+                                    }
+                                </td>
+
+                                <td class="text-center fw-bold">
+                                    @if (product.IsActive)
+                                    {
+                                        <span class="badge bg-success bg-opacity-10 text-success border border-success px-3 py-1 rounded-pill">Active</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="badge bg-danger bg-opacity-10 text-danger border border-danger px-3 py-1 rounded-pill">Disabled</span>
+                                    }
+                                </td>
+                                <td class="text-center pe-4">
+                                    <a asp-action="Edit" asp-route-id="@product.ProductId" class="btn btn-sm btn-outline-primary fw-bold px-3 rounded-pill bg-white shadow-sm">Edit</a>
+                                </td>
+                            </tr>
+                        }
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- ARCHITECT NEW: Restock WAC Modal -->
+<div class="modal fade" id="restockModal" tabindex="-1" data-bs-backdrop="static">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content rounded-4 border-0 shadow-lg">
+            <div class="modal-header border-0 bg-warning text-dark rounded-top-4">
+                <h5 class="modal-title fw-bold">Inventory Restock (WAC)</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form asp-action="ProcessRestock" method="post">
+                <div class="modal-body p-4">
+                    <div class="mb-3">
+                        <label class="form-label fw-bold text-muted small text-uppercase">Scan Barcode</label>
+                        <input type="text" name="barcode" id="restockBarcode" class="form-control form-control-lg bg-light font-monospace" required autocomplete="off" />
+                    </div>
+                    <div class="row g-3 mb-3">
+                        <div class="col-md-6">
+                            <label class="form-label fw-bold text-muted small text-uppercase">Added Quantity</label>
+                            <input type="number" name="addedQty" class="form-control form-control-lg bg-light fw-bold" required min="1" autocomplete="off" />
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-bold text-muted small text-uppercase">Total Batch Cost (BDT)</label>
+                            <input type="number" name="totalBatchCost" step="0.01" class="form-control form-control-lg bg-light fw-bold text-end" required min="0" autocomplete="off" placeholder="0.00" />
+                        </div>
+                    </div>
+                    <div class="mb-2 p-3 bg-light rounded border">
+                        <label class="form-label fw-bold text-dark small text-uppercase">Optional: Override Retail Price (BDT)</label>
+                        <input type="number" name="newRetailPrice" step="0.01" class="form-control" autocomplete="off" placeholder="Leave blank to maintain current shelf price" />
+                        <small class="text-muted" style="font-size: 0.75rem;">System will automatically calculate moving average cost upon submission.</small>
+                    </div>
+                </div>
+                <div class="modal-footer border-0 p-4 pt-0 d-flex gap-2">
+                    <button type="button" class="btn btn-light border fw-bold flex-grow-1 py-2" data-bs-dismiss="modal">Cancel (ESC)</button>
+                    <button type="submit" class="btn btn-warning fw-bold flex-grow-1 py-2 text-dark">Commit Restock (ENTER)</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- ARCHITECT NEW: Return To Vendor Modal -->
+<div class="modal fade" id="rtvModal" tabindex="-1" data-bs-backdrop="static">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content rounded-4 border-0 shadow-lg">
+            <div class="modal-header border-0 bg-danger text-white rounded-top-4">
+                <h5 class="modal-title fw-bold">Return to Vendor (RTV)</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <form asp-action="ProcessReturnToVendor" method="post">
+                <div class="modal-body p-4">
+                    <div class="mb-3">
+                        <label class="form-label fw-bold text-muted small text-uppercase">Scan Barcode</label>
+                        <input type="text" name="barcode" id="rtvBarcode" class="form-control form-control-lg bg-light font-monospace" required autocomplete="off" />
+                    </div>
+                    <div class="row g-3 mb-3">
+                        <div class="col-md-6">
+                            <label class="form-label fw-bold text-muted small text-uppercase">Return Quantity</label>
+                            <input type="number" name="returnQty" class="form-control form-control-lg bg-light fw-bold" required min="1" autocomplete="off" />
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-bold text-muted small text-uppercase">Refund Amount (BDT)</label>
+                            <input type="number" name="refundAmount" step="0.01" class="form-control form-control-lg bg-light fw-bold text-end" required min="0" autocomplete="off" placeholder="0.00" />
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer border-0 p-4 pt-0 d-flex gap-2">
+                    <button type="button" class="btn btn-light border fw-bold flex-grow-1 py-2" data-bs-dismiss="modal">Cancel (ESC)</button>
+                    <button type="submit" class="btn btn-danger fw-bold flex-grow-1 py-2">Execute Return (ENTER)</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+    const form = document.getElementById('filterForm');
+    const searchInput = document.getElementById('searchInput');
+    const sortDropdown = document.getElementById('sortOrder');
+    let debounceTimer;
+
+    document.addEventListener("DOMContentLoaded", function () {
+        if (searchInput && searchInput.value.length > 0) {
+            searchInput.focus();
+            var val = searchInput.value;
+            searchInput.value = '';
+            searchInput.value = val;
+        }
+    });
+
+    sortDropdown.addEventListener('change', () => form.submit());
+
+    searchInput.addEventListener('input', function () {
+        clearTimeout(debounceTimer);
+        debounceTimer = setTimeout(() => { form.submit(); }, 800);
+    });
+
+    document.addEventListener('keydown', function (e) {
+        if (e.key === 'F2') {
+            e.preventDefault();
+            searchInput.focus();
+            searchInput.select();
+        }
+        // ARCHITECT FIX: Keyboard-centric modal routing
+        if (e.key === 'F3') {
+            e.preventDefault();
+            document.getElementById('btnRestock').click();
+        }
+        if (e.key === 'F4') {
+            e.preventDefault();
+            document.getElementById('btnRtv').click();
+        }
+        if (e.key === 'Escape') {
+            var anyModalOpen = document.querySelector('.modal.show');
+            if (!anyModalOpen) {
+                e.preventDefault();
+                window.location.href = '@Url.Action("Index", "InventoryAdmin")';
+            }
+        }
+    });
+
+    // Autofocus behavior for scanners
+    var restockModal = document.getElementById('restockModal');
+    restockModal.addEventListener('shown.bs.modal', function () {
+        document.getElementById('restockBarcode').focus();
+    });
+
+    var rtvModal = document.getElementById('rtvModal');
+    rtvModal.addEventListener('shown.bs.modal', function () {
+        document.getElementById('rtvBarcode').focus();
+    });
+</script>

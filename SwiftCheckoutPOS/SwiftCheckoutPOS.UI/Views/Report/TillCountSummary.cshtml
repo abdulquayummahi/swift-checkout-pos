@@ -1,0 +1,50 @@
+﻿<!-- Project: SwiftCheckoutPOS.UI -->
+<!-- File: Views/Report/TillCountSummary.cshtml -->
+@model SwiftCheckoutPOS.DAL.Entities.TillReconciliation
+
+@{
+    ViewData["Title"] = "Till Reconciliation Audit";
+
+    // Determine the financial health of the drawer
+    string discrepancyClass = Model.Discrepancy == 0 ? "text-success" : "text-danger";
+    string discrepancyLabel = Model.Discrepancy > 0 ? "OVERAGE" : (Model.Discrepancy < 0 ? "SHORTAGE" : "BALANCED");
+}
+
+<div class="container mt-5">
+    <div class="card shadow-lg border-0 col-md-8 mx-auto">
+        <div class="card-header bg-dark text-white fw-bold d-flex justify-content-between align-items-center">
+            <span>Shift Audit: #@Model.ReconciliationId</span>
+            <span>@Model.CloseTime.ToString("yyyy-MM-dd HH:mm")</span>
+        </div>
+        <div class="card-body p-5">
+            <h4 class="fw-bold mb-4 border-bottom pb-2">Reconciliation Results</h4>
+
+            <div class="row fs-5 mb-3">
+                <div class="col-6 text-muted fw-bold">Expected Cash in Drawer:</div>
+                <div class="col-6 text-end font-monospace">@Model.ExpectedCash.ToString("C")</div>
+            </div>
+
+            <div class="row fs-5 mb-3">
+                <div class="col-6 text-muted fw-bold">Actual Cash Counted:</div>
+                <div class="col-6 text-end font-monospace">@Model.CountedCash.ToString("C")</div>
+            </div>
+
+            <div class="row fs-4 mt-4 pt-3 border-top fw-bold @discrepancyClass">
+                <div class="col-6">@discrepancyLabel:</div>
+                <div class="col-6 text-end font-monospace">@Math.Abs(Model.Discrepancy).ToString("C")</div>
+            </div>
+
+            @if (!string.IsNullOrEmpty(Model.Notes))
+            {
+                <div class="mt-4 p-3 bg-light border rounded text-muted">
+                    <strong class="d-block mb-1 text-dark">Cashier Notes:</strong>
+                    @Model.Notes
+                </div>
+            }
+        </div>
+        <div class="card-footer bg-white border-0 text-end pb-4 pe-4">
+            <button class="btn btn-secondary fw-bold px-4" onclick="window.print()">PRINT AUDIT (CTRL+P)</button>
+            <a href="/" class="btn btn-primary fw-bold px-4">RETURN TO DASHBOARD</a>
+        </div>
+    </div>
+</div>

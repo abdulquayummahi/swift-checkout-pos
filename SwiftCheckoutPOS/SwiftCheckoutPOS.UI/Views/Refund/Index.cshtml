@@ -1,0 +1,222 @@
+﻿<!-- Project: SwiftCheckoutPOS.UI -->
+<!-- File: Views/Refund/Index.cshtml -->
+@model SwiftCheckoutPOS.BLL.DTOs.SaleDTO
+
+@{
+    ViewData["Title"] = "Refund Processing";
+    Layout = null;
+}
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Returns Terminal - SwiftCheckout</title>
+    <link rel="stylesheet" href="~/lib/bootstrap/dist/css/bootstrap.min.css" />
+    <style>
+            body {
+                background-color: #f8f9fa;
+                font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+                user-select: none;
+            }
+
+            .terminal-header {
+                background: #1e293b;
+                color: white;
+                padding: 1rem 1.5rem;
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                border-bottom: 4px solid #ef4444;
+            }
+
+            .search-container {
+                background: white;
+                border: 2px solid #cbd5e1;
+                border-radius: 0.5rem;
+                padding: 1rem;
+                display: flex;
+                align-items: center;
+                box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05);
+            }
+
+            .search-input {
+                border: none;
+                outline: none;
+                flex-grow: 1;
+                font-size: 1.25rem;
+                font-family: monospace;
+                font-weight: bold;
+                margin-left: 1rem;
+            }
+
+                .search-input:focus {
+                    background-color: #f1f5f9;
+                }
+
+            .invoice-card {
+                background: white;
+                border-radius: 0.5rem;
+                border: 1px solid #e2e8f0;
+                box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05);
+            }
+
+            .status-badge {
+                font-weight: 800;
+                font-size: 1.1rem;
+                padding: 0.5rem 1rem;
+                border-radius: 0.375rem;
+            }
+
+            .status-refunded {
+                background-color: #fee2e2;
+                color: #dc2626;
+                border: 1px solid #fca5a5;
+            }
+
+            .status-completed {
+                background-color: #d1fae5;
+                color: #059669;
+                border: 1px solid #6ee7b7;
+            }
+
+            .item-grid {
+                display: grid;
+                grid-template-columns: 3fr 1fr 1fr 1fr;
+                gap: 1rem;
+                padding: 1rem;
+                border-bottom: 1px solid #f1f5f9;
+                align-items: center;
+            }
+
+            .item-grid-header {
+                font-weight: 700;
+                text-transform: uppercase;
+                font-size: 0.8rem;
+                color: #64748b;
+                background: #f8fafc;
+            }
+    </style>
+</head>
+<body>
+
+    @if (TempData["Error"] != null)
+    {
+        <div class="position-absolute top-0 start-50 translate-middle-x mt-2 alert alert-danger shadow-lg z-3 py-3 px-5 rounded-3 border-0 fw-bold fs-5">@TempData["Error"]</div>
+    }
+    @if (TempData["Success"] != null)
+    {
+        <div class="position-absolute top-0 start-50 translate-middle-x mt-2 alert alert-success shadow-lg z-3 py-3 px-5 rounded-3 border-0 fw-bold fs-5">@TempData["Success"]</div>
+    }
+
+    <header class="terminal-header">
+        <div>
+            <h4 class="m-0 fw-bold">SWIFT REFUND TERMINAL</h4>
+            <span class="text-muted small font-monospace">AUTH: @User.Identity.Name</span>
+        </div>
+        <!-- ARCHITECT FIX: Dynamic Server-Side Routing -->
+        <a href="@Url.Action("Index", "AdminDashboard")" class="btn btn-outline-light fw-bold">Exit Module (ESC)</a>
+    </header>
+
+    <div class="container-fluid p-4">
+        <div class="row justify-content-center">
+            <div class="col-md-10">
+                <form asp-action="Lookup" method="post" id="lookupForm" class="search-container mb-4">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" stroke-width="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path><polyline points="22,6 12,13 2,6"></polyline></svg>
+                    <input type="text" name="receiptNumber" id="barcodeInput" class="search-input" placeholder="SCAN RECEIPT BARCODE OR TYPE INVOICE NUMBER (Press F2 to focus)" autocomplete="off" autofocus required />
+                    <button type="submit" class="d-none"></button>
+                </form>
+
+                @if (Model != null)
+                {
+                    <div class="invoice-card">
+                        <div class="p-4 border-bottom d-flex justify-content-between align-items-center bg-light rounded-top">
+                            <div>
+                                <h3 class="fw-bold text-dark m-0 font-monospace">@Model.ReceiptNumber</h3>
+                                <div class="text-muted fw-bold mt-1">Processed: @Model.SaleDate.ToString("yyyy-MM-dd HH:mm:ss") | Tender: @Model.PaymentMethod</div>
+                            </div>
+                            <div>
+                                @if (Model.OrderStatus == "Refunded")
+                                {
+                                    <span class="status-badge status-refunded">ALREADY REFUNDED</span>
+                                }
+                                else
+                                {
+
+                                    <span class="status-badge status-completed">COMPLETED</span>
+                                }
+                            </div>
+                        </div>
+
+                        <div class="item-grid item-grid-header">
+                            <div>Product Name</div>
+                            <div class="text-end">Unit Price</div>
+                            <div class="text-center">Quantity</div>
+                            <div class="text-end">Line Total</div>
+                        </div>
+
+                        <div style="max-height: 400px; overflow-y: auto;">
+                            @foreach (var item in Model.SaleItems)
+                            {
+                                <div class="item-grid">
+                                    <div class="fw-bold text-dark text-truncate">@item.ProductName</div>
+                                    <div class="text-end text-muted">@item.UnitPrice.ToString("N0")</div>
+                                    <div class="text-center fw-bold fs-5">@item.Quantity</div>
+                                    <div class="text-end fw-bold text-dark">@item.LineTotal.ToString("N0")</div>
+                                </div>
+                            }
+                        </div>
+
+                        <div class="p-4 bg-light border-top rounded-bottom d-flex justify-content-between align-items-center">
+                            <div>
+                                <h2 class="fw-bold m-0" style="color: #0f172a;">REFUND TOTAL: BDT @Model.TotalAmount.ToString("N0")</h2>
+                            </div>
+                            @if (Model.OrderStatus != "Refunded")
+                            {
+                                <form asp-action="ConfirmRefund" method="post" id="refundForm" class="m-0">
+                                    <input type="hidden" name="receiptNumber" value="@Model.ReceiptNumber" />
+                                    <button type="button" class="btn btn-danger btn-lg fw-bold px-5 shadow" onclick="triggerRefund()" id="refundBtn">EXECUTE REFUND (F12)</button>
+                                </form>
+                            }
+                        </div>
+                    </div>
+                }
+            </div>
+        </div>
+    </div>
+
+    <script src="~/lib/bootstrap/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        function triggerRefund() {
+        if(confirm('CRITICAL ACTION: This will reverse the transaction and return inventory to stock. Do you wish to proceed?')) {
+        document.getElementById('refundBtn').disabled = true;
+        document.getElementById('refundBtn').innerText = "PROCESSING...";
+        document.getElementById('refundForm').submit();
+        }
+        }
+
+        document.addEventListener('keydown', function(e) {
+        if (e.key === 'F2') {
+        e.preventDefault();
+        const input = document.getElementById('barcodeInput');
+        input.focus();
+        input.select();
+        return;
+        }
+        if (e.key === 'F12') {
+        e.preventDefault();
+        const btn = document.getElementById('refundBtn');
+        if(btn && !btn.disabled) { triggerRefund(); }
+        return;
+        }
+        if (e.key === 'Escape') {
+        e.preventDefault();
+        // ARCHITECT FIX: Server-injected accurate URL parsing
+        window.location.href = '@Url.Action("Index", "AdminDashboard")';
+        return;
+        }
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,47 @@
+﻿<nav class="navbar navbar-expand-lg navbar-dark bg-dark shadow-sm mb-4">
+    <div class="container-fluid px-4">
+        <a class="navbar-brand fw-bold text-uppercase tracking-wide" asp-controller="AdminDashboard" asp-action="Index">
+            SwiftPOS Admin
+        </a>
+        <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#adminNav">
+            <span class="navbar-toggler-icon"></span>
+        </button>
+
+        <div class="collapse navbar-collapse" id="adminNav">
+            <ul class="navbar-nav me-auto mb-2 mb-lg-0">
+                <li class="nav-item">
+                    <a class="nav-link" asp-controller="AdminDashboard" asp-action="Index">Dashboard</a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" asp-controller="InventoryAdmin" asp-action="Index">Inventory</a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" asp-controller="SalesAdmin" asp-action="Index">Sales</a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" asp-controller="UserAdmin" asp-action="Index">Users</a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" asp-controller="ReportAdmin" asp-action="Index">Reports</a>
+                </li>
+            </ul>
+
+            <div class="d-flex align-items-center text-white">
+                <div class="d-flex align-items-center me-4">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" fill="currentColor" class="me-2" viewBox="0 0 16 16">
+                        <path d="M11 6a3 3 0 1 1-6 0 3 3 0 0 1 6 0z" />
+                        <path fill-rule="evenodd" d="M0 8a8 8 0 1 1 16 0A8 8 0 0 1 0 8zm8-7a7 7 0 0 0-5.468 11.37C3.242 11.226 4.805 10 8 10s4.757 1.225 5.468 2.37A7 7 0 0 0 8 1z" />
+                    </svg>
+                    <div class="d-flex flex-column lh-1">
+                        <span class="fw-bold mb-1">@User.Identity.Name</span>
+                        <small class="text-white-50" style="font-size: 0.8rem;">+880 1712-345678</small>
+                    </div>
+                </div>
+
+                <form asp-controller="Account" asp-action="Logout" method="post" class="m-0">
+                    <button type="submit" class="btn btn-outline-light btn-sm fw-bold px-3">Logout</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</nav>
