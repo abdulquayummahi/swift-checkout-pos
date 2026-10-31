@@ -322,3 +322,52 @@ git --no-optional-locks -C C:/source/repos diff --name-status -- SwiftCheckoutPO
 ## 9. Areas not inspected / evidence limits
 
 No business/test database connection, actual deployed schema or rows, SQL edition/version/grants/recovery model, service/certificate/key/ACL state, physical hardware, restore/RPO/RTO measurement, app boot/network behavior or acceptance execution. No package advisory/deprecation refresh or new Git-history credential review. Third-party JS/CSS internals and new test behavior were not re-audited; prior audit/restoration evidence remains historical. No real credentials/connection values were printed. Relative links to generated evidence are transparent provenance, not a claim that a full historical assets file is available.
+
+## 10. CQ merge
+
+Merged **2026-10-31 (Asia/Dhaka)** from immutable [OWNER_DECISIONS.md](OWNER_DECISIONS.md), section N. **CQ-01–CQ-16:16 ANSWERED /0 OPEN**, each with a one-line answer/source in [requirements section7](PRODUCT_REQUIREMENTS.md#7-clarification-answers-remaining-questions-and-change-control). PR register unchanged in status:92 ANSWERED / PR-Q63 OPEN. Hardware models remain approved deferrals. No code, tests, configuration, packages, app or database operation; all acceptance examples are unexecuted.
+
+Files changed: [ARCHITECTURE.md](ARCHITECTURE.md), [DATA_RECOVERY_PLAN.md](DATA_RECOVERY_PLAN.md), [DEVELOPMENT_ROADMAP.md](DEVELOPMENT_ROADMAP.md), [EVIDENCE_REFERENCES.md](EVIDENCE_REFERENCES.md), [OFFLINE_ACCEPTANCE_TESTS.md](OFFLINE_ACCEPTANCE_TESTS.md), [OWNER_DECISIONS_MERGE_REPORT.md](OWNER_DECISIONS_MERGE_REPORT.md), [PRODUCT_REQUIREMENTS.md](PRODUCT_REQUIREMENTS.md), [PROJECT_AUDIT.md](PROJECT_AUDIT.md). Requirements/architecture/roadmap and worked cases now apply the16 answers; recovery only adds reservation/settlement/shift checks. DR-33–35 add **CONFIRMED code-traced** differences for restored resume release, absent refund settlement/rounding facts and unprotected report counts; original evidence remains historical. PROJECT_AUDIT.md changes **only nine BackupAdmin link targets**, no finding text or severity. Ten existing citations now point to [the tracked BackupAdmin view](../SwiftCheckoutPOS.UI/Views/BackupAdmin/Index.cshtml), lines1–119; [archived snapshot](EVIDENCE_REFERENCES.md) is marked **superseded — file is now tracked**. Generated NuGet provenance remains historical.
+
+### Remaining questions — no answer invented
+
+No direct contradiction found among section N answers. CQ-03 is read in its financial-view-OFF heading; PR-Q92 still governs ON financial read. CQ-12's specific Cashier expected/difference ban limits CQ-15's general own-shift exception. Four new edges are explicitly **OPEN**, separate from the16 answered CQs:
+
+- **CQ-17** (CQ-02/05; PR-Q09): How should residual paisa be assigned when proportional allocations rounded to 2 decimals do not sum to the discount/refund? For example BDT1 across three equal lines yields 0.33 each (0.99). Which line/tender receives the remaining 0.01?
+- **CQ-18** (CQ-05/10/16): For a Due sale later collected through another tender, does “original tenders actually paid” include those later collections? Example Cash20 + Due80, later Card40, unpaid40: on a full100 refund, should payout after due cancellation be Cash20/Card40? How should sale cash-rounding affect the refundable amount/payout cap?
+- **CQ-19** (CQ-07/14/16; PR-Q36/39/40): Does the separate Cash rounding line increase/decrease Net Profit and the average-profit/capital-payback calculation, or is it disclosure only? Revenue/VAT exclusion and actual cash/till inclusion are answered; this profit aggregation is not explicit.
+- **CQ-20** (CQ-04; PR-Q18): Does the configured 72-hour expiry keep running from original hold time after resume, reset, pause, or cease while resumed? Reservation retention is answered; the expiry clock for the resumed state is not.
+
+Gates/done-evidence are linked per affected task; answered CQ-01–16 are not left as blockers. New CQ-17–20 only gate their stated edges. OAT-07/09/13/15/17/18/34–38 include derived cases marked for owner confirmation, not executed results.
+
+### Ignore and scope verification
+
+Read-only commands (Git root is the parent directory); no ignore rules changed:
+
+```powershell
+git --no-optional-locks -C C:/source/repos status --ignored --short --untracked-files=all -- SwiftCheckoutPOS
+git --no-optional-locks -C C:/source/repos ls-files -- SwiftCheckoutPOS/SwiftCheckoutPOS.UI/Views/BackupAdmin
+```
+
+Exit0. Initial project status was clean; ls-files lists Index.cshtml. Status --ignored returned451 generated/build/editor entries. Exhaustive candidate enumeration includes bin/obj/.vs as well as authored files. NUL-delimited check-ignore avoids PowerShell CRLF being treated as part of a filename; an initial CRLF-delimited attempt was superseded and is not used as evidence. Exact successful enumeration/check command:
+
+```powershell
+$cqCandidates=@(rg --files --hidden --no-ignore -g '*.cs' -g '*.cshtml' -g '*.js' -g '*.css' -g '*.json' .); $cqPaths=@($cqCandidates | ForEach-Object { 'SwiftCheckoutPOS/'+($_ -replace '^[.][\\/]','').Replace('\','/') }); function Invoke-CqIgnore([bool]$cqNoIndex){ $cqStart=[Diagnostics.ProcessStartInfo]::new('git.exe'); $cqStart.UseShellExecute=$false; $cqStart.CreateNoWindow=$true; $cqStart.RedirectStandardInput=$true; $cqStart.RedirectStandardOutput=$true; $cqStart.RedirectStandardError=$true; foreach($cqArg in @('--no-optional-locks','-C','C:/source/repos','-c','core.quotePath=false','check-ignore','-z','-v','--stdin')){ $cqStart.ArgumentList.Add($cqArg) }; if($cqNoIndex){ $cqStart.ArgumentList.Add('--no-index') }; $cqProcess=[Diagnostics.Process]::new(); $cqProcess.StartInfo=$cqStart; [void]$cqProcess.Start(); $cqOut=$cqProcess.StandardOutput.ReadToEndAsync(); $cqErr=$cqProcess.StandardError.ReadToEndAsync(); $cqInput=[Text.Encoding]::UTF8.GetBytes(($cqPaths -join [char]0)+[char]0); $cqProcess.StandardInput.BaseStream.Write($cqInput,0,$cqInput.Length); $cqProcess.StandardInput.Close(); $cqProcess.WaitForExit(); $cqRaw=$cqOut.GetAwaiter().GetResult(); $cqError=$cqErr.GetAwaiter().GetResult(); $cqParts=$cqRaw.Split([char]0); $cqEntries=for($cqAt=0;$cqAt+3 -lt $cqParts.Length;$cqAt+=4){ [pscustomobject]@{Source=$cqParts[$cqAt];Line=$cqParts[$cqAt+1];Pattern=$cqParts[$cqAt+2];Path=$cqParts[$cqAt+3];Ignored=(-not $cqParts[$cqAt+2].StartsWith('!'))} }; [pscustomobject]@{ExitCode=$cqProcess.ExitCode;Error=$cqError;Entries=@($cqEntries)}; $cqProcess.Dispose() }; [pscustomobject]@{CandidateCount=$cqPaths.Count;CandidatePaths=$cqPaths;Default=(Invoke-CqIgnore $false);NoIndex=(Invoke-CqIgnore $true)} | ConvertTo-Json -Depth 6 -Compress
+```
+
+Result: **214** .cs/.cshtml/.js/.css/.json files checked, both check-ignore modes exit0; **56 ignored, all generated** under bin/obj/.vs, matching parent .gitignore lines33/34/39. **0 authored source/config files ignored**, including the tracked BackupAdmin view; --no-index also finds0 authored tracked files matched by positive ignore rules. No newly hidden authored source found. The451 status entries include binary/editor outputs outside those five extensions.
+
+Final integrity checks compare all202 non-doc authored files and the entire OWNER_DECISIONS.md/parent AGENTS.md to pre-edit SHA256 baselines. All remain identical. Markdown link/path checks and CQ/register counts were validated; no app/build/test/database operation was performed. Runtime SQL/hardware/security/recovery outcomes remain unverified.
+
+Final project status (`git --no-optional-locks -C C:/source/repos status --short --untracked-files=all -- SwiftCheckoutPOS`), docs only:
+
+```text
+ M SwiftCheckoutPOS/docs/ARCHITECTURE.md
+ M SwiftCheckoutPOS/docs/DATA_RECOVERY_PLAN.md
+ M SwiftCheckoutPOS/docs/DEVELOPMENT_ROADMAP.md
+ M SwiftCheckoutPOS/docs/EVIDENCE_REFERENCES.md
+ M SwiftCheckoutPOS/docs/OFFLINE_ACCEPTANCE_TESTS.md
+ M SwiftCheckoutPOS/docs/OWNER_DECISIONS_MERGE_REPORT.md
+ M SwiftCheckoutPOS/docs/PRODUCT_REQUIREMENTS.md
+ M SwiftCheckoutPOS/docs/PROJECT_AUDIT.md
+```

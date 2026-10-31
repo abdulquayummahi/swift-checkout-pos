@@ -1,10 +1,10 @@
 # GitHub evidence references
 
-Documentation-only evidence companion · 2026-10-31 (Asia/Dhaka). These two original audit/source targets are not tracked by Git, so a direct relative URL to them cannot resolve on GitHub. Links are routed here without altering the audit's prose, findings, severity, excerpts or conclusions. Plain line numbers after links refer to the **original named source file**, not to this page's Markdown lines.
+Documentation-only evidence companion · 2026-10-31 (Asia/Dhaka). The BackupAdmin source view is now tracked: its citations point directly to the real file. Only historical generated NuGet asset evidence remains routed here because the generated target is not tracked. The archived snapshot below is retained as provenance, not the current source authority; audit findings are not reclassified. Plain line numbers after links refer to the **original named source file**, not to this page's Markdown lines.
 
 ## BackupAdmin view snapshot
 
-Original source: SwiftCheckoutPOS.UI/Views/BackupAdmin/Index.cshtml. Current source was read on 2026-10-31; no source changes were made. The file is present locally but untracked/ignored in the current Git file list. This numbered, inert Markdown snapshot preserves the cited form/download evidence for reviewers; it is not a replacement Razor file and cannot execute.
+**superseded — file is now tracked** (2026-10-31 CQ merge). Current source: [SwiftCheckoutPOS.UI/Views/BackupAdmin/Index.cshtml](../SwiftCheckoutPOS.UI/Views/BackupAdmin/Index.cshtml), lines 1–119. Git ls-files confirms the real file is tracked; current ignore checks find no ignored authored source. All current citations use that file. The original numbered inert snapshot is retained below for historical provenance only; it is not a replacement Razor file and cannot execute.
 
 ```text
 1: <!-- Project: SwiftCheckoutPOS.UI -->
