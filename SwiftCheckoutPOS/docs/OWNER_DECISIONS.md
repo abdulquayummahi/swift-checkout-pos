@@ -1,7 +1,7 @@
 # SwiftCheckoutPOS — Owner Decisions
 Merged into PRODUCT_REQUIREMENTS.md on 2026-10-31.
 
-Status: Answers to PRODUCT\_REQUIREMENTS.md section 6 (PR-Q01–PR-Q84) plus additional decisions PR-Q85–PR-Q93.
+Status: Answers to PRODUCT\_REQUIREMENTS.md section 6 (PR-Q01–PR-Q84) plus additional decisions PR-Q85–PR-Q93 and clarifications CQ-01–CQ-16 (section N).
 Each answer below is APPROVED by the owner unless marked "PENDING".
 Owner-confirmed version, 31-10-2026.
 
@@ -235,6 +235,57 @@ Typing an Admin URL as a Manager must show Access Denied.
 * **PR-Q93 Discount below cost:** A discount may not bring an item's net price below its cost, unless a
 Manager/Admin approves with a reason (same as PR-Q22). The cashier sees "Discount too high — ask Manager",
 never the cost. The override is recorded.
+
+## N. Clarifications (answers to CQ-01–CQ-16 from OWNER_DECISIONS_MERGE_REPORT.md)
+
+* **CQ-01 Rounding with split payments:** Card, bKash, Nagad and Due amounts are exact. Only the cash
+part is rounded: cash due = whole-taka rounding of (bill total − non-cash amounts). The difference is
+stored with the sale as the "Rounding" amount.
+* **CQ-02 Combined discount basis:** Discount % = (all item discounts + bill discount) ÷ bill total before
+any discount × 100. For the below-cost check (PR-Q93), the bill discount is first spread across items as
+in PR-Q09 (rounded to 2 decimals), then each item's net unit price is compared with its cost.
+* **CQ-03 Below-cost approval and cost entry with financial view OFF:** Any below-cost price or discount
+override needs Admin approval when the financial-view setting is OFF (Manager may approve only when it is
+ON). A Manager may ENTER a cost when creating a product or restocking (write-only), but can never see it
+afterwards.
+* **CQ-04 Reservation after resume:** A resumed order keeps its stock reserved until it is completed or
+cancelled. Resuming does not release stock. (Current restored code releases on resume — to be changed.)
+* **CQ-05 Refunds of split or Due sales:** A refund first reduces that sale's unpaid due balance. Any
+remainder is paid back to the original tenders in proportion to what each tender actually paid.
+Nothing is ever paid out for due that was never collected.
+* **CQ-06 Damaged refunded goods:** Reverse the original COGS (as for a restocked item), then record a
+"Damaged" expense at the original cost-at-sale. The cost is expensed once, as Damaged.
+* **CQ-07 Net Cash Position:** Counts real money only: money received (sales payments and due
+collections), money paid out (refunds paid, inventory purchases actually paid) and manual cash ledger
+entries. Non-cash system entries (COGS, Inventory Adjustment, Damaged, valuation changes) are excluded.
+Each refund payout is counted once.
+* **CQ-08 Till threshold:** Approval is needed when the absolute difference (shortage or overage) is
+greater than ৳1,000.
+* **CQ-09 Login delays:** Counted per username. After the 5th failed attempt: wait 30 seconds; each further
+failure doubles the wait (30 s, 60 s, 120 s, 240 s), capped at 5 minutes. The counter resets after a
+successful login or after 30 minutes with no failed attempt.
+* **CQ-10 Due balances:** Cashier, Manager and Admin may see the due balance of the customer being served
+and collect due (Cash, Card, bKash, Nagad) inside an open shift. The total receivable of all customers is
+financial information (PR-Q92). Due-sale revenue counts on the sale date; Net Cash Position counts the
+money only when collected.
+* **CQ-11 Void effects:** A void reverses everything as if the sale never happened: money returned to the
+original tenders, unpaid due cancelled, COGS reversed, rounding reversed, stock restored. All entries link
+to the void record. A voided sale is excluded from revenue and profit.
+* **CQ-12 Shifts:** Every sale, refund, void, due collection and cash paid-in/paid-out requires an open
+shift and is recorded against that shift and the user who did it. After a blind count the Cashier does not
+see expected cash or the difference; Manager/Admin do.
+* **CQ-13 Refund window and receipt sequence:** "Within 7 days" means 7 × 24 hours from sale completion.
+The daily receipt sequence uses at least 4 digits and continues to 5 digits after 9999
+(SCP-YYYYMMDD-10000); it never wraps or repeats.
+* **CQ-14 Capital payback when profit is zero or negative:** Show "Not reachable at current profit"
+instead of a number of months.
+* **CQ-15 Protected sales figures:** All period totals are financial information: revenue, discount
+totals, refund totals, sales counts and quantities sold. Staff still see the individual receipts they
+handle and their own shift/till figures.
+* **CQ-16 Rounding in finance:** The rounding amount is not sales revenue and not VAT. It is shown as a
+separate "Cash rounding" line in profit reports and is included in cash totals and expected till cash.
+On a void it is reversed in full. On a refund, the refund amount is exact and the cash paid back is
+rounded to whole taka with its own rounding amount.
 
 ## Approval
 

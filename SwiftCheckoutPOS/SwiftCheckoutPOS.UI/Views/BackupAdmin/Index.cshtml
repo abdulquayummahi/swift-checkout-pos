@@ -1,0 +1,119 @@
+﻿<!-- Project: SwiftCheckoutPOS.UI -->
+<!-- File: Views/BackupAdmin/Index.cshtml -->
+@model IEnumerable<SwiftCheckoutPOS.BLL.DTOs.BackupFileDTO>
+@using SwiftCheckoutPOS.BLL.DTOs
+
+@{
+    ViewData["Title"] = "System Backup & Recovery";
+    var config = ViewBag.Config as BackupConfigDTO;
+}
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2 class="fw-bold text-dark m-0">Database Backup & Recovery</h2>
+    <form asp-action="TriggerManualBackup" method="post" class="m-0">
+        <button type="submit" class="btn btn-warning fw-bold px-4 shadow-sm text-dark">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="me-1"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+            Trigger Manual Backup Now
+        </button>
+    </form>
+</div>
+
+@if (TempData["Success"] != null)
+{
+    <div class="alert alert-success fw-bold shadow-sm border-0 py-2">@TempData["Success"]</div>
+}
+@if (TempData["Error"] != null)
+{
+    <div class="alert alert-danger fw-bold shadow-sm border-0 py-2">@TempData["Error"]</div>
+}
+
+<div class="row g-4 mb-4">
+    <div class="col-lg-5">
+        <div class="card shadow-sm border-0 rounded-3 h-100">
+            <div class="card-header bg-dark text-white py-3">
+                <h6 class="mb-0 fw-bold">Automation Configuration</h6>
+            </div>
+            <div class="card-body p-4 bg-light">
+                <form asp-action="SaveConfiguration" method="post" id="configForm">
+
+                    <div class="mb-4">
+                        <label class="form-label fw-bold text-dark">Local Target Directory</label>
+                        <input type="text" name="TargetDirectory" class="form-control font-monospace border-secondary shadow-sm" value="@config.TargetDirectory" />
+                        <small class="text-muted mt-1 d-block">Physical hard drive path where .bak files are stored.</small>
+                    </div>
+
+                    <div class="mb-4">
+                        <label class="form-label fw-bold text-dark mb-2">Autonomous Scheduling</label>
+                        <div class="d-flex gap-4 p-3 bg-white border rounded shadow-sm">
+                            <div class="form-check">
+                                <input class="form-check-input" type="radio" name="IsAutoBackupEnabled" id="autoOn" value="true" @(config.IsAutoBackupEnabled ? "checked" : "")>
+                                <label class="form-check-label fw-bold text-success" for="autoOn">Active</label>
+                            </div>
+                            <div class="form-check">
+                                <input class="form-check-input" type="radio" name="IsAutoBackupEnabled" id="autoOff" value="false" @(!config.IsAutoBackupEnabled ? "checked" : "")>
+                                <label class="form-check-label fw-bold text-danger" for="autoOff">Inactive</label>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="mb-4">
+                        <label class="form-label fw-bold text-dark">Execution Time (Daily)</label>
+                        <input type="time" name="AutoBackupTime" class="form-control border-secondary shadow-sm w-50" value="@config.AutoBackupTime.ToString(@"hh\:mm")" />
+                    </div>
+
+                    <button type="submit" class="btn btn-primary fw-bold w-100 shadow-sm mt-2">Save Configuration (ENTER)</button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-lg-7">
+        <div class="card shadow-sm border-0 rounded-3 h-100">
+            <div class="card-header bg-dark text-white py-3">
+                <h6 class="mb-0 fw-bold">Local Backup History</h6>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive" style="max-height: 450px; overflow-y: auto;">
+                    <table class="table table-hover mb-0 align-middle">
+                        <thead class="table-light sticky-top">
+                            <tr>
+                                <th class="py-3 ps-4">Timestamp</th>
+                                <th class="py-3">File Name</th>
+                                <th class="py-3 text-end">Size</th>
+                                <th class="py-3 text-center pe-4">Action</th>
+                            </tr>
+                        </thead>
+                        <tbody class="bg-white">
+                            @if (!Model.Any())
+                            {
+                                <tr><td colspan="4" class="text-center py-5 text-muted fw-bold">No backups found in target directory.</td></tr>
+                            }
+                            else
+                            {
+                                foreach (var file in Model)
+                                {
+                                    <tr>
+                                        <td class="ps-4 fw-bold text-muted" style="font-size: 0.9rem;">@file.CreationTime.ToString("yyyy-MM-dd HH:mm")</td>
+                                        <td class="font-monospace text-dark" style="font-size: 0.85rem;">@file.FileName</td>
+                                        <td class="text-end fw-bold">@file.FileSizeMB MB</td>
+                                        <td class="text-center pe-4">
+                                            <a asp-action="DownloadBackup" asp-route-fileName="@file.FileName" class="btn btn-sm btn-outline-primary px-3 fw-bold">Download</a>
+                                        </td>
+                                    </tr>
+                                }
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    document.addEventListener('keydown', function(event) {
+        if (event.key === 'Enter' && event.target.tagName !== 'TEXTAREA') {
+            document.getElementById('configForm').submit();
+        }
+    });
+</script>
