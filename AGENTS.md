@@ -52,20 +52,25 @@ dotnet SwiftCheckoutPOS/Tests/SwiftCheckoutPOS.Tests.Unit/bin/Debug/net10.0/Swif
 Build before running the DLL; dotnet test does not discover this console suite.
 Do not replace the runner or add packages as an incidental cleanup.
 
-Future integration project (absent; roadmap BP-10 / playbook T01):
+Integration (implemented by BP-10 / T01; the absence statement in section9 is historical):
 SwiftCheckoutPOS/Tests/SwiftCheckoutPOS.Tests.Integration/SwiftCheckoutPOS.Tests.Integration.csproj.
-After it exists, is added to the existing solution, and §12 guards are implemented:
+xUnit v3 mtp-off4.0.2 / VSTest adapter4.0.1 / Test SDK18.11.0; retain the separate Unit runner.
+Restore development test packages normally from nuget.org; no offline staging is required.
+The owner-approved LocalDB guard uses pre-connection validation and a DB marker, with no file manifest
+or separate DB user. See SwiftCheckoutPOS/docs/TESTING.md and ARCHITECTURE.md §12 for that test-only exception.
+Run against only the guarded, marked SwiftCheckoutPOS_Test (never the Development DbConn):
 ```powershell
-dotnet build SwiftCheckoutPOS/SwiftCheckoutPOS.slnx --configuration Debug
+dotnet restore SwiftCheckoutPOS/SwiftCheckoutPOS.slnx --source https://api.nuget.org/v3/index.json
+dotnet build SwiftCheckoutPOS/SwiftCheckoutPOS.slnx --configuration Debug --no-restore --no-incremental
 dotnet test SwiftCheckoutPOS/Tests/SwiftCheckoutPOS.Tests.Integration/SwiftCheckoutPOS.Tests.Integration.csproj --configuration Debug --no-build --no-restore
 ```
-This is a future framework-based integration command, not a command for the current unit runner.
+No UI host, background worker or physical hardware is started by this Integration suite.
 
 EF command templates: run only in an explicitly authorized schema task, after target guards.
 Supply nonempty approved $posMigrationName/$posFromMigration/$posToMigration/$posReviewedSqlPath.
 The SQL output path is task-owned; never overwrite source, secrets or business recovery files.
 Use a current build and verify CLI/provider compatibility; last local EF CLI was 10.0.8.
-No design-time factory/test harness currently supplies the future safety guard automatically.
+No design-time factory exists; the Integration fixture guard does not protect EF CLI host commands.
 Until verified isolation exists, do not execute design-time host/migration commands.
 ```powershell
 $posDalProject = 'SwiftCheckoutPOS/SwiftCheckoutPOS.DAL/SwiftCheckoutPOS.DAL.csproj'

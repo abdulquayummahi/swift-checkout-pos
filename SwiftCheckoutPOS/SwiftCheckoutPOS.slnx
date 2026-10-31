@@ -1,4 +1,7 @@
 <Solution>
+  <Folder Name="/Tests/">
+    <Project Path="Tests/SwiftCheckoutPOS.Tests.Integration/SwiftCheckoutPOS.Tests.Integration.csproj" />
+  </Folder>
   <Project Path="SwiftCheckoutPOS.BLL/SwiftCheckoutPOS.BLL.csproj" />
   <Project Path="SwiftCheckoutPOS.DAL/SwiftCheckoutPOS.DAL.csproj" />
   <Project Path="SwiftCheckoutPOS.UI/SwiftCheckoutPOS.UI.csproj" Id="85046170-4288-4a3c-8e51-9192a8962db6" />
