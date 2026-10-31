@@ -10,6 +10,16 @@ namespace SwiftCheckoutPOS.BLL.DTOs
     {
         public string SessionId { get; set; } = Guid.NewGuid().ToString("N");
         public string InvoiceNumber { get; set; } = CreateInvoiceNumber();
+        public string Revision { get; set; } = Guid.NewGuid().ToString("N");
+        public bool AwaitingConfirmation { get; set; }
+        public string? PendingPaymentMethod { get; set; }
+
+        // A resumed order retains its SQL copy until completion/cancellation.
+        public int? PersistedSaleId { get; set; }
+        public string? PersistedRowVersion { get; set; }
+        public string? ReceiptCashierName { get; set; }
+        public DateTime? ReceiptSaleDate { get; set; }
+        public string? ReceiptPaymentMethod { get; set; }
 
         public string CustomerType { get; set; } = "Walk-in";
         public string CustomerName { get; set; } = "";

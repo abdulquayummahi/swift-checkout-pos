@@ -12,7 +12,7 @@
         canPay = false;
     }
 
-    string ResolveImagePath(string path)
+    string ResolveImagePath(string? path)
     {
         if (string.IsNullOrWhiteSpace(path)) return "/images/products/default.png";
         if (path.Contains("/")) return path;
@@ -439,6 +439,10 @@
     </style>
 </head>
 <body>
+    @if (Model.Cart.AwaitingConfirmation)
+    {
+        <div class="alert alert-warning m-3" role="alert">Receipt @Model.Cart.InvoiceNumber needs confirmation with @Model.Cart.PendingPaymentMethod. Retry the same payment; do not create a new sale.</div>
+    }
 
     @if (TempData["Error"] != null)
     {
@@ -447,6 +451,10 @@
     @if (TempData["Success"] != null)
     {
         <div class="position-absolute top-0 start-50 translate-middle-x mt-2 alert alert-success shadow-sm z-3 py-2 px-4 rounded-3 border-0 fw-bold auto-dismiss-alert">@TempData["Success"]</div>
+    }
+    @if (TempData["Warning"] != null)
+    {
+        <div class="alert alert-warning m-3" role="alert">@TempData["Warning"]</div>
     }
 
     <header class="pos-header">
@@ -491,7 +499,7 @@
                         <div class="fw-bold text-dark text-truncate">@product.ProductName</div>
                         <div class="text-muted font-monospace" style="font-size: 0.85rem;">@product.Barcode</div>
                         <div class="fw-bold text-primary text-end">
-                            <span class="currency-bdt text-muted">BDT</span>@product.SellingPrice.ToString("N0")
+                            <span class="currency-bdt text-muted">BDT</span>@product.SellingPrice.ToString("N2")
                         </div>
 
                         <div class="text-end">
@@ -577,7 +585,7 @@
                 {
                     <div class="cart-item-row">
                         <div class="fw-bold text-dark text-truncate" title="@item.ProductName">@item.ProductName</div>
-                        <div class="text-muted text-end" style="font-size: 0.85rem;">@item.UnitPrice.ToString("N0")</div>
+                        <div class="text-muted text-end" style="font-size: 0.85rem;">@item.UnitPrice.ToString("N2")</div>
 
                         <div class="qty-controls">
                             <form asp-action="UpdateQuantity" method="post" class="m-0"><input type="hidden" name="productId" value="@item.ProductId" /><input type="hidden" name="change" value="-1" /><button type="submit" class="qty-btn">-</button></form>
@@ -585,7 +593,7 @@
                             <form asp-action="UpdateQuantity" method="post" class="m-0"><input type="hidden" name="productId" value="@item.ProductId" /><input type="hidden" name="change" value="1" /><button type="submit" class="qty-btn">+</button></form>
                         </div>
 
-                        <div class="fw-bold text-end text-dark">@item.LineTotal.ToString("N0")</div>
+                        <div class="fw-bold text-end text-dark">@item.LineTotal.ToString("N2")</div>
 
                         <form asp-action="RemoveItem" method="post" class="m-0 text-end">
                             <input type="hidden" name="productId" value="@item.ProductId" />
@@ -602,7 +610,7 @@
                 <div class="summary-row">
                     <span class="text-muted fw-bold">Subtotal</span>
                     <span class="fw-bold text-dark fs-5">
-                        <span class="currency-bdt text-muted">BDT</span>@Model.Cart.GrossSubTotal.ToString("N0")
+                        <span class="currency-bdt text-muted">BDT</span>@Model.Cart.GrossSubTotal.ToString("N2")
                     </span>
                 </div>
 
@@ -611,12 +619,12 @@
                         Discount
                         @if (Model.Cart.CalculatedDiscount > 0)
                         {
-                            <span class="badge bg-danger rounded-pill"><span style="opacity: 0.8; font-weight: 500;">-BDT</span> @Model.Cart.CalculatedDiscount.ToString("N0")</span>
+                            <span class="badge bg-danger rounded-pill"><span style="opacity: 0.8; font-weight: 500;">-BDT</span> @Model.Cart.CalculatedDiscount.ToString("N2")</span>
                         }
                     </span>
                     <form asp-action="ApplyBillDiscount" method="post" id="discountForm" class="m-0">
                         <div class="discount-group">
-                            <input type="number" name="discountValue" id="discountInput" class="discount-input" step="1"
+                            <input type="number" name="discountValue" id="discountInput" class="discount-input" step="any"
                                    data-subtotal="@Model.Cart.GrossSubTotal"
                                    placeholder="0" onchange="capAndSubmitDiscount()"
                                    value="@(Model.Cart.BillDiscountPercentage > 0 ? Model.Cart.BillDiscountPercentage : Model.Cart.BillDiscountAmount > 0 ? Model.Cart.BillDiscountAmount : "")" />
@@ -633,13 +641,14 @@
                     <span>Total Pay</span>
                     <div class="price-display">
                         <span class="currency-bdt">BDT</span>
-                        <span id="cartTotal">@Model.Cart.TotalAmount.ToString("N0")</span>
+                        <span id="cartTotal">@Model.Cart.TotalAmount.ToString("N2")</span>
                     </div>
                 </div>
 
                 <form asp-action="Finalize" method="post" id="finalizeForm" class="d-none">
                     <input type="hidden" name="paymentMethod" id="hiddenPaymentMethod" value="" />
-                    <input type="hidden" id="currentReceiptNum" value="@Model.Cart.InvoiceNumber" />
+                    <input type="hidden" name="invoiceNumber" id="currentReceiptNum" value="@Model.Cart.InvoiceNumber" />
+                    <input type="hidden" name="cartVersion" value="@Model.Cart.Revision" />
                 </form>
 
                 <div class="d-flex justify-content-end align-items-center mt-3 mb-1">
@@ -683,7 +692,7 @@
                     </p>
                     <div id="modalAmountContainer" class="d-flex justify-content-center align-items-baseline gap-2 mb-4">
                         <span class="currency-bdt">BDT</span>
-                        <span id="modalAmount">@Model.Cart.TotalAmount.ToString("N0")</span>
+                        <span id="modalAmount">@Model.Cart.TotalAmount.ToString("N2")</span>
                     </div>
                     <div class="d-flex gap-3 mt-4">
                         <button type="button" class="btn btn-light w-50 fw-bold py-2 border" data-bs-dismiss="modal">Cancel (ESC)</button>
@@ -723,16 +732,16 @@
                     <ul class="list-group list-group-flush rounded-bottom-3">
                         @foreach (var held in Model.HeldOrders)
                         {
-                            string customerDisplay = held.Customer != null ? $"Loyalty: {held.Customer.FullName}" : "Walk-in Customer";
+                            string customerDisplay = held.CustomerName != null ? $"Loyalty: {held.CustomerName}" : "Walk-in Customer";
 
                             <li class="list-group-item d-flex justify-content-between align-items-center p-3">
                                 <div>
                                     <div class="fw-bold fs-6">@held.ReceiptNumber</div>
-                                    <div class="text-muted small">@held.SaleDate.ToString("HH:mm") | @customerDisplay | @held.SaleItems.Sum(i => i.Quantity) Items</div>
+                                    <div class="text-muted small">@held.SaleDate.ToString("HH:mm") | @customerDisplay | @held.TotalQuantity Items | @held.Status</div>
                                 </div>
                                 <div class="d-flex align-items-center gap-3">
                                     <div class="fw-bold text-success fs-5">
-                                        <span class="currency-bdt">BDT</span>@held.TotalAmount.ToString("N0")
+                                        <span class="currency-bdt">BDT</span>@held.TotalAmount.ToString("N2")
                                     </div>
                                     <form asp-action="ResumeOrder" method="post" class="m-0">
                                         <input type="hidden" name="saleId" value="@held.SaleId" />
@@ -803,12 +812,7 @@
         });
 
         function capAndSubmitDiscount() {
-        const input = document.getElementById('discountInput');
-        const type = document.getElementById('discountType').value;
-        const subtotal = parseFloat(input.getAttribute('data-subtotal')) || 0;
-        let val = parseFloat(input.value) || 0;
-        if (type === 'Flat' && val > subtotal) { input.value = Math.floor(subtotal); }
-        else if (type === 'Percent' && val > 100) { input.value = 100; }
+        // Decimal validation and the existing flat-discount cap run on the server.
         document.getElementById('discountForm').submit();
         }
 
@@ -908,26 +912,19 @@
         });
         } else {
         this.disabled = true;
-        this.innerText = 'Printing & Processing...';
-        triggerHardwarePrint();
-        setTimeout(() => { document.getElementById('finalizeForm').submit(); }, 500);
+        this.innerText = 'Saving sale...';
+        document.getElementById('finalizeForm').submit();
         }
         });
 
         document.getElementById('printFromPreviewBtn').addEventListener('click', function() {
         this.disabled = true;
-        this.innerText = 'Printing...';
-        triggerHardwarePrint();
-        setTimeout(() => { document.getElementById('finalizeForm').submit(); }, 500);
+        this.innerText = 'Saving sale...';
+        document.getElementById('finalizeForm').submit();
         });
 
-        function triggerHardwarePrint() {
-        const receiptData = {
-        receiptNumber: document.getElementById('currentReceiptNum').value,
-        totalAmount: parseFloat(document.getElementById('cartTotal').innerText.replace(/[^0-9.-]+/g,"")) || 0
-        };
-        fetch('/Checkout/TriggerHardwarePrint', { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: new URLSearchParams(receiptData) })
-        .catch(error => { console.error("CRITICAL ERROR: COM Port unavailable."); });
+        function checkoutToken() {
+        return document.querySelector('#finalizeForm input[name="__RequestVerificationToken"]').value;
         }
 
         let hidBuffer = "";
@@ -1021,7 +1018,11 @@
         loyaltyResult.innerHTML = '<span class="text-muted">Searching...</span>';
 
         lookupTimeout = setTimeout(() => {
-        fetch(`/Checkout/LookupLoyaltyCustomer?phone=${encodeURIComponent(phone)}`)
+        fetch('/Checkout/LookupLoyaltyCustomer', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'RequestVerificationToken': checkoutToken() },
+        body: new URLSearchParams({ phone: phone })
+        })
         .then(res => res.json())
         .then(data => {
         if (data.success) { window.location.reload(); }

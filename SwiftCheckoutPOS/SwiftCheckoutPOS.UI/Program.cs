@@ -20,6 +20,7 @@ builder.Services.AddControllersWithViews(options =>
 
 builder.Services.AddAntiforgery(options => options.HeaderName = "RequestVerificationToken");
 
+builder.Services.AddDistributedMemoryCache();
 builder.Services.AddSession(options =>
 {
     options.IdleTimeout = TimeSpan.FromHours(8);
@@ -56,6 +57,7 @@ builder.Services.AddDbContext<ApplicationDbContext>(options =>
 builder.Services.AddScoped<UserRepository>();
 builder.Services.AddScoped<InventoryRepository>();
 builder.Services.AddScoped<SalesRepository>();
+builder.Services.AddScoped<ICheckoutRepository, CheckoutRepository>();
 builder.Services.AddScoped<CustomerRepository>();
 builder.Services.AddScoped<BackupRepository>();
 builder.Services.AddScoped<TillReconciliationRepository>();
@@ -79,6 +81,7 @@ builder.Services.AddScoped<SettingsService>();
 // Virtual printing is the safe operational default. A physical driver must be explicitly
 // enabled only after its port configuration and device health have been verified.
 builder.Services.AddScoped<IReceiptPrinter, VirtualPrinterService>();
+builder.Services.AddScoped<Func<IReceiptPrinter>>(services => () => services.GetRequiredService<IReceiptPrinter>());
 
 builder.Services.AddHostedService<AutoBackupWorker>();
 

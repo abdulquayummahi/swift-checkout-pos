@@ -15,10 +15,6 @@ namespace SwiftCheckoutPOS.BLL.Services
         public VirtualPrinterService()
         {
             _outputDirectory = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "VirtualReceipts");
-            if (!Directory.Exists(_outputDirectory))
-            {
-                Directory.CreateDirectory(_outputDirectory);
-            }
         }
 
         public bool IsPrinterOnline() => true;
@@ -30,6 +26,7 @@ namespace SwiftCheckoutPOS.BLL.Services
 
         public void PrintReceipt(CheckoutSessionDTO session)
         {
+            Directory.CreateDirectory(_outputDirectory);
             string receiptText = BuildReceiptString(session);
 
             string fileName = $"Receipt_{session.InvoiceNumber}_{DateTime.Now:HHmmss}.txt";
@@ -46,6 +43,7 @@ namespace SwiftCheckoutPOS.BLL.Services
         // ARCHITECT FIX: Satisfy the IReceiptPrinter contract for Shift Closures
         public void PrintZReport(ZReportDTO report)
         {
+            Directory.CreateDirectory(_outputDirectory);
             int paperWidth = 48;
             StringBuilder sb = new StringBuilder();
 
@@ -90,9 +88,11 @@ namespace SwiftCheckoutPOS.BLL.Services
             receipt.AppendLine(CenterText("Tel: +880-1234-567890", paperWidth));
             receipt.AppendLine(new string('-', paperWidth));
 
-            receipt.AppendLine($"Date: {DateTime.Now:yyyy-MM-dd HH:mm:ss}");
+            receipt.AppendLine($"Date: {session.ReceiptSaleDate ?? DateTime.Now:yyyy-MM-dd HH:mm:ss}");
             receipt.AppendLine($"Receipt #: {session.InvoiceNumber}");
-            receipt.AppendLine($"Cashier: Terminal 01");
+            receipt.AppendLine($"Cashier: {session.ReceiptCashierName ?? "Preview"}");
+            if (session.ReceiptPaymentMethod is not null)
+                receipt.AppendLine($"Payment: {session.ReceiptPaymentMethod}");
             if (session.CustomerType == "Loyalty" && !string.IsNullOrEmpty(session.CustomerName))
             {
                 receipt.AppendLine($"Customer: {session.CustomerName}");
@@ -106,22 +106,23 @@ namespace SwiftCheckoutPOS.BLL.Services
             {
                 // Strict Truncation to 22 characters to protect column alignment
                 string name = item.ProductName.Length > 22 ? item.ProductName.Substring(0, 22) : item.ProductName;
-                string qtyPrice = $"{item.Quantity}x{item.UnitPrice:N0}";
-                string lineTotal = item.LineTotal.ToString("N0");
+                string qtyPrice = $"{item.Quantity}x{item.UnitPrice:N2}";
+                string lineTotal = item.LineTotal.ToString("N2");
 
                 receipt.AppendLine(PadColumns(name, qtyPrice, lineTotal, paperWidth));
             }
 
             receipt.AppendLine(new string('-', paperWidth));
 
-            receipt.AppendLine(PadColumns("SUBTOTAL:", "", $"{session.GrossSubTotal:N0}", paperWidth));
+            receipt.AppendLine(PadColumns("SUBTOTAL:", "", $"{session.GrossSubTotal:N2}", paperWidth));
 
             if (session.CalculatedDiscount > 0)
             {
-                receipt.AppendLine(PadColumns("DISCOUNT:", "", $"-{session.CalculatedDiscount:N0}", paperWidth));
+                receipt.AppendLine(PadColumns("DISCOUNT:", "", $"-{session.CalculatedDiscount:N2}", paperWidth));
             }
 
-            receipt.AppendLine(PadColumns("TOTAL DUE:", "", $"BDT {session.TotalAmount:N0}", paperWidth));
+            receipt.AppendLine(PadColumns("TAX:", "", $"{session.TaxAmount:N2}", paperWidth));
+            receipt.AppendLine(PadColumns("TOTAL DUE:", "", $"BDT {session.TotalAmount:N2}", paperWidth));
             receipt.AppendLine(new string('=', paperWidth));
 
             receipt.AppendLine(CenterText("Thank you for your purchase!", paperWidth));
@@ -146,6 +147,10 @@ namespace SwiftCheckoutPOS.BLL.Services
             int centerWidth = 12;
             int rightWidth = 14;
 
+            // Wrap a long quantity/amount onto its own line; never truncate money.
+            if (center.Length > centerWidth || right.Length > rightWidth)
+                return left + Environment.NewLine + center + Environment.NewLine + right.PadLeft(width);
+
             string l = left.Length > leftWidth ? left.Substring(0, leftWidth) : left.PadRight(leftWidth);
             string c = center.Length > centerWidth ? center.Substring(0, centerWidth) : center.PadLeft(centerWidth);
             string r = right.Length > rightWidth ? right.Substring(0, rightWidth) : right.PadLeft(rightWidth);
@@ -155,6 +160,7 @@ namespace SwiftCheckoutPOS.BLL.Services
 
         private void LogVirtualHardwareEvent(string message)
         {
+            Directory.CreateDirectory(_outputDirectory);
             string logPath = Path.Combine(_outputDirectory, "HardwareEventLog.txt");
             File.AppendAllText(logPath, $"[{DateTime.Now:HH:mm:ss}] {message}\n");
         }

@@ -55,8 +55,8 @@ namespace SwiftCheckoutPOS.BLL.Services
             if (sale.OrderStatus == "Refunded")
                 throw new InvalidOperationException("SECURITY FAULT: This transaction has already been refunded.");
 
-            if (sale.OrderStatus == "Held")
-                throw new InvalidOperationException("Held orders cannot be refunded. Resume and clear the order instead.");
+            if (sale.OrderStatus != "Completed")
+                throw new InvalidOperationException("Only completed sales can be refunded.");
 
             // Delegate to the DAL to execute the atomic database transaction
             _salesRepo.ProcessRefundTransaction(sale);

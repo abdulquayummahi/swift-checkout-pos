@@ -1,307 +1,295 @@
-﻿// Project: SwiftCheckoutPOS.UI
-// File: Controllers/CheckoutController.cs
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 using Newtonsoft.Json;
 using SwiftCheckoutPOS.BLL.DTOs;
 using SwiftCheckoutPOS.BLL.Interfaces;
 using SwiftCheckoutPOS.BLL.Services;
 using SwiftCheckoutPOS.UI.Models;
-using System;
-using System.Linq;
+using System.Security.Claims;
 
-namespace SwiftCheckoutPOS.UI.Controllers
+namespace SwiftCheckoutPOS.UI.Controllers;
+
+[Authorize]
+public class CheckoutController(
+    CheckoutService checkoutService,
+    Func<IReceiptPrinter> printerFactory,
+    ILogger<CheckoutController> logger) : Controller
 {
-    [Authorize]
-    public class CheckoutController : Controller
+    private const string ActiveCartKey = "ActiveCart";
+
+    [HttpGet]
+    public IActionResult Index() => View(new CheckoutViewModel
     {
-        private readonly CheckoutService _checkoutService;
-        private readonly InventoryService _inventoryService;
-        private readonly CustomerService _customerService;
-        private readonly IReceiptPrinter _hardwarePrinter;
+        AvailableProducts = checkoutService.GetAvailableProducts(),
+        Cart = GetActiveSession(),
+        HeldOrders = checkoutService.GetHeldOrders()
+    });
 
-        private const string ActiveCartKey = "ActiveCart";
+    [HttpPost]
+    public IActionResult ScanBarcode(string barcode) =>
+        ChangeCart(cart => checkoutService.AddToCartByBarcode(cart, barcode));
 
-        public CheckoutController(
-            CheckoutService checkoutService,
-            InventoryService inventoryService,
-            CustomerService customerService,
-            IReceiptPrinter hardwarePrinter)
-        {
-            _checkoutService = checkoutService;
-            _inventoryService = inventoryService;
-            _customerService = customerService;
-            _hardwarePrinter = hardwarePrinter;
-        }
+    [HttpPost]
+    public IActionResult AddById(int productId) =>
+        ChangeCart(cart => checkoutService.AddToCart(cart, productId));
 
-        [HttpGet]
-        public IActionResult Index()
-        {
-            var products = _inventoryService.GetAllSystemProducts()
-                .Where(p => p.IsActive && p.StockQuantity > 0)
-                .OrderBy(p => p.ProductName);
+    [HttpPost]
+    public IActionResult UpdateQuantity(int productId, int change) =>
+        ChangeCart(cart => checkoutService.UpdateQuantity(cart, productId, change));
 
-            var model = new CheckoutViewModel
-            {
-                AvailableProducts = products,
-                Cart = GetActiveSession(),
-                HeldOrders = _checkoutService.GetHeldOrders()
-            };
+    [HttpPost]
+    public IActionResult RemoveItem(int productId) =>
+        ChangeCart(cart => checkoutService.RemoveItem(cart, productId));
 
-            return View(model);
-        }
+    [HttpPost]
+    public IActionResult SetCustomerType(string type) =>
+        ChangeCart(cart => checkoutService.SetCustomerType(cart, type));
 
-        // --- CART OPERATIONS ---
-        [HttpPost]
-        public IActionResult ScanBarcode(string barcode)
+    [HttpPost]
+    public IActionResult ApplyBillDiscount(decimal discountValue, string discountType) =>
+        ChangeCart(cart => checkoutService.ApplyBillDiscount(cart, discountValue, discountType));
+
+    [HttpPost]
+    public IActionResult LookupLoyaltyCustomer(string phone)
+    {
+        if (!ModelState.IsValid) return Json(new { success = false, message = "Check the phone number." });
+        try
         {
             var cart = GetActiveSession();
-            try
-            {
-                _checkoutService.AddToCartByBarcode(cart, barcode);
-                SaveActiveSession(cart);
-            }
-            catch (Exception ex) { TempData["Error"] = ex.Message; }
-            return RedirectToAction(nameof(Index));
-        }
-
-        [HttpPost]
-        public IActionResult AddById(int productId)
-        {
-            var cart = GetActiveSession();
-            try
-            {
-                _checkoutService.AddToCart(cart, productId);
-                SaveActiveSession(cart);
-            }
-            catch (Exception ex) { TempData["Error"] = ex.Message; }
-            return RedirectToAction(nameof(Index));
-        }
-
-        [HttpPost]
-        public IActionResult UpdateQuantity(int productId, int change)
-        {
-            var cart = GetActiveSession();
-            try
-            {
-                if (change > 0)
-                {
-                    _checkoutService.AddToCart(cart, productId, change);
-                }
-                else
-                {
-                    var item = cart.Items.FirstOrDefault(i => i.ProductId == productId);
-                    if (item != null)
-                    {
-                        item.Quantity += change;
-                        if (item.Quantity <= 0) cart.Items.Remove(item);
-                    }
-                }
-                SaveActiveSession(cart);
-            }
-            catch (Exception ex) { TempData["Error"] = ex.Message; }
-            return RedirectToAction(nameof(Index));
-        }
-
-        [HttpPost]
-        public IActionResult RemoveItem(int productId)
-        {
-            var cart = GetActiveSession();
-            cart.Items.RemoveAll(i => i.ProductId == productId);
+            EnsureEditable(cart);
+            var customer = checkoutService.LinkCustomer(cart, phone);
+            cart.Revision = Guid.NewGuid().ToString("N");
             SaveActiveSession(cart);
-            return RedirectToAction(nameof(Index));
+            return Json(new { success = true, name = customer.FullName, points = customer.LoyaltyPoints });
         }
-
-        // --- LOYALTY & DISCOUNTS ---
-        [HttpPost]
-        public IActionResult SetCustomerType(string type)
+        catch (CheckoutValidationException ex) { return Json(new { success = false, message = ex.Message }); }
+        catch (Exception ex)
         {
+            LogFailure(ex);
+            return Json(new { success = false, message = "Customer lookup is unavailable. Try again." });
+        }
+    }
+
+    [HttpPost]
+    public IActionResult HoldOrder()
+    {
+        try
+        {
+            if (!ModelState.IsValid) throw new CheckoutValidationException("Check the submitted values.");
             var cart = GetActiveSession();
-            cart.CustomerType = type;
-            if (type == "Walk-in")
-            {
-                cart.CustomerId = null;
-                cart.CustomerName = "";
-            }
-            SaveActiveSession(cart);
-            return RedirectToAction(nameof(Index));
+            EnsureEditable(cart);
+            checkoutService.HoldOrder(cart, Cashier());
+            TempData["Success"] = $"Order {cart.InvoiceNumber} is saved.";
+            ClearSavedSession(); // Failure here cannot undo the committed reservation.
         }
+        catch (Exception ex) { ReportFailure(ex); }
+        return RedirectToAction(nameof(Index));
+    }
 
-        [HttpGet]
-        public IActionResult LookupLoyaltyCustomer(string phone)
+    [HttpPost]
+    public IActionResult ResumeOrder(int saleId)
+    {
+        try
         {
-            if (string.IsNullOrWhiteSpace(phone)) return Json(new { success = false });
-            var customer = _customerService.LookupCustomerByPhone(phone.Trim());
-
-            if (customer != null)
+            if (!ModelState.IsValid) throw new CheckoutValidationException("Choose a valid order.");
+            var active = GetActiveSession();
+            EnsureEditable(active);
+            if (active.PersistedSaleId == saleId)
             {
-                var cart = GetActiveSession();
-                cart.CustomerType = "Loyalty";
-                cart.CustomerName = customer.FullName;
-                cart.CustomerId = customer.CustomerId;
-                SaveActiveSession(cart);
-                return Json(new { success = true, name = customer.FullName, points = customer.LoyaltyPoints });
-            }
-            return Json(new { success = false, message = "Customer not found." });
-        }
-
-        [HttpPost]
-        public IActionResult ApplyBillDiscount(decimal discountValue, string discountType)
-        {
-            var cart = GetActiveSession();
-            if (discountType == "Percent")
-            {
-                cart.BillDiscountPercentage = discountValue;
-                cart.BillDiscountAmount = 0;
-            }
-            else
-            {
-                cart.BillDiscountAmount = discountValue;
-                cart.BillDiscountPercentage = 0;
-            }
-            SaveActiveSession(cart);
-            return RedirectToAction(nameof(Index));
-        }
-
-        // --- SESSION MANAGEMENT ---
-        [HttpPost]
-        public IActionResult HoldOrder()
-        {
-            var activeCart = GetActiveSession();
-            if (!activeCart.Items.Any()) return RedirectToAction(nameof(Index));
-
-            try
-            {
-                // ARCHITECT FIX: Inject authenticated user identity into BLL
-                string cashierName = User.Identity?.Name ?? "System Admin";
-
-                _checkoutService.HoldOrder(activeCart, cashierName);
-                HttpContext.Session.Remove(ActiveCartKey);
-                TempData["Success"] = $"Order {activeCart.InvoiceNumber} safely stored in database.";
-            }
-            catch (Exception ex) { TempData["Error"] = ex.Message; }
-
-            return RedirectToAction(nameof(Index));
-        }
-
-        [HttpPost]
-        public IActionResult ResumeOrder(int saleId)
-        {
-            try
-            {
-                var resumedCart = _checkoutService.ResumeOrder(saleId);
-                var activeCart = GetActiveSession();
-
-                if (activeCart.Items.Any())
-                {
-                    // ARCHITECT FIX: Inject authenticated user identity into BLL for auto-hold
-                    string cashierName = User.Identity?.Name ?? "System Admin";
-                    _checkoutService.HoldOrder(activeCart, cashierName);
-
-                    TempData["Success"] = $"Active order safely held. Resumed Order {resumedCart.InvoiceNumber}.";
-                }
-                else
-                {
-                    TempData["Success"] = $"Resumed Order {resumedCart.InvoiceNumber}.";
-                }
-
-                SaveActiveSession(resumedCart);
-            }
-            catch (Exception ex) { TempData["Error"] = ex.Message; }
-
-            return RedirectToAction(nameof(Index));
-        }
-
-        [HttpPost]
-        public IActionResult ClearCart()
-        {
-            HttpContext.Session.Remove(ActiveCartKey);
-            return RedirectToAction(nameof(Index));
-        }
-
-        // --- HARDWARE & FINALIZATION ---
-        [HttpGet]
-        public IActionResult GetInvoicePreview()
-        {
-            var session = GetActiveSession();
-            if (session == null || !session.Items.Any())
-            {
-                return Json(new { success = false, message = "Active cart not found." });
-            }
-
-            string previewText = _hardwarePrinter.GenerateReceiptPreview(session);
-            return Json(new { success = true, preview = previewText });
-        }
-
-        [HttpPost]
-        public IActionResult TriggerHardwarePrint(string receiptNumber, decimal totalAmount)
-        {
-            try
-            {
-                if (!_hardwarePrinter.IsPrinterOnline())
-                {
-                    return Json(new { success = false, message = "HARDWARE FAULT: Printer offline or COM port inaccessible." });
-                }
-
-                var session = GetActiveSession();
-                if (session == null || !session.Items.Any())
-                {
-                    return Json(new { success = false, message = "STATE ERROR: Active cart not found in memory." });
-                }
-
-                if (session.InvoiceNumber != receiptNumber)
-                {
-                    return Json(new { success = false, message = "DATA DESYNC: Session Invoice Number mismatch during print job." });
-                }
-
-                _hardwarePrinter.OpenCashDrawer();
-                _hardwarePrinter.PrintReceipt(session);
-
-                return Json(new { success = true, message = "Hardware triggered successfully." });
-            }
-            catch (Exception ex)
-            {
-                return Json(new { success = false, message = $"CRITICAL HARDWARE EXCEPTION: {ex.Message}" });
-            }
-        }
-
-        [HttpPost]
-        public IActionResult Finalize(string paymentMethod)
-        {
-            var cart = GetActiveSession();
-
-            if (cart.CustomerType == "Loyalty" && cart.CustomerId == null)
-            {
-                TempData["Error"] = "Validation Failed: You must link a valid loyalty phone number before processing payment.";
+                TempData["Success"] = "This order is already active. Its current cart edits have been kept.";
                 return RedirectToAction(nameof(Index));
             }
-
-            try
+            // Preserve the active cart FIRST. A failure must not strand the selected order.
+            if (active.Items.Count > 0 && active.PersistedSaleId != saleId)
             {
-                // ARCHITECT FIX: Inject authenticated user identity into BLL
-                string cashierName = User.Identity?.Name ?? "System Admin";
-
-                var receipt = _checkoutService.FinalizeTransaction(cart, paymentMethod, cashierName);
-
-                HttpContext.Session.Remove(ActiveCartKey);
-                TempData["Success"] = $"Transaction Complete. Receipt: {receipt} | Payment: {paymentMethod}";
+                checkoutService.HoldOrder(active, Cashier());
+                ClearSavedSession();
             }
-            catch (Exception ex) { TempData["Error"] = ex.Message; }
-
-            return RedirectToAction(nameof(Index));
+            var resumed = checkoutService.ResumeOrder(saleId);
+            SaveActiveSession(resumed);
+            TempData["Success"] = $"Resumed order {resumed.InvoiceNumber}.";
         }
+        catch (Exception ex) { ReportFailure(ex); }
+        return RedirectToAction(nameof(Index));
+    }
 
-        // --- State Helpers ---
-        private CheckoutSessionDTO GetActiveSession()
+    [HttpPost]
+    public IActionResult ClearCart()
+    {
+        try
         {
-            var value = HttpContext.Session.GetString(ActiveCartKey);
-            return value == null ? new CheckoutSessionDTO() : JsonConvert.DeserializeObject<CheckoutSessionDTO>(value);
+            var cart = GetActiveSession();
+            EnsureEditable(cart);
+            checkoutService.CancelCart(cart);
+            ClearSavedSession();
         }
+        catch (Exception ex) { ReportFailure(ex); }
+        return RedirectToAction(nameof(Index));
+    }
 
-        private void SaveActiveSession(CheckoutSessionDTO session)
+    [HttpGet]
+    public IActionResult GetInvoicePreview()
+    {
+        try
         {
-            HttpContext.Session.SetString(ActiveCartKey, JsonConvert.SerializeObject(session));
+            var cart = GetActiveSession();
+            if (cart.Items.Count == 0) return Json(new { success = false, message = "Add items first." });
+            return Json(new { success = true, preview = printerFactory().GenerateReceiptPreview(cart) });
+        }
+        catch (Exception ex)
+        {
+            LogFailure(ex);
+            return Json(new { success = false, message = "Receipt preview is unavailable. Check this order's status before confirming payment." });
+        }
+    }
+
+    [HttpPost]
+    public IActionResult TriggerHardwarePrint() => Json(new
+    {
+        success = false,
+        message = "Checkout prints only after the sale is saved. Confirm payment to finish this order."
+    });
+
+    [HttpPost]
+    public IActionResult Finalize(string paymentMethod, string invoiceNumber, string cartVersion)
+    {
+        CheckoutSessionDTO? pendingCart = null;
+        var databaseAttempted = false;
+        try
+        {
+            if (!ModelState.IsValid) throw new CheckoutValidationException("Choose a valid payment method and order.");
+            var cart = GetActiveSession();
+            var actor = Cashier();
+            // A stale form must never complete the next cart after a previous POST cleared Session.
+            if (!string.Equals(cart.InvoiceNumber, invoiceNumber, StringComparison.Ordinal))
+            {
+                if (checkoutService.IsCompleted(invoiceNumber, paymentMethod, actor))
+                {
+                    TempData["Success"] = $"Receipt {invoiceNumber} was already completed. No second sale was created.";
+                    return RedirectToAction(nameof(Index));
+                }
+                throw new CheckoutValidationException("The cart changed. Reload checkout before confirming payment.");
+            }
+
+            if (cart.Revision != cartVersion)
+                throw new CheckoutValidationException("The cart changed in another tab. Reload and review the total before paying.");
+            if (cart.AwaitingConfirmation && cart.PendingPaymentMethod != paymentMethod)
+                throw new CheckoutValidationException("Confirm the pending receipt with its original payment method before making changes.");
+
+            cart.AwaitingConfirmation = true;
+            cart.PendingPaymentMethod = paymentMethod;
+            SaveActiveSession(cart); // Preserve identity/tender BEFORE attempting any database write.
+            pendingCart = cart;
+            databaseAttempted = true;
+
+            var result = checkoutService.CompleteSale(cart, paymentMethod, actor);
+            TempData["Success"] = $"Transaction complete. Receipt: {result.ReceiptNumber} | Payment: {paymentMethod}";
+            ClearSavedSession();
+            if (!result.AlreadyCompleted) PrintCommittedSale(result.Receipt);
+        }
+        catch (Exception ex)
+        {
+            if (databaseAttempted && pendingCart is not null &&
+                (ex is CheckoutValidationException || ex is DbUpdateConcurrencyException))
+            {
+                // These failures have a known non-commit outcome for this attempt.
+                pendingCart.AwaitingConfirmation = false;
+                pendingCart.PendingPaymentMethod = null;
+                try { SaveActiveSession(pendingCart); } catch (Exception sessionError) { LogFailure(sessionError); }
+            }
+            ReportFailure(ex);
+        }
+        return RedirectToAction(nameof(Index));
+    }
+
+    private void PrintCommittedSale(CheckoutSessionDTO receipt)
+    {
+        try
+        {
+            var hardwarePrinter = printerFactory();
+            if (!hardwarePrinter.IsPrinterOnline()) throw new IOException("Printer unavailable.");
+            hardwarePrinter.PrintReceipt(receipt);
+            // Preserve existing drawer behavior; tender-specific policy remains PR-Q47.
+            hardwarePrinter.OpenCashDrawer();
+        }
+        catch (Exception ex)
+        {
+            LogFailure(ex);
+            TempData["Warning"] = $"Sale {receipt.InvoiceNumber} is saved. Printing or drawer delivery could not be confirmed; do not charge again.";
+        }
+    }
+
+    private IActionResult ChangeCart(Action<CheckoutSessionDTO> change)
+    {
+        try
+        {
+            if (!ModelState.IsValid) throw new CheckoutValidationException("Check the submitted values.");
+            var cart = GetActiveSession();
+            EnsureEditable(cart);
+            change(cart);
+            cart.Revision = Guid.NewGuid().ToString("N");
+            SaveActiveSession(cart);
+        }
+        catch (Exception ex) { ReportFailure(ex); }
+        return RedirectToAction(nameof(Index));
+    }
+
+    private void ReportFailure(Exception exception)
+    {
+        TempData["Error"] = exception switch
+        {
+            CheckoutValidationException validation => validation.Message,
+            DbUpdateConcurrencyException => "The stock or order changed. Reload and review it before retrying.",
+            _ => "The operation could not be confirmed. Keep this receipt and retry the same order; do not charge again until its status is checked."
+        };
+        if (exception is not CheckoutValidationException) LogFailure(exception);
+    }
+
+    private static void EnsureEditable(CheckoutSessionDTO cart)
+    {
+        if (cart.AwaitingConfirmation)
+            throw new CheckoutValidationException("This receipt has an unconfirmed payment outcome. Retry the same receipt and payment method before changing or clearing the cart.");
+    }
+
+    private void LogFailure(Exception exception)
+    {
+        // Never include database exception text, request bodies or customer data.
+        try { logger.LogError("Checkout component failed ({ErrorType}).", exception.GetType().Name); }
+        catch { /* Diagnostic sink failure cannot change a committed financial outcome. */ }
+    }
+
+    private string Cashier()
+    {
+        var id = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (!int.TryParse(id, out var userId) || userId <= 0)
+            throw new CheckoutValidationException("Sign in again before processing this order.");
+        var actor = $"User {userId}: {User.Identity?.Name}";
+        return actor.Length <= 100 ? actor : actor[..100]; // Stable ID is always retained.
+    }
+
+    private CheckoutSessionDTO GetActiveSession()
+    {
+        var value = HttpContext.Session.GetString(ActiveCartKey);
+        if (value is not null)
+            return JsonConvert.DeserializeObject<CheckoutSessionDTO>(value)
+                ?? throw new CheckoutValidationException("The cart is unavailable. Reload checkout.");
+        var cart = new CheckoutSessionDTO();
+        SaveActiveSession(cart); // Establish its stable receipt before displaying a form.
+        return cart;
+    }
+
+    private void SaveActiveSession(CheckoutSessionDTO cart) =>
+        HttpContext.Session.SetString(ActiveCartKey, JsonConvert.SerializeObject(cart));
+
+    private void ClearSavedSession()
+    {
+        try { HttpContext.Session.Remove(ActiveCartKey); }
+        catch (Exception ex)
+        {
+            LogFailure(ex);
+            TempData["Warning"] = "The order is saved, but the screen could not be cleared. Reload and check this receipt before starting another sale.";
         }
     }
 }
