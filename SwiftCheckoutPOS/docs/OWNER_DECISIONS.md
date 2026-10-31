@@ -286,6 +286,10 @@ handle and their own shift/till figures.
 separate "Cash rounding" line in profit reports and is included in cash totals and expected till cash.
 On a void it is reversed in full. On a refund, the refund amount is exact and the cash paid back is
 rounded to whole taka with its own rounding amount.
+* **CQ-17 Leftover paisa:** When a split rounded to 2 decimals leaves a remainder (e.g. ৳1 over 3 lines = 0.33+0.33+0.33), the remaining 0.01 goes to the line with the largest amount (first such line if equal). For tenders, it goes to the cash tender if there is one, otherwise to the largest tender.
+* **CQ-18 Refund of a Due sale paid later:** Due collected later counts as paid by the tender used to collect it. Example Cash 20 + Due 80, later Card 40, unpaid 40: a full refund cancels the unpaid 40, then pays back Cash 20 and Card 40. Payout can never exceed money actually received; a cash payout is rounded per CQ-16.
+* **CQ-19 Rounding in profit:** The "Cash rounding" amount is included in Net Profit as a small other income/expense, and therefore in average profit and the capital payback estimate.
+* **CQ-20 Held-order expiry after resume:** The 72-hour clock runs only while the order is held. A resumed order does not expire while it is open. Holding it again starts a new 72-hour clock.
 
 ## Approval
 

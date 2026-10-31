@@ -6,7 +6,7 @@
 
 - Dedicated synthetic **SwiftCheckoutPOS_Test** on an explicitly allowlisted local SQL test instance; fixture marker/file roots verified before any create/reset/restore. No real business database, real backup, real personal data or shop configuration/key ring.
 - Isolated test host/environment/service, loopback endpoint, generated local test accounts/keys and fixture-owned media/backup/log paths. Test settings cannot fall back to UI DbConn/User Secrets/production environment. Reset follows [ARCHITECTURE.md](ARCHITECTURE.md), section 12.
-- Financial rules are merged from OWNER_DECISIONS.md under [PRODUCT_REQUIREMENTS.md](PRODUCT_REQUIREMENTS.md) question IDs. PR-Q63 remains PENDING; device models are deliberately deferred. CQ-01–16 are now ANSWERED in section N. Only new CQ-17–20 gate their specific residual allocation/later-collection refund/profit-aggregation/resumed-expiry edges; all cases still require implementation and Step5 execution. Every worked example below is marked for owner confirmation.
+- Financial rules are merged from OWNER_DECISIONS.md under [PRODUCT_REQUIREMENTS.md](PRODUCT_REQUIREMENTS.md) question IDs. PR-Q63 remains PENDING; device models are deliberately deferred. CQ-01–20 are now ANSWERED in section N. Only new CQ-21–23 gate negative residuals, equal-largest noncash tender ties and original-rounding/mixed-refund/cap reconciliation; all cases still require implementation and Step5 execution. Every worked example below is marked for owner confirmation.
 - Recovery actions follow only [DATA_RECOVERY_PLAN.md](DATA_RECOVERY_PLAN.md). Failure/restart/power-loss simulation uses the isolated test installation; never interrupt live shop work. Physical-device cases require an explicitly assigned test device/operator and no real payment or cash movement.
 - Step 5 evidence records app/schema/SQL/OS/device versions, case/fixture IDs, actions, sanitized actual results, test time, record IDs/counts and outcome. No secret values, customer data, raw credentials or cookies in results.
 
@@ -118,7 +118,7 @@
 | Two200 items,20 discount each, bill discount60 allocated30 each; cost160 each | Net unit150 each is below160 despite total25% discount. OFF: Manager cannot approve, Admin reasoned approval required. ON: Manager/Admin may approve. Never return cost/threshold to Cashier or Manager OFF. |
 | Shelf100, cost90, Cashier discount15 | Net85 below cost though only15%; block “Discount too high — ask Manager”; financial setting controls actual approver per CQ-03, not disclosure of90. |
 
-All values/approvals persist once; both bill modes in a command reject. **CQ-17 OPEN:**1.00 split over three equal discount lines produces0.33 each and0.01 residual; do not assert a recipient until answered. **CQ-19 OPEN:** separate Cash rounding line is required; its final profit/payback aggregation is not selected.
+All values/approvals persist once; both bill modes in a command reject. **Derived from CQ-17 — owner to confirm:**1.00 discount over three equal1.00 lines initially gives0.33/0.33/0.33; put remaining0.01 on the **first** equal-largest line → **0.34/0.33/0.33**, sum1.00. Unique-largest example: line amounts4/3/2, discount0.01 → preliminary0/0/0, final **0.01/0/0**, recipient is the4.00 line. Persist recipient/line order for replay and historical refund. For tender-allocation components with prior collected amounts Cash4/Card3/bKash2 and refund allocation0.01, remainder goes Cash; without Cash, Card4/bKash3/Nagad2 sends it to largest Card. These are later-collection allocation fixtures, not three initial sale tender allocations; subsequent whole-taka Cash payout is separate. **CQ-21/22 OPEN:**1.01/three equal lines rounds to1.02 (negative residual), and tied-largest noncash recipients have no selected correction/tie policy. **Derived from CQ-19 — owner to confirm:** separate Cash rounding contributes to Net Profit/average/payback, not revenue/VAT.
 
 ## OAT-10 — Sale atomicity and retry boundary
 
@@ -152,7 +152,7 @@ All values/approvals persist once; both bill modes in a command reject. **CQ-17 
 
 ## OAT-13 — Hold/resume/cancel/expiry and crash
 
-**Trace:** FR-05; PR-Q15–18/49; BP-03.
+**Trace:** FR-05; PR-Q15–18/49; CQ-04/20; BP-03.
 
 **Preconditions:** Approved reservation/ownership/cancel/expiry rules and legacy held-order migration fixture.
 
@@ -168,7 +168,7 @@ Start owned20 at WAC10. Hold8: owned20/reserved8/available12/value200. Restock10
 
 Resume: **owned30/reserved8/available22/value360 unchanged**. Restart, resume again or use a second tab: no extra reservation/release; another cart cannot spend those8. From that resumed fixture, cancel once → owned30/reserved0/available30/value360 with retained Cancelled history. Separate completion fixture consumes8 once → owned22/reserved0/available22/value264; own reservation is eligible for completion even if other availability is zero.
 
-Separate **still-Held** fixture age72h+1min, retention72: cancel/expire once to owned30/reserved0/available30; no sale/COGS. Worker replay/restart never releases twice. Retention0 never expires. **CQ-20 OPEN:** do not execute a claimed expected expiry clock for a Resumed state until owner selects its timer semantics.
+Separate **still-Held** fixture age72h+1min, retention72: cancel/expire once to owned30/reserved0/available30; no sale/COGS. Worker replay/restart never releases twice. Retention0 never expires. **Derived from CQ-20 — owner to confirm:** Hold2026-10-01 09:00 Dhaka, resumeOct2 09:00, still openOct5 09:00 → **no expiry**, reservation8 retained, despite96h since initial hold. ReholdOct5 10:00 → fresh 72h timer; atOct8 10:01 Held expires once. RestartOct6 does not reset HeldSince; a worker that read Held before resume must recheck state/version and not cancel Resumed work. Retention0 still never expires.
 
 ## OAT-14 — Restock/vendor return and ledger consistency
 
@@ -182,7 +182,7 @@ Separate **still-Held** fixture age72h+1min, retention72: cancel/expire once to 
 
 ## OAT-15 — Refund state, quantity and repeat protection
 
-**Trace:** FR-07; PR-Q26–31/65/66/71; IMM-04/BP-04.
+**Trace:** FR-07; PR-Q26–31/65/66/71; CQ-17/18; IMM-04/BP-04.
 
 **Preconditions:** Approved refund eligibility/tender/tax/cost/customer/stock-disposition policy and immutable source sale.
 
@@ -205,7 +205,7 @@ Controlled clock: sale+167h59m eligible; sale+168h01m rejected, measured elapsed
 | Full200 damaged disposition, original cost120 | Stock+0; reverse original COGS120, then Damaged expense120 **once**; original COGS does not remain on top of Damaged. |
 | Refund calculator cash leg already established as29.65 (component fixture only) | Whole-taka cash payout30.00, own refund payout adjustment+0.35 stored separately; exact refund leg29.65 unchanged. Actual cash-out is30, not29.65 or30.35. |
 
-**CQ-17/18 OPEN:** do not invent proportional residual allocation, later-collection tender attribution or original sale-rounding refund caps. Component rounding example does not select refund entitlement/allocation for those edges.
+**Derived from CQ-17/18 — owner to confirm:** saleCash20+Due80; later Card40 collection, unpaid40. Full100 refund cancels unpaid40 then pays **Cash20/Card40**; payout60 equals actual received60, never100 Cash. Later collection retains Card provenance through restart/replay; no second revenue at collection. Apply CQ-17 positive-residual recipient to proportional shares; CQ-18 actual-money cap remains mandatory after Cash rounding. **CQ-21–23 OPEN:** signed over-allocation/tied noncash recipient/original-sale-rounding reconciliation tests stay Blocked only for those cases. The100.49/Card80/Cash20 example in requirements must not be passed using an invented cap/clipping order.
 
 ## OAT-16 — Ledger and manual input validation
 
@@ -219,7 +219,7 @@ Controlled clock: sale+167h59m eligible; sale+168h01m rejected, measured elapsed
 
 ## OAT-17 — COGS, profit, filters and dates
 
-**Trace:** FR-09/10; PR-Q31/35–40/58/59/79–81; IMM-07/BP-04/BP-11.
+**Trace:** FR-09/10; PR-Q31/35–40/58/59/79–81; CQ-19; IMM-07/BP-04/BP-11.
 
 **Preconditions:** Approved indicator equations/date zone/boundaries and known fixture costs/taxes/refunds/expenses across date boundaries.
 
@@ -237,7 +237,7 @@ Due sale100 paid Card60 +Due40: sale-date revenue100, initial NCP receipt60. Lat
 
 First sale2026-01-01, capital2026-02-01 → startJan1. OnMar2 elapsed60 days, months=max(60/30.44,1). For avg profit0 or−10 show **“Not reachable at current profit”**, no months (CQ-14). Date-only KPIs/search-only tables/All time remain independent; test Dhaka midnight.
 
-Cash sale exact459.95→460: sales revenue459.95 at VAT0 and **Cash rounding+0.05** separately, cash/NCP receipt460. Void reverses delta in full. **CQ-19 OPEN:** no asserted final net/average-profit or payback aggregation of that separate rounding line until owner answers; revenue/VAT exclusion and real-money NCP are already settled.
+**Derived from CQ-19 — owner to confirm:** Cash sale exact459.95→460 with CostAtSale300 and Rent30: revenue459.95, gross profit159.95, base net129.95; separate **Cash rounding+0.05 other income** gives **Net Profit130.00**. Within first30 days the approved minimum1 month gives average profit130.00; capital payback uses that updated net/average, not129.95. NCP receipt460 already includes rounding; never add0.05 again. Independent refund component exact cash29.65 paid30 has own delta+0.35 and **other expense0.35**, reducing net profit0.35. A void reverses its original sale rounding effect fully (separate fixture, not voiding an already refunded sale). With a negative sale delta, e.g. exact100.49→100, other expense0.49 lowers net profit; nonpositive-average message still follows CQ-14. Original mixed-tender refund/cap reconciliation is CQ-23 only; the ordinary profit inclusion is answered.
 
 ## OAT-18 — Till reconciliation and real actor
 
@@ -429,7 +429,7 @@ Independent rounding fixture: float1000 +cash sale exact459.95 paid460 −refund
 
 **Trace:** PR-Q34/46/85/86/91/92; BP-17.
 
-**Preconditions:** Approved tender/receivable schema, registered synthetic customer, Manager/Admin approval with approved CQ-01/05/10/12/16 semantics; only CQ-17/18 refund-edge cases remain Blocked.
+**Preconditions:** Approved tender/receivable schema, registered synthetic customer, Manager/Admin approval with approved CQ-01/05/10/12/16 semantics; CQ-17/18 allocation/collection/cap rules are answered; only new CQ-21–23 specific refund-edge cases remain Blocked.
 
 **Actions:** Complete a 1000.00 sale with Card800.00 +Due200.00; record receipt/reference/approval. Collect100.00 once, replay and restart. Race two new Due200.00 sales against an existing unpaid2200.00 balance. Try three allocations, anonymous/walk-in Due and unapproved due.
 
@@ -449,7 +449,7 @@ Independent rounding fixture: float1000 +cash sale exact459.95 paid460 −refund
 
 **Trace:** PR-Q11–13/22/67/90/92/93; BP-20.
 
-**Preconditions:** Approved CQ-02/03 comparison/allocation/approval rules and separate approver credentials; only CQ-17 residual assignment remains OPEN.
+**Preconditions:** Approved CQ-02/03 comparison/allocation/approval rules and separate approver credentials; CQ-17 positive residual recipient is approved; only CQ-21 signed over-allocation remains OPEN for item allocations.
 
 **Actions:** Use OAT-09 numeric limit/cost-floor fixtures, apply item plus bill discounts, submit both bill modes, alter cart/tender after approval, replay/forge approver identity and test private-error responses.
 

@@ -371,3 +371,44 @@ Final project status (`git --no-optional-locks -C C:/source/repos status --short
  M SwiftCheckoutPOS/docs/PRODUCT_REQUIREMENTS.md
  M SwiftCheckoutPOS/docs/PROJECT_AUDIT.md
 ```
+
+## 11. CQ merge — CQ-17–CQ-20
+
+Merged **2026-10-31 (Asia/Dhaka)** from approved [OWNER_DECISIONS.md](OWNER_DECISIONS.md), section N. **This batch:4 ANSWERED /0 OPEN; approved CQ-01–20 register:20 ANSWERED /0 OPEN.** All four rows in [requirements section7](PRODUCT_REQUIREMENTS.md#7-clarification-answers-remaining-questions-and-change-control) carry their one-line approved answer and exact source ID. Earlier report sections' OPEN CQ-17–20 lists are historical and superseded by this section. PR statuses remain92 ANSWERED / PR-Q63 OPEN; hardware models remain approved deferrals.
+
+Files changed by this merge: [ARCHITECTURE.md](ARCHITECTURE.md), [DATA_RECOVERY_PLAN.md](DATA_RECOVERY_PLAN.md), [DEVELOPMENT_ROADMAP.md](DEVELOPMENT_ROADMAP.md), [OFFLINE_ACCEPTANCE_TESTS.md](OFFLINE_ACCEPTANCE_TESTS.md), [OWNER_DECISIONS_MERGE_REPORT.md](OWNER_DECISIONS_MERGE_REPORT.md), [PRODUCT_REQUIREMENTS.md](PRODUCT_REQUIREMENTS.md). Approved groups now include residual recipients, later-collection tender attribution/actual-money refund cap, rounding in net/average profit/payback, and Held-only expiry with rehold reset. Architecture/roadmap gates and done-evidence reflect these answers; OAT-09/13/15/17/35/37 add or adjust unexecuted examples marked “Derived from CQ-xx — owner to confirm.” Recovery only adds saved allocation/tender/profit/timer consistency checks; RPO/RTO/backup schedule/retention are unchanged. **DR-36/37 · High · CONFIRMED** add current-source-traced allocation snapshot and rounding-in-profit gaps with full file/line/method/excerpt/impact/correction/migration/regression evidence in requirements.
+
+### New questions — no policy invented
+
+The four answers are merged as approved. Three narrower cases are separately **OPEN**; CQ-17–20 are not reopened:
+
+- **CQ-21** (CQ-17): If proportional 2-decimal rounding over-allocates (BDT1.01 over three equal lines becomes0.34+0.34+0.34=1.02), should the negative residual −0.01 be removed from the same largest-line/Cash/largest-tender recipient? The approved example specifies a positive leftover; no signed-correction rule is selected here.
+- **CQ-22** (CQ-17): For a tender residual with no Cash and equal largest paid tenders, which tender receives it? CQ-17 gives a first-equal-line rule, but no equal-largest-tender tie-breaker.
+- **CQ-23** (CQ-05/16/17/18/19): How should a refund reconcile original sale cash rounding, exact refund entitlement and the actual-money payout cap when proportional allocations conflict? Example: exact bill100.49, Card80 +Cash remainder20.49→20, received100. A full exact refund100.49 allocated by actual-paid proportions gives Card80.39/Cash20.10→20, total100.39, exceeding100. Should the payout base be capped before allocation, and where is the0.49 difference recorded/reversed? Do not select a clipping order or rounding accounting rule until approved.
+
+CQ-23 records a numerical conflict when the general proportional-refund rule is applied without an additional reconciliation step. The actual-received cap remains mandatory. No clipping order, lost-paisa treatment or cash-rounding reversal is selected for that mixed case. Negative residual and equal-largest noncash tie handling likewise await owner answers. Only the affected edge assertions are Blocked; the answered rules are unblocked.
+
+### Read-only checks and scope
+
+Initial Git status already showed **OWNER_DECISIONS.md modified by the owner**; this merge leaves its entire contents byte-identical to that baseline. All202 non-doc authored files and parent AGENTS.md also match pre-edit SHA256 fingerprints. No source/test/config/package/app/database operation or acceptance execution occurred.
+
+Repeated the exact NUL-delimited exhaustive check-ignore script recorded in section10 (default and --no-index) over **214** .cs/.cshtml/.js/.css/.json files; both exit0. **56 ignored, all generated bin/obj/.vs output;0 ignored authored source/config files**, including BackupAdmin. Source links already target [the tracked BackupAdmin view](../SwiftCheckoutPOS.UI/Views/BackupAdmin/Index.cshtml), lines1–119; the [evidence snapshot](EVIDENCE_REFERENCES.md) is already marked superseded. EVIDENCE_REFERENCES.md and PROJECT_AUDIT.md require no change in this batch.
+
+```powershell
+git --no-optional-locks -C C:/source/repos status --ignored --short --untracked-files=all -- SwiftCheckoutPOS
+git --no-optional-locks -C C:/source/repos status --short --untracked-files=all
+git --no-optional-locks -C C:/source/repos ls-files -- SwiftCheckoutPOS
+git --no-optional-locks -C C:/source/repos -c core.safecrlf=false diff --check -- SwiftCheckoutPOS
+```
+
+Status --ignored returned452 entries at the initial read (451 generated entries plus the pre-existing owner edit). Final Markdown path/anchor/source-link, question-count and scope checks pass; no current BackupAdmin snapshot-target or absolute C:/source Markdown link remains. Whitespace check passes. Final Git status (all files under docs; OWNER_DECISIONS.md is the preserved pre-existing owner edit):
+
+```text
+ M SwiftCheckoutPOS/docs/ARCHITECTURE.md
+ M SwiftCheckoutPOS/docs/DATA_RECOVERY_PLAN.md
+ M SwiftCheckoutPOS/docs/DEVELOPMENT_ROADMAP.md
+ M SwiftCheckoutPOS/docs/OFFLINE_ACCEPTANCE_TESTS.md
+ M SwiftCheckoutPOS/docs/OWNER_DECISIONS.md
+ M SwiftCheckoutPOS/docs/OWNER_DECISIONS_MERGE_REPORT.md
+ M SwiftCheckoutPOS/docs/PRODUCT_REQUIREMENTS.md
+```
