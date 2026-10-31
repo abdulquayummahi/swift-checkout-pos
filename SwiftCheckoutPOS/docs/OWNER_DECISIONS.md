@@ -1,8 +1,8 @@
 # SwiftCheckoutPOS — Owner Decisions
 
-Status: Answers to PRODUCT\_REQUIREMENTS.md section 6 (PR-Q01–PR-Q84).
+Status: Answers to PRODUCT\_REQUIREMENTS.md section 6 (PR-Q01–PR-Q84) plus additional decisions PR-Q85–PR-Q93.
 Each answer below is APPROVED by the owner unless marked "PENDING".
-Items marked ✏️ were filled in by the owner with shop-specific details.
+Owner-confirmed version, 31-10-2026.
 
 ## A. Money and rounding
 
@@ -15,18 +15,19 @@ Always format as BDT, never by Windows regional settings.
 Round each line total to 2 decimals; calculate VAT for the whole bill, then round to 2 decimals;
 round the final total to 2 decimals.
 * **PR-Q06 Midpoint rule:** Round half away from zero (0.005 → 0.01), the normal commercial rule.
-* **PR-Q07 Cash rounding:** ⚠️ CHECK — Round the final payable amount to the nearest whole taka
-for ALL tenders. Show the difference as a "Rounding" line on the receipt and store it with the sale.
+* **PR-Q07 Cash rounding:** For cash payments, round the final payable amount to the nearest whole taka
+(see PR-Q91; card and mobile wallet are charged the exact amount). Show the difference as a "Rounding" line on the receipt and store it with the sale.
 
 ## B. VAT / tax
 
-* **PR-Q08 Inclusive or exclusive:** ⚠️ CHECK — Selling prices are VAT-INCLUSIVE (shelf price = price
+* **PR-Q08 Inclusive or exclusive:** Selling prices are VAT-INCLUSIVE (shelf price = price
 the customer pays). VAT is calculated out of the price for receipts and reports.
 (Note: current code adds VAT on top. This answer changes checkout calculation.)
 * **PR-Q09 Bill discount allocation:** Spread a bill discount across items in proportion to each
 line's value (current behaviour), then calculate VAT on the discounted amounts.
-* **PR-Q10 Tax rates:** Each product has its own VAT rate, entered by Manager/Admin.
-0% for exempt items. ✏️ FILL IN: our standard VAT rate per our VAT registration is \_\_\_\_%.
+* **PR-Q10 Tax rates:** The shop is currently NOT VAT-registered. All products are 0% VAT.
+Receipts show no VAT line and no BIN. The per-product VAT rate field stays in the system (entered by
+Admin) so VAT can be switched on if the shop registers later; this answer will then be updated.
 No automatic tax rules beyond the product's rate.
 
 ## C. Discounts
@@ -35,8 +36,9 @@ No automatic tax rules beyond the product's rate.
 * **PR-Q12 Flat + percentage together:** Not allowed. Only one bill discount at a time;
 the screen must make the cashier choose one. Reject a request containing both.
 * **PR-Q13 Item-level discounts:** Yes, required.
-* **PR-Q67 Discount limits:** ⚠️ CHECK — Cashier: up to 5% of the bill or ৳100, whichever is lower.
-Manager: up to 20%. Admin: no limit. Above the limit requires a Manager/Admin to log in and approve.
+* **PR-Q67 Discount limits:** Cashier: up to 25% of the bill. Manager: up to 50%. Admin: no limit.
+A Cashier above 25% needs a Manager or Admin to log in and approve; a Manager above 50% needs an Admin.
+Limits cover item and bill discounts combined (PR-Q90). Below-cost discounts follow PR-Q93.
 Every discount records who gave it.
 
 ## D. Stock and held orders
@@ -69,7 +71,7 @@ Theft/Loss, Found, Other (with a note). Records who and when.
 
 ## E. Refunds
 
-* **PR-Q26 Partial refunds:** ⚠️ CHECK — Yes, by item and quantity. Version 1 may ship with full-sale
+* **PR-Q26 Partial refunds:** Yes, by item and quantity. Version 1 may ship with full-sale
 refunds only; partial refunds follow as the next enhancement.
 * **PR-Q27 Eligibility:** Completed sales only, within 7 days, with the receipt number.
 Requires Manager or Admin approval. Cannot refund more than was sold.
@@ -130,10 +132,11 @@ allowed for Manager/Admin with a reason, and is logged.
 sequential per day, never reused.
 * **PR-Q46 Card / mobile wallet:** No payment integration. The cashier confirms the payment was received
 on the separate terminal/phone and may enter a reference (last 4 digits, or bKash/Nagad TrxID).
-* **PR-Q48 Receipt content:** ✏️ FILL IN shop name, address, phone and BIN/VAT number.
-Also: receipt number, date/time of sale, cashier name, items (qty, price, line total), discount,
-VAT, rounding, total, payment method, amount paid, change, footer message. Values always come from
-the saved sale.
+* **PR-Q48 Receipt content:** Shop name, address, phone, BIN (only if VAT-registered) and footer message
+are Admin-only settings in the app (no hard-coded values). Also: receipt number, date/time of sale,
+cashier name, items (qty, price, line total), discount, VAT (only if VAT-registered), rounding, total,
+payment method(s), amount paid, change. Values always come from the saved sale.
+Cashier and Manager may reprint a receipt; receipts and reprints never show cost or profit.
 * **PR-Q83 Reprints:** Marked "REPRINT / COPY", showing reprint date/time and who reprinted.
 Original values unchanged. Every reprint is logged.
 
@@ -141,12 +144,13 @@ Original values unchanged. Every reprint is logged.
 
 * **PR-Q49 Transferring held orders:** Any logged-in staff member may resume a held order.
 Record who held it and who resumed it.
-* **PR-Q50 Permission matrix:** ⚠️ CHECK
+* **PR-Q50 Permission matrix:**
 Cashier: checkout, hold/resume, customer lookup/add, open/close own shift and till count.
-Manager: everything a Cashier can do + inventory, customers, refunds, reports, till reconciliation,
-finance entries, settings.
-Admin: everything a Manager can do + user management, backup/restore, system configuration.
-Admin includes all Manager permissions. Backup download is Admin-only.
+Manager: everything a Cashier can do + inventory (stock, prices, restock, stock corrections),
+customers (without profit figures), refunds (approval), till reconciliation for a shift,
+recording operating expense payments, and shop settings except those marked Admin-only.
+Admin: everything a Manager can do + user management, backup/restore/download, system configuration,
+and all financial information.
 * **PR-Q51 Inactivity lock:** After 15 minutes without activity, lock the screen; the same user (or a
 Manager/Admin) re-enters a password. The cart is preserved.
 * **PR-Q52 First Admin:** Created by the owner during installation using a one-time setup step on
@@ -160,11 +164,11 @@ No permanent lockout. Failed attempts are logged.
 
 ## K. Hardware and media
 
-* **PR-Q60 Receipt printer:** ✏️ FILL IN model: unknown — decide later. Expected: 80mm thermal, ESC/POS, USB
+* **PR-Q60 Receipt printer:** Model not chosen yet. Expected: 80mm thermal, ESC/POS, USB
 (or USB virtual COM port). Until then, virtual printer stays clearly labelled "Virtual".
-* **PR-Q75 Barcode scanner:** ✏️ FILL IN model: unknown — decide later. Mode: USB keyboard-wedge (HID).
+* **PR-Q75 Barcode scanner:** Model not chosen yet. Mode: USB keyboard-wedge (HID).
 Serial scanner not required.
-* **PR-Q76 Cash drawer:** ✏️ FILL IN model: unknown — decide later. Connected to the receipt printer (RJ11),
+* **PR-Q76 Cash drawer:** Model not chosen yet. Connected to the receipt printer (RJ11),
 opened by the printer's ESC/POS drawer pulse.
 * **PR-Q61 Barcode rules:** Letters, digits and hyphen only; 4–32 characters; no spaces or symbols.
 * **PR-Q72 Image formats:** JPG, PNG, WebP.
@@ -173,21 +177,65 @@ opened by the printer's ESC/POS drawer pulse.
 
 ## L. Backup and recovery
 
-* **PR-Q53 Backup frequency:** Automatic daily backup at closing time, with catch-up if the PC was
+* **PR-Q53 Backup frequency:** Automatic daily backup at 23:00 (PR-Q89), with catch-up if the PC was
 off. Manual backup before every upgrade.
 * **PR-Q54 Recovery time (RTO):** The shop must be selling again within 2 hours of a failure.
 * **PR-Q55 Retention:** Keep the last 30 daily backups and the last 12 monthly backups
 (first backup of each month). Never delete the newest verified backup.
-* **PR-Q56 Separate copy:** ✏️ FILL IN — Copy to a USB drive kept away from the PC, at least
-every \_\_\_\_ days (recommended: daily, minimum weekly).
+* **PR-Q56 Separate copy:** Copy to a USB drive kept away from the PC, daily.
 * **PR-Q57 Files to keep with backups:** Product images and settings files. Virtual receipt
 files are not needed (receipts can be reprinted from the database).
-* **PR-Q63 Capacity:** ✏️ FILL IN — About \_\_\_\_ sales per day and \_\_\_\_ products.
+* **PR-Q63 Capacity:** PENDING — owner will estimate sales per day and number of products later.
+Until then, design for normal small-shop volume and never delete records to save space.
 * **PR-Q69 Maximum data loss (RPO):** At most one business day of sales.
 * **PR-Q84 Restore drill:** Test-restore the latest backup into a test database once a month and
 before every upgrade.
 
+## M. Additional decisions
+
+* **PR-Q85 Split payments:** Allowed: one sale may be paid by up to two tenders (Cash, Card, bKash,
+Nagad, or Due per PR-Q86). Each tender amount is stored separately.
+* **PR-Q86 Credit (Due) sales:** Allowed for registered customers only. Maximum unpaid due per customer:
+৳2,500. Manager or Admin must approve each due sale. The customer's due balance and every due payment
+received are recorded.
+* **PR-Q87 Voiding a completed sale:** Manager or Admin may void a completed sale within 5 minutes of
+completion, with a reason. Stock is restored. The sale is marked "Voided" and kept, never deleted.
+After 5 minutes, use a refund (PR-Q27).
+* **PR-Q88 Till over/short:** The difference is recorded with the shift, the counted-by user and a note.
+Differences above ৳1,000 need Manager/Admin approval. Shortages are NOT posted to the ledger as an
+expense; they are shown on the till report only.
+* **PR-Q89 Automatic backup time:** Daily at 23:00 (Asia/Dhaka), with catch-up if the PC was off.
+* **PR-Q90 Discount limit scope:** The limits in PR-Q67 apply to item and bill discounts combined.
+* **PR-Q91 Cash rounding scope (clarifies PR-Q07):** Round to whole taka for cash only. Card, bKash and
+Nagad are charged the exact amount.
+* **PR-Q92 Financial privacy (Admin-controlled):**
+"Financial information" means: profit and margin (any kind), cost prices and average cost,
+inventory value, COGS, revenue and sales totals for any period (including Z-report and dashboard
+totals), the finance ledger list and totals, capital, loans, net cash position, payback estimate,
+and customer profit figures.
+1. By default ONLY Admin can see financial information.
+2. Admin has one setting: "Allow Managers to view financial reports" (default OFF).
+Only Admin can change it. Every change is logged (who, when, old/new value).
+3. When OFF, Managers still do their work without seeing financial information:
+
+   * Inventory: no cost, margin, average cost or inventory value columns/fields/sorting.
+Restock: the Manager enters the batch cost paid, but the resulting average cost is not shown.
+   * Price below cost: message says "Price is below the allowed minimum — ask Admin",
+without showing the cost.
+   * Expenses: the Manager can record an operating expense (Rent, Utilities, Salaries, Transport,
+Maintenance, Other Expense) and sees only the entries they recorded today.
+No ledger history, totals, capital or loans.
+   * Till: the Manager sees expected vs counted cash for a single shift only (needed for over/short).
+No daily or period sales totals.
+   * Refunds: the Manager sees the receipt being refunded, nothing else.
+4. Hiding must be enforced on the server (the data is never sent to the page), not just hidden buttons.
+Typing an Admin URL as a Manager must show Access Denied.
+5. Backup download and restore are Admin-only regardless of this setting.
+* **PR-Q93 Discount below cost:** A discount may not bring an item's net price below its cost, unless a
+Manager/Admin approves with a reason (same as PR-Q22). The cashier sees "Discount too high — ask Manager",
+never the cost. The override is recorded.
+
 ## Approval
 
-Approved by: \_\_\_\_\_\_\_\_\_\_\_\_  Date: \_\_\_\_\_\_\_\_\_\_\_\_
+Approved by: A.Q Date: 31-10-2026
 

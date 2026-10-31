@@ -1,0 +1,14 @@
+  Determining projects to restore...
+  Restored C:\Users\abdul\Downloads\New folder\swift-checkout-pos-main\SwiftCheckoutPOS\SwiftCheckoutPOS.BLL\SwiftCheckoutPOS.BLL.csproj (in 1.71 sec).
+  Restored C:\Users\abdul\Downloads\New folder\swift-checkout-pos-main\SwiftCheckoutPOS\SwiftCheckoutPOS.DAL\SwiftCheckoutPOS.DAL.csproj (in 1.71 sec).
+  Restored C:\Users\abdul\Downloads\New folder\swift-checkout-pos-main\SwiftCheckoutPOS\SwiftCheckoutPOS.UI\SwiftCheckoutPOS.UI.csproj (in 1.71 sec).
+  Restored C:\Users\abdul\Downloads\New folder\swift-checkout-pos-main\SwiftCheckoutPOS\Tests\SwiftCheckoutPOS.Tests.Unit\SwiftCheckoutPOS.Tests.Unit.csproj (in 1.71 sec).
+
+The following sources were used:
+   https://api.nuget.org/v3/index.json
+   C:\Program Files (x86)\Microsoft SDKs\NuGetPackages\
+
+The given project `SwiftCheckoutPOS.BLL` has no vulnerable packages given the current sources.
+The given project `SwiftCheckoutPOS.DAL` has no vulnerable packages given the current sources.
+The given project `SwiftCheckoutPOS.UI` has no vulnerable packages given the current sources.
+The given project `SwiftCheckoutPOS.Tests.Unit` has no vulnerable packages given the current sources.
