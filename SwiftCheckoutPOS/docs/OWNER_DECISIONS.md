@@ -1,4 +1,5 @@
 # SwiftCheckoutPOS — Owner Decisions
+Merged into PRODUCT_REQUIREMENTS.md on 2026-10-31.
 
 Status: Answers to PRODUCT\_REQUIREMENTS.md section 6 (PR-Q01–PR-Q84) plus additional decisions PR-Q85–PR-Q93.
 Each answer below is APPROVED by the owner unless marked "PENDING".

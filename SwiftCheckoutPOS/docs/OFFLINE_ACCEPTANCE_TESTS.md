@@ -5,9 +5,9 @@
 ## Common preconditions for every case
 
 - Dedicated synthetic **SwiftCheckoutPOS_Test** on an explicitly allowlisted local SQL test instance; fixture marker/file roots verified before any create/reset/restore. No real business database, real backup, real personal data or shop configuration/key ring.
-- Isolated test host/environment/service, loopback endpoint, generated local test accounts/keys and fixture-owned media/backup/log paths. Test settings cannot fall back to UI DbConn/User Secrets/production environment. Reset follows [ARCHITECTURE.md](C:/source/repos/SwiftCheckoutPOS/docs/ARCHITECTURE.md), section 12.
-- Financial expected examples are owner-approved under [PRODUCT_REQUIREMENTS.md](C:/source/repos/SwiftCheckoutPOS/docs/PRODUCT_REQUIREMENTS.md) question IDs. A case needing an unanswered rule is **Blocked by that question**, not passed by copying existing behavior.
-- Recovery actions follow only [DATA_RECOVERY_PLAN.md](C:/source/repos/SwiftCheckoutPOS/docs/DATA_RECOVERY_PLAN.md). Failure/restart/power-loss simulation uses the isolated test installation; never interrupt live shop work. Physical-device cases require an explicitly assigned test device/operator and no real payment or cash movement.
+- Isolated test host/environment/service, loopback endpoint, generated local test accounts/keys and fixture-owned media/backup/log paths. Test settings cannot fall back to UI DbConn/User Secrets/production environment. Reset follows [ARCHITECTURE.md](ARCHITECTURE.md), section 12.
+- Financial rules are merged from OWNER_DECISIONS.md under [PRODUCT_REQUIREMENTS.md](PRODUCT_REQUIREMENTS.md) question IDs. PR-Q63 remains PENDING; device models are deliberately deferred. Cases depending on CQ-01–16 cross-rule ambiguities are **Blocked by that question**, not passed by copying compatibility behavior. Every worked example below is marked for owner confirmation.
+- Recovery actions follow only [DATA_RECOVERY_PLAN.md](DATA_RECOVERY_PLAN.md). Failure/restart/power-loss simulation uses the isolated test installation; never interrupt live shop work. Physical-device cases require an explicitly assigned test device/operator and no real payment or cash movement.
 - Step 5 evidence records app/schema/SQL/OS/device versions, case/fixture IDs, actions, sanitized actual results, test time, record IDs/counts and outcome. No secret values, customer data, raw credentials or cookies in results.
 
 ## OAT-01 — Test-target guard and reset safety
@@ -68,7 +68,7 @@
 
 **Actions:** Request every protected action directly with each role and anonymously, including GET/POST variants, forged posted actor/role and hidden menu URLs.
 
-**Expected:** Server enforces the approved matrix independently of UI; cashier cannot administer users/backup/finance through direct URLs. Actor comes from validated identity; Admin is not implicitly treated as Manager unless explicitly approved.
+**Expected:** Server enforces the approved matrix independently of UI; cashier cannot administer users/backup/finance through direct URLs. Actor comes from validated identity; Admin has all Manager operational permissions; financial read is separately controlled by PR-Q50/92.
 
 ## OAT-07 — Revocation, hashing, throttle and bootstrap
 
@@ -99,6 +99,23 @@
 **Actions:** Create/edit/restock products with fractions, perform an unrelated edit, calculate/complete a sale and compare DTO/SQL/report/receipt values; submit excessive scale and invalid numeric strings.
 
 **Expected:** No unintended whole-number round-trip loss or display mismatch; authoritative decimal calculations match approved examples. Invalid values are rejected before persistence; formatting never substitutes for a calculation rule.
+
+### OAT-09 worked numeric examples — not executed
+
+**Derived from PR-Q01/03/05/06/07/08/09/10/67/90/91/93 — owner to confirm.** Rates and costs here are synthetic fixture values, never a shop VAT-rate assumption.
+
+| Fixture / action | Derived expected result |
+| --- | --- |
+| Current unregistered shop: prices 259.65 +240.30 BDT, one flat bill discount 40.00 | Gross 499.95; discount 40.00; exact payable **459.95**, VAT **0**. No VAT/BIN line. Proportional allocations keep intermediate precision; do not add tax. |
+| Same bill, Cash only | Whole-taka payable **460.00**; stored/printed Rounding **+0.05**; if tendered cash 500.00, change **40.00**. |
+| Same bill, Card / bKash / Nagad only | Charge **459.95**, delta **0.00**; never round these tenders to taka. Cash-containing splits are blocked by CQ-01. |
+| Approved rounding-stage intermediate 1.005 and −1.005 | AwayFromZero to two decimals gives **1.01 / −1.01**, not ToEven 1.00 / −1.00. These are calculated intermediates, not three-decimal stored prices. |
+| VAT-inclusive extractor component fixture for future registered mode only: gross 115.00, rate 15% | Net 100.00, extracted VAT 15.00, payable still 115.00. **Not the current shop configuration**; PR-Q10 must be updated by owner before enabling nonzero VAT. |
+| Future registered component fixture: gross 115.00@15% +110.00@10%, bill discount 22.50 | Allocation 11.50 /11.00; discounted gross 103.50 /99.00; extracted VAT 13.50+9.00=**22.50**; net **180.00**, gross payable **202.50**. Never add VAT to 202.50 again. Current-mode test instead requires all rates 0. |
+| Single bill-only discount on 400.00 with no item discounts, cost comfortably below net | Cashier 100.00 =25% within limit; 100.01 exceeds and requires Manager/Admin. Manager 200.00 =50% within limit; 200.01 requires Admin. Other combined-discount denominator cases wait for CQ-02. |
+| One item shelf 100.00, cost 90.00, Cashier discount 15.00 (15%) | Net 85.00 is below cost despite being within role percentage. Reject with **“Discount too high — ask Manager”**, no cost value in HTTP output. Admin may explicitly approve with reason; Manager-OFF override edge waits for CQ-03. |
+
+All original values, approved actor/reason and rounding facts must be persisted once; display formatting cannot change stored prices. Both bill modes in one command are rejected.
 
 ## OAT-10 — Sale atomicity and retry boundary
 
@@ -140,6 +157,14 @@
 
 **Expected:** Original durable work and links survive; no delete-then-session loss, duplicate reservation/restoration or silent expiry loss. Legacy IDs/receipt references are preserved through reviewed mapping. No workflow is passed before policy is answered.
 
+### OAT-13 hold / expiry worked example — not executed
+
+**Derived from PR-Q14/15/16/17/18/19/49 — owner to confirm.**
+
+Start with 20 owned units at average BDT10.00. Hold 8: owned **20**, reserved **8**, available **12**, owned value **200.00**. Restock 10 for BDT160.00: owned **30**, reserved **8**, available **22**; WAC=(200+160)/30=**12.00**, owned value **360.00**, including held value **96.00**. A calculation using only 12 available old units would be wrong.
+
+At held age **72h+1min** with setting 72, expiry cancels once: owned **30**, reserved **0**, available **30**, value **360.00**, Cancelled order and actor/event retained; no sale/COGS created. Repeating worker/restart cannot release 8 twice. With retention 0, the order remains held at that age. Resume reservation boundary waits for CQ-04 rather than assuming the restored release-on-resume code is approved.
+
 ## OAT-14 — Restock/vendor return and ledger consistency
 
 **Trace:** FR-02/08; PR-Q16/19–25; IMM-04/IMM-08.
@@ -159,6 +184,14 @@
 **Actions:** Refund completed, held, missing and already-refunded receipts; race/replay two refund requests and inject failures. If partial refunds are approved, test cumulative quantities against sold quantities.
 
 **Expected:** Only approved transitions/effects occur, atomic once, with occurrence date/actor/source linkage. Historical sale is preserved, no repeated stock restoration or excessive cumulative refund. Unsupported partial refund is clearly unavailable, not assumed required.
+
+### OAT-15 refund worked example — not executed
+
+**Derived from PR-Q26/27/28/29/30/31/65/66 — owner to confirm.**
+
+Synthetic completed cash sale on 2026-10-20: 2 units at saved gross BDT100.00 each, VAT0, CostAtSale BDT60.00 each. On 2026-10-24 a Manager/Admin approves a full v1 refund with the receipt and Return to stock disposition: payout **200.00 Cash**, stock **+2 once**, VAT reversal **0.00**, COGS reversal **120.00 at original cost**, linked refund occurrence dated **2026-10-24**. Original sale date/amounts/receipt stay unchanged. Changing today's unit cost to 90.00 cannot make reversal 180.00.
+
+Repeat/concurrent refund creates no extra payout/stock. A 2026-10-29 attempt is outside seven days; exact seventh-day boundary waits for CQ-13. Future partial fixture returns one unit for 100.00/cost60.00 and can never cumulatively exceed two units. Damaged disposition stock must not be restocked; its exact COGS/Damaged entries wait for CQ-06. Split/Due refund allocation waits for CQ-05, not an assumed cash payout.
 
 ## OAT-16 — Ledger and manual input validation
 
@@ -180,6 +213,16 @@
 
 **Expected:** Approved metrics match independent expected values; historical completion-cost measures do not change with present cost. Missing historical facts are explicitly unknown rather than fabricated. Date/search scope matches approved definitions, with no boundary loss/double inclusion.
 
+### OAT-17 profit worked example — not executed
+
+**Derived from PR-Q35/36/37/38/40/58/59/79/80/81 — owner to confirm.**
+
+Current unregistered, fully collected known-cost sale: revenue excluding VAT **200.00**, 2 units at captured cost60.00 → COGS **120.00**, gross profit **80.00**. With approved Rent expense30.00, known-cost net profit **50.00**. Later current cost90.00 must not change those profits.
+
+Add a separate sale with revenue50.00 and **unknown historical cost**: revenue report can show total250.00, but known-cost profit remains80.00 gross/50.00 after the 30.00 expense, with a visible cost-unknown/excluded-sales note. Do not treat unknown cost as zero. Capital Withdrawal/Loan Repayment do not become Opex.
+
+First sale 2026-01-01, first capital 2026-02-01 → business start **2026-01-01**. At 2026-03-02, elapsed60 days gives months=max(60/30.44,1), not an integer calendar-month formula. “Capital payback estimate” is the label. Changing table search must not change date-only KPIs; All time ignores selected range. Fixtures use Dhaka midnight boundaries. Due revenue timing and literal Net Cash Position double-counting are CQ-10/07; no numeric result is asserted for those unresolved cases.
+
 ## OAT-18 — Till reconciliation and real actor
 
 **Trace:** FR-11; PR-Q41–44; IMM-09/BP-04.
@@ -189,6 +232,14 @@
 **Actions:** Submit a nonzero counted amount, malformed input, duplicate close, stale/concurrent close and actor spoof; compare both legacy and current workflows.
 
 **Expected:** Exact validated count and authenticated actor persist once; approved cash equation/boundary applies consistently. No hardcoded user, fabricated eight-hour shift or silently accepted zero-binding failure.
+
+### OAT-18 till over/short worked example — not executed
+
+**Derived from PR-Q41/42/43/44/47/88/92 — owner to confirm.**
+
+One open shift: entered float1000.00 +cash sales8000.00 −cash refunds300.00 +paid in400.00 −paid out200.00 = expected **8900.00**. Card/wallet/due are not cash drawer receipts. Cashier enters count before expected is revealed.
+
+Count8800.00 → discrepancy **−100.00 (short)**, stored with shift/counted-by/note, **no shortage ledger expense**. Independent fixture count10001.00 → discrepancy **+1101.00**, Manager/Admin approval required because it is above1000. Manager OFF sees this one shift's expected/count/discrepancy only, no daily/period sales totals. Negative shortage threshold interpretation is CQ-08 and is not silently chosen by this example.
 
 ## OAT-19 — Customers and loyalty
 
@@ -226,7 +277,7 @@
 
 **Preconditions:** Assigned test hardware or fake; approved tender/drawer policy; empty test drawer/no money.
 
-**Actions:** Use keyboard/manual/wedge input with focus changes; test serial reader only if required; disconnect/reconnect. Trigger/replay print/drawer requests and fail device during a saved sale.
+**Actions:** Use approved USB keyboard-wedge and manual input with focus changes; disconnect/reconnect. Serial scanner is not required (PR-Q75). Trigger/replay print/drawer requests and fail device during a saved sale.
 
 **Expected:** No device attached still permits authorized manual sale entry. Bounded local reconnect/error behavior, correct configured protocol, one intended drawer action without blind retry. No hardware failure rolls back/repeats money/stock.
 
@@ -339,3 +390,53 @@
 **Actions:** Follow replacement-Windows section of canonical recovery plan with recreated service identity; test missing key/certificate and incorrect SID/ACL variants.
 
 **Expected:** Correctly restored SQL business records/users survive; new cookie keys can require login. Required encryption keys cannot be bypassed; missing material yields explicit stopped recovery. Local-only host and least-privilege grants/ACLs are verified before reopen.
+
+## OAT-34 — Manual financial privacy OFF / ON on every current surface
+
+**Trace:** PR-Q50/92; DR-24/25; BP-15; financial privacy register FP-01–18.
+
+**Preconditions:** Isolated synthetic installation; Admin, Manager and Cashier accounts; Admin-controlled AllowManagerFinancialView default OFF; browser network/HTML/JSON inspection enabled. No business data or database.
+
+**Actions:** Log in as Manager with setting OFF, then ON (changed by Admin with old/new audit), then OFF again. Check every surface: FinanceAdmin Index/AddEntry; ReportAdmin Index/GetZReportPreview/PrintZReport; Report/ZReport and TillCount/Summary; AdminDashboard; ManagerDashboard; InventoryAdmin Index/Create/Edit/restock/vendor return, cost/margin sorting and below-cost messages; Customer Index/Details/history/sorts; Reconciliation; BackupAdmin Index/config/manual trigger/download; Checkout/preview/receipt; Refund selected receipt; SalesAdmin and navigation. Repeat direct URL, forged JSON/form fields, hidden/disabled controls, preview/print/download, cached/back responses and unauthorized sort keys. Repeat as Cashier and Admin; attempt Manager setting/header updates.
+
+**Expected:** OFF sends no PR-Q92 protected fields in HTML/JSON/hidden attributes/scripts/errors/sorts. Inventory shows stock/retail but no cost/margin/average/value; Manager may enter batch paid without resulting average. Expenses only six categories and own entries today; no history/totals/capital/loans. Single-shift till expected/count allowed, no period sales totals; refund only chosen receipt. Always-Admin URLs are Access Denied. ON restores authorized shared financial **read**, no extra write/admin rights. Cashier never sees private fields; normal receipt prices/paid/change remain usable. Admin always authorized. Backup download/restore always Admin-only even ON. Audit each setting change; permission takes effect on next request. Do not claim a server-only unrendered DTO field is already an HTTP leak; still require separate operational/private DTO shapes. CQ-03/10 edge cases remain blocked.
+
+## OAT-35 — Two tenders, Due ceiling and collection
+
+**Trace:** PR-Q34/46/85/86/91/92; BP-17.
+
+**Preconditions:** Approved tender/receivable schema, registered synthetic customer, Manager/Admin approval and resolved CQ-01/05/10 for affected mixed-cash/refund/collection permissions.
+
+**Actions:** Complete a 1000.00 sale with Card800.00 +Due200.00; record receipt/reference/approval. Collect100.00 once, replay and restart. Race two new Due200.00 sales against an existing unpaid2200.00 balance. Try three allocations, anonymous/walk-in Due and unapproved due.
+
+**Expected:** **Derived from PR-Q85/86 — owner to confirm:** first sale collects800.00 and records200.00 receivable separately; collection100.00 leaves100.00 on that zero-opening-due fixture. No fake cash for Due. With opening due2200.00, only one of two Due200.00 requests can commit:2400.00 allowed,2600.00 rejected. Max two kinds; separate facts and exactly-once operation IDs. Cash split rounding is not guessed before CQ-01.
+
+## OAT-36 — Completed-sale void within five minutes
+
+**Trace:** PR-Q27/50/87/92; BP-18/24.
+
+**Preconditions:** Synthetic completed sale and resolved CQ-11 monetary reversals; clock controlled locally.
+
+**Actions:** Manager/Admin void with reason at completion+4min; duplicate/race/replay; Cashier/blank reason; attempt completion+6min; inspect history/stock/tender/due/VAT/COGS/audit.
+
+**Expected:** Approved actor/reason/time only; stock restored once, original facts/receipt retained with Voided state, number never reused. After five minutes route to approved refund, no silent cancellation. All approved monetary effects commit atomically; until CQ-11 is answered, financial reversal assertions are Blocked, not passed by changing status alone.
+
+## OAT-37 — Combined discounts and approval privacy
+
+**Trace:** PR-Q11–13/22/67/90/92/93; BP-20.
+
+**Preconditions:** Approved comparison/allocation basis (CQ-02) and Manager-OFF override edge (CQ-03) resolved; separate approver credentials.
+
+**Actions:** Use OAT-09 numeric limit/cost-floor fixtures, apply item plus bill discounts, submit both bill modes, alter cart/tender after approval, replay/forge approver identity and test private-error responses.
+
+**Expected:** Combined effective discount drives25/50 role checks; correct escalation and immutable actor/reason/approval. Two bill modes rejected. Changing approved command invalidates old approval; no double effect. Below-cost cashier message exactly “Discount too high — ask Manager”; Manager price message “Price is below the allowed minimum — ask Admin”; no cost leaks whether ON/OFF.
+
+## OAT-38 — Admin receipt settings and saved reprint
+
+**Trace:** PR-Q01/10/45/48/50/79/83/91/92; BP-23/24.
+
+**Preconditions:** Saved synthetic sale with tender/rounding snapshots; current unregistered mode; Admin header settings.
+
+**Actions:** Admin changes name/address/phone/footer and attempted BIN display; Cashier/Manager attempt same edits with financial setting OFF and ON. Reprint original sale after product/header changes and restart; inspect SQL/audit/receipt/device outcome.
+
+**Expected:** Only Admin changes header, audited. No VAT/BIN currently, no cost/profit ever. Original saved financial values unchanged; Cashier/Manager authorized copy says REPRINT / COPY with reprint time/actor logged. Never resell/restore stock/reopen drawer automatically for a reprint. Reprint uses the original saved receipt/header snapshot, not today's edited header; the original values remain unchanged (PR-Q48/83).

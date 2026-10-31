@@ -1,18 +1,18 @@
 # SwiftCheckoutPOS Data Recovery Plan
 
-Status: canonical recovery design and operator runbook for future implementation · 2026-10-31. **Not executed; current backup code does not implement this plan.** No SQL, restore, migration, service or configuration action is authorized or performed by this documentation step.
+Status: canonical recovery design merged with approved owner objectives · 2026-10-31 (Asia/Dhaka). **Not executed; current backup code does not implement this plan.** No SQL, restore, migration, service or configuration action is authorized or performed by this documentation step.
 
 ## 1. Authority, scope and current limitations
 
-This is the **single recovery document** for SwiftCheckoutPOS. [ARCHITECTURE.md](C:/source/repos/SwiftCheckoutPOS/docs/ARCHITECTURE.md) defines components; [PRODUCT_REQUIREMENTS.md](C:/source/repos/SwiftCheckoutPOS/docs/PRODUCT_REQUIREMENTS.md) records owner decisions; [OFFLINE_ACCEPTANCE_TESTS.md](C:/source/repos/SwiftCheckoutPOS/docs/OFFLINE_ACCEPTANCE_TESTS.md) records Step 5 cases. The historical audit is evidence, not an alternative recovery procedure.
+This is the **single recovery document** for SwiftCheckoutPOS. [ARCHITECTURE.md](ARCHITECTURE.md) defines components; [PRODUCT_REQUIREMENTS.md](PRODUCT_REQUIREMENTS.md) records owner decisions; [OFFLINE_ACCEPTANCE_TESTS.md](OFFLINE_ACCEPTANCE_TESTS.md) records Step 5 cases. The historical audit is evidence, not an alternative recovery procedure.
 
 One Windows PC, local SQL Server, local application/data/configuration/hardware. No cloud, network backup dependency, remote restore service or SQL Server Agent. The selected new-install baseline is SQL Server 2022 Express; a qualified licensed existing local instance can remain.
 
-Current gaps: audit PB-11 raw SQL identifier/path construction; PB-12 download path containment; PB-13 unsafe/missing configuration defaults; PB-14 minute-only volatile scheduler; PB-15 no backup integrity verification or restore implementation; PB-21 installation-relative folder/ACL risk; PB-22 filename/FORMAT collision risk. Source evidence remains in [PROJECT_AUDIT.md](C:/source/repos/SwiftCheckoutPOS/docs/PROJECT_AUDIT.md), sections 6–7 and 13. These issues make the current presence of a .bak file insufficient evidence of recoverability.
+Current gaps: audit PB-11 raw SQL identifier/path construction; PB-12 download path containment; PB-13 unsafe/missing configuration defaults; PB-14 minute-only volatile scheduler; PB-15 no backup integrity verification or restore implementation; PB-21 installation-relative folder/ACL risk; PB-22 filename/FORMAT collision risk. Source evidence remains in [PROJECT_AUDIT.md](PROJECT_AUDIT.md), sections 6–7 and 13. These issues make the current presence of a .bak file insufficient evidence of recoverability.
 
 No application or SQL connection was made in this task. **Actual SQL edition/version, recovery model, database size/identity, encryption, migration state, file locations, ACLs and backup validity are unknown.** All must be inventoried privately before operational use. A named development instance does not establish a production deployment.
 
-## 2. Ownership and recovery objectives
+## 2. Ownership and approved recovery objectives
 
 | Responsibility | Required owner |
 | --- | --- |
@@ -22,9 +22,21 @@ No application or SQL connection was made in this task. **Actual SQL edition/ver
 | Inspect failures/overdue status and protect a verified removable copy | Assigned local operator; app must show actionable status |
 | Qualify releases, restore drills and rollback compatibility | Maintainer using isolated synthetic test installation |
 
-RPO means maximum acceptable data age lost; RTO means maximum acceptable time until usable recovery. Both are **unanswered**, not “daily” or “zero” by assumption. Frequency, retained generations, separate media and any business-file retention also remain unanswered. A release requires owner-approved values and measured recovery evidence.
+Approved owner objectives (31-10-2026): **RPO at most one business day of sales; RTO selling again within two hours**. A release requires measured evidence against these values, not a claim of execution. Source: OWNER_DECISIONS.md PR-Q54/69.
 
-For a new database, SIMPLE plus verified full backups is the proposed minimum **only if** the owner accepts recovery to the last full recovery set. If that loss is unacceptable, design and qualify FULL plus scheduled transaction-log backups, chain monitoring and point-in-time recovery before production. Existing recovery model/log chains must not be changed merely to simplify this app. FULL needs log backups; a periodic full backup is not a substitute for them. [Microsoft recovery model behavior](https://learn.microsoft.com/en-us/sql/relational-databases/backup-restore/recovery-models-sql-server?view=sql-server-ver17).
+| Approved operating item | Requirement / owner source |
+| --- | --- |
+| Automatic full backup | Daily **23:00 Asia/Dhaka (UTC+6)**, one catch-up when PC/service was off; PR-Q53/89 |
+| Upgrade protection | Manual verified pre-upgrade recovery set; PR-Q53 |
+| Local generations | Last **30 daily +12 monthly** (first backup of each month); never delete newest verified; PR-Q55 |
+| Separate copy | **Daily USB copy**, USB kept away from PC, copied hashes verified; PR-Q56 |
+| Paired non-SQL files | Product images and settings files; virtual receipt text not required because saved-sale reprint must work; PR-Q57 |
+| Restore drill | Latest set **monthly and before every upgrade**, isolated test database; PR-Q84 |
+| Capacity | PR-Q63 PENDING; no invented volume or destructive purge |
+
+Admin-authorized maintenance owns backup/download/restore/USB custody; Manager access is denied even if AllowManagerFinancialView is ON (PR-Q50/92).
+
+**SIMPLE plus the approved daily verified full recovery sets is acceptable for the one-business-day RPO.** No point-in-time promise is made. Keep missed-run/USB-copy age visible so an overdue/unverified set is not falsely declared compliant. Existing recovery model/log chains must not be changed merely to simplify this app. FULL needs log backups; a periodic full backup is not a substitute for them. [Microsoft recovery model behavior](https://learn.microsoft.com/en-us/sql/relational-databases/backup-restore/recovery-models-sql-server?view=sql-server-ver17).
 
 ## 3. Protected deployment inventory and recovery-set contents
 
@@ -47,9 +59,9 @@ A **recovery set** includes:
 | Protected machine configuration and preferences inventory | Service/certificate/hardware/path policy, legacy backup_config.json preserved until reviewed migration is complete; no secrets in public metadata |
 | App release and reviewed migration scripts | Offline package/native dependencies, release hash, from/to schema IDs and rollback compatibility |
 | Key/certificate recovery material where actually needed | Required SQL encryption certificates/private keys if the installed database uses them; OS/disk recovery keys separately protected; machine-bound cookie keys are not assumed portable |
-| Owner-classified business files | Receipt files or other local records identified by PR-Q57; diagnostic logs have different retention and do not replace SQL audit |
+| Owner-classified business files | Product images and settings per PR-Q57 are required. Virtual receipt text files are not required; receipts must be reprintable from saved SQL snapshots (PR-Q48/83). Diagnostic logs have different retention and do not replace SQL audit |
 
-A SQL .bak does **not** contain product images, machine.json, printer drivers, Windows accounts, browser cookies or arbitrary files. A copy on the same disk protects a narrower failure set than a verified separate removable copy. Keep copies local/offline according to the owner’s media decision; no internet requirement.
+A SQL .bak does **not** contain product images, machine.json, printer drivers, Windows accounts, browser cookies or arbitrary files. A copy on the same disk protects a narrower failure set than a verified separate removable copy. Keep the verified local set plus its daily USB copy away from the PC; no internet requirement. Include product images and settings, matching app/schema references and required recovery keys/metadata. Do not promise recoverable reprints until the saved-sale snapshot/reprint work is qualified.
 
 Production backups contain personal data and password hashes. Restrict Windows ACLs and custody; use suitable OS/disk/removable-media encryption where available, with independently recoverable keys. Do not assume an Express edition provides every higher-edition database/backup encryption feature. Verify compatibility with any existing encrypted database before choosing the destination edition.
 
@@ -75,7 +87,7 @@ Check these rights using the actual installed identities in an isolated deployme
 This procedure is the future common implementation used by manual backup and AutoBackupWorker.
 
 1. Validate actual target/identity, schema compatibility, approved paths, free space, configuration and permissions. Missing settings or permissions produce a visible failed/overdue state, never an apparently successful silent disable.
-2. Acquire the one-host backup gate. Request a **bounded maintenance pause** of new business/media/settings mutations, drain in-flight database units and preserve durable drafts. Do not abort a committed operation or force cancel customer work. If safely draining cannot complete, defer with a visible reason/overdue status. Schedule a quiet period according to owner-approved frequency.
+2. Acquire the one-host backup gate. Request a **bounded maintenance pause** of new business/media/settings mutations, drain in-flight database units and preserve durable drafts. Do not abort a committed operation or force cancel customer work. If safely draining cannot complete, defer with a visible reason/overdue status. The approved due time is 23:00 Asia/Dhaka daily, with one missed-run catch-up; use the bounded pause without silently moving or skipping the schedule.
 3. Allocate an attempt ID and new UTC timestamp-plus-random filename; record Started in an atomic protected manifest outside SQL. Never overwrite or FORMAT an existing backup. Serialize manual/automatic attempts.
 4. Native SQL BACKUP uses CHECKSUM and failure-on-checksum-error behavior, outside any user transaction. Where FULL/log recovery applies, preserve the approved chain and metadata. Extra ad hoc full copies use a reviewed COPY_ONLY policy when needed to avoid disturbing another qualified differential strategy.
 5. While mutations remain paused, capture required non-SQL media/configuration/release references and hashes. SQL backup plus those files describe the same stable boundary. Use staged temporary files and atomic publication; a partial copy is not a complete recovery set.
@@ -94,11 +106,11 @@ Keep AutoBackupWorker in the Windows Service; Express has no SQL Server Agent. T
 
 Store authorized schedule preferences in SQL SystemSettings. Store attempts, next-due/last-verified checkpoint, manifests and copy/drill status in protected atomic files **outside the database being restored**; restoring SQL must not erase the only evidence of newer recovery sets. Validate/reconcile manifests on startup. Never trust file extension alone.
 
-When enabled, calculate due instants from the approved schedule/time zone. After restart or an overdue period, run **one catch-up attempt** when readiness and maintenance conditions permit; do not require the app to be alive during one exact clock minute or generate a burst for every missed interval. Do not mark a failed/deferred attempt successful or advance last-verified time. Expose retry delay/overdue state; avoid busy loops and overlapping attempts. Disabled is explicit and visible, not the fallback for malformed/missing configuration.
+Calculate daily 23:00 instants in Asia/Dhaka independently of the Windows time zone. PR-Q53/89 require automatic backup; disabled state is a visible maintenance exception, not the normal shop default. After restart or an overdue period, run **one catch-up attempt** when readiness and maintenance conditions permit; do not require the app to be alive during one exact clock minute or generate a burst for every missed interval. Do not mark a failed/deferred attempt successful or advance last-verified time. Expose retry delay/overdue state; avoid busy loops and overlapping attempts. Disabled is explicit and visible, not the fallback for malformed/missing configuration.
 
 If the service cannot run because SQL is unavailable, recovery status must remain visible through maintenance logs/status; backups cannot be promised while the PC is off. RPO/copy-age checks account for downtime, permission failures and absent removable media.
 
-Retention deletes only complete superseded sets after approved generation/age/media rules are recorded. No cleanup before that decision. Always preserve the last verified usable set, pinned pre-upgrade/pre-restore sets and all files needed by retained log/differential chains. Do not delete unknown/partial files as a substitute for investigation. Never use the diagnostic log's 30-file rotation as backup or business-record retention.
+Retention keeps **30 latest daily sets plus 12 monthly sets**, selecting the first backup of each month (PR-Q55), with verified daily USB copy (PR-Q56). A monthly set that also occupies a daily slot is retained once and tagged for both requirements; do not fabricate missing months or count partial/failed attempts as a monthly recovery set. Always preserve the last verified usable set, pinned pre-upgrade/pre-restore sets and all files needed by retained log/differential chains. Do not delete unknown/partial files as a substitute for investigation. Never use the diagnostic log's 30-file rotation as backup or business-record retention.
 
 After a restore, reconcile external manifests with the restored schema/data lineage and take a fresh verified baseline before considering normal backup coverage re-established. Do not silently treat a newer unrelated set or rolled-back SQL checkpoint as the current database's recovery point.
 
@@ -106,11 +118,11 @@ After a restore, reconcile external manifests with the restored schema/data line
 
 Use these distinct states: Started, Failed, OutcomeUnknown, BackupVerified (headers/checksums/VERIFYONLY/manifests), SeparateCopyVerified, and RestoreDrilled (actual restore plus integrity/business checks, with date/release). The UI must not collapse all of them into “Backup successful.”
 
-Before production and after material schema/engine/recovery changes, execute an actual isolated restore drill with a representative synthetic fixture. Routine drill cadence is PR-Q84; no cadence is claimed to exist. Step 5 uses **SwiftCheckoutPOS_Test** and fixture-owned roots per [ARCHITECTURE.md](C:/source/repos/SwiftCheckoutPOS/docs/ARCHITECTURE.md), never the business database or copied personal data.
+Before production, **monthly and before every upgrade**, test-restore the latest recovery set and record results (PR-Q84), also after material engine/recovery changes. Test fixtures remain synthetic/isolated; the owner’s requirement to use the latest business backup for a private maintenance drill does not authorize a production-data clone in automated tests. A latest-business-set drill requires separately controlled authorized private handling and must never overwrite the business database. Record any synthetic-only limitation explicitly rather than claiming the real latest set was drilled. Step 5 uses **SwiftCheckoutPOS_Test** and fixture-owned roots per [ARCHITECTURE.md](ARCHITECTURE.md), never the business database or copied personal data.
 
 Drill evidence includes accepted target guard, selected file hashes/header/chain, restored schema, SQL DBCC CHECKDB result, sale/item/tender/stock/ledger/refund/operation referential and approved arithmetic checks, media references, active/held recovery, account access and measured RTO. Capture record counts/known fixture IDs and expected totals before/after. CHECKDB does not prove business formulas.
 
-No test reset/restore may use UI DbConn, developer secrets, real backup files, shop keys or a catalog merely ending in “Test.” A real-data recovery-copy exercise would be a separately authorized private maintenance activity, not an automated test fixture.
+No automated fixture reset/restore may use UI DbConn, developer secrets, real backup files, shop keys or a catalog merely ending in “Test.” The monthly latest-business-set drill is a separately authorized private maintenance activity on an isolated, explicitly guarded SwiftCheckoutPOS_Test target, not an automated synthetic fixture or the business database. Keep that private drill separate from test resets/fixtures and record protected handling; no such restore is performed here.
 
 ## 8. Restart, crash and power-loss recovery
 
@@ -172,4 +184,4 @@ Preserve pinned pre-upgrade sets until the owner-approved retention/rollback win
 
 Required evidence is produced later, not claimed here: dedicated-test isolation, quoted-path/identity safety, permission failure behavior, completed paired set/copy hashes, VERIFYONLY plus actual restore, failed-restore containment, restart/catch-up, retained-record preservation and measured recovery time. Map Step 5 results to OAT cases and roadmap tasks.
 
-Unresolved PR-Q53/54/55/56/57/69 cover frequency, RTO, retention, media, business files and RPO. PR-Q84 (routine drill cadence) and the actual installed SQL/deployment inventory must also be recorded before production. No backup success, recovery objective or production readiness is certified by this plan.
+PR-Q53/54/55/56/57/69/84/89 now supply frequency/time, RTO, retention, daily USB, files, RPO and drill cadence. These are approved **requirements**, not measured success. PR-Q63 capacity and actual SQL/OS/ACL/encryption/deployment inventory remain unverified. Demonstrate latest-set recovery plus paired images/settings/reprint, RPO ≤one business day and RTO ≤two hours before production; do not run a business restore/test in this documentation task.
