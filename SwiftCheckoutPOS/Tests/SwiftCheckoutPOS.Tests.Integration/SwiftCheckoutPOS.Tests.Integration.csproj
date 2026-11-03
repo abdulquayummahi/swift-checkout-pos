@@ -23,5 +23,6 @@
     <ProjectReference Include="../../SwiftCheckoutPOS.UI/SwiftCheckoutPOS.UI.csproj" />
     <Using Include="Xunit" />
     <None Update="xunit.runner.json" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="../../deploy/database/schema-idempotent.sql" Link="Schema/schema-idempotent.sql" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 </Project>

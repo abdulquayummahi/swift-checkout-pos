@@ -33,6 +33,11 @@ Type the database name to confirm. It first saves a copy (`PreUpgrade` backup in
 asks before continuing), deletes the database, creates it with the current schema, and the first page then asks for the first Admin.
 On the shop PC the same command is `SwiftCheckoutPOS.UI.exe --recreate-database`.
 
+Without the command line: open `deploy\database\recreate-database.sql` in SQL Server Management Studio, check the database
+name at the top (`SwiftCheckoutPOSDb`) and execute it. It deletes the database (no copy is made) and creates it with the
+current schema. `deploy\database\schema-idempotent.sql` is the schema alone, for an empty database or one already on the
+current migration chain (tested: builds the full schema and can run twice).
+
 Old settings: a `backup_config.json` in the program folder is read once and kept; product images from the old
 `wwwroot\images\products` folder keep working and are included in backups.
 
