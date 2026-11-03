@@ -555,6 +555,15 @@
                 @if (Model.Cart.CustomerType == "Loyalty")
                 {
                     <div class="mt-2">
+                        <details class="mb-1">
+                            <summary class="small fw-bold">New customer</summary>
+                            <form asp-action="AddCustomer" method="post" class="d-flex flex-column gap-1 mt-1">
+                                <input name="fullName" maxlength="150" class="form-control form-control-sm" placeholder="Full name" required />
+                                <input name="phoneNumber" maxlength="30" class="form-control form-control-sm" placeholder="Phone" required />
+                                <input name="address" maxlength="500" class="form-control form-control-sm" placeholder="Address (optional)" />
+                                <button class="btn btn-sm btn-outline-dark fw-bold">Add &amp; link</button>
+                            </form>
+                        </details>
                         <input type="text" id="loyaltyPhoneInput" class="form-control form-control-sm border-secondary"
                                placeholder="Enter phone (e.g. 555-0199)..." autocomplete="off" />
                         <div id="loyaltyResult" class="mt-1 fw-bold" style="font-size: 0.85rem;">
@@ -1149,5 +1158,6 @@
         });
         }
     </script>
+    <partial name="_IdleLock" />
 </body>
 </html>

@@ -796,6 +796,13 @@ namespace SwiftCheckoutPOS.DAL.Migrations
                         .HasMaxLength(20)
                         .HasColumnType("nvarchar(20)");
 
+                    b.Property<string>("SecurityStamp")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(40)
+                        .HasColumnType("nvarchar(40)")
+                        .HasDefaultValueSql("CONVERT(nvarchar(40), NEWID())");
+
                     b.Property<string>("Username")
                         .IsRequired()
                         .HasMaxLength(50)

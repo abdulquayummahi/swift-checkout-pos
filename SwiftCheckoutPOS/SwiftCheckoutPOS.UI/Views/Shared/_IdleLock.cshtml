@@ -1,0 +1,15 @@
+@* BP-21: show the lock screen after 15 minutes without mouse/keyboard activity. The server enforces it too. *@
+@if (User.Identity?.IsAuthenticated == true)
+{
+    <script>
+        (function () {
+            var limit = 15 * 60 * 1000, last = Date.now();
+            ['mousemove', 'keydown', 'mousedown', 'touchstart', 'wheel'].forEach(function (e) {
+                document.addEventListener(e, function () { last = Date.now(); }, { passive: true, capture: true });
+            });
+            setInterval(function () {
+                if (Date.now() - last > limit) window.location.href = '/Account/Locked?returnUrl=' + encodeURIComponent(location.pathname + location.search);
+            }, 30000);
+        })();
+    </script>
+}

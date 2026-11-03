@@ -15,7 +15,7 @@ namespace SwiftCheckoutPOS.UI.Controllers;
 public class CheckoutController(
     CheckoutService checkoutService,
     Func<IReceiptPrinter> printerFactory,
-    ILogger<CheckoutController> logger) : Controller
+    ILogger<CheckoutController> logger, CustomerService? customers = null) : Controller
 {
     private const string ActiveCartKey = "ActiveCart";
 
@@ -224,6 +224,16 @@ public class CheckoutController(
         }
         return RedirectToAction(nameof(Index));
     }
+
+    /// <summary>PR-Q50: cashiers may add a customer at the till; it is linked to the current cart.</summary>
+    [HttpPost]
+    public IActionResult AddCustomer(string fullName, string phoneNumber, string? address) => ChangeCart(cart =>
+    {
+        try { (customers ?? throw new CheckoutValidationException("Customer service unavailable.")).AddNewCustomer(fullName, phoneNumber, address ?? ""); }
+        catch (Exception ex) when (ex is ArgumentException or InvalidOperationException) { throw new CheckoutValidationException(ex.Message); }
+        checkoutService.LinkCustomer(cart, phoneNumber);
+        TempData["Success"] = $"Customer {fullName?.Trim()} added and linked.";
+    });
 
     /// <summary>BP-17/CQ-10: collect money against a customer's Due balance.</summary>
     [HttpPost]

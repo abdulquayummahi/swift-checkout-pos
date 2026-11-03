@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Authentication;
 // Project: SwiftCheckoutPOS.UI
 // File: Program.cs
 using Microsoft.AspNetCore.Authorization;
@@ -15,6 +16,7 @@ var builder = WebApplication.CreateBuilder(args);
 
 var connectionString = builder.Configuration.GetConnectionString("DbConn")
     ?? throw new InvalidOperationException("The DbConn connection string must be supplied through environment-specific configuration or user secrets.");
+if (SwiftCheckoutPOS.UI.Infrastructure.MaintenanceCommands.TryRun(args, connectionString)) return; // PR-Q68 owner maintenance
 
 builder.Services.AddControllersWithViews(options =>
 {
@@ -26,7 +28,7 @@ builder.Services.AddAntiforgery(options => options.HeaderName = "RequestVerifica
 builder.Services.AddDistributedMemoryCache();
 builder.Services.AddSession(options =>
 {
-    options.IdleTimeout = TimeSpan.FromHours(8);
+    options.IdleTimeout = TimeSpan.FromHours(12); // the 15-minute screen lock is separate (BP-21)
     options.Cookie.HttpOnly = true;
     options.Cookie.IsEssential = true;
     options.Cookie.SameSite = SameSiteMode.Strict;
@@ -40,8 +42,22 @@ builder.Services.AddAuthentication("POSAuthCookie")
         options.Cookie.HttpOnly = true;
         options.Cookie.SameSite = SameSiteMode.Strict;
         options.Cookie.SecurePolicy = CookieSecurePolicy.SameAsRequest;
-        options.ExpireTimeSpan = TimeSpan.FromHours(8);
+        options.ExpireTimeSpan = TimeSpan.FromHours(12); // PR-Q64: absolute 12-hour maximum
         options.SlidingExpiration = false;
+        // IMM-09/PC-01: a disabled, demoted or reset account loses access on its next request.
+        options.Events.OnValidatePrincipal = async context =>
+        {
+            var auth = context.HttpContext.RequestServices.GetRequiredService<AuthService>();
+            var idText = context.Principal?.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+            var state = int.TryParse(idText, out var id) ? auth.SecurityState(id) : null;
+            if (state is not { Active: true } ||
+                state.Value.Role != context.Principal!.FindFirst(System.Security.Claims.ClaimTypes.Role)?.Value ||
+                state.Value.Stamp != context.Principal.FindFirst("stamp")?.Value)
+            {
+                context.RejectPrincipal();
+                await context.HttpContext.SignOutAsync("POSAuthCookie");
+            }
+        };
         options.LoginPath = "/Account/Login";
         options.AccessDeniedPath = "/Account/AccessDenied";
     });
@@ -76,6 +92,7 @@ builder.Services.AddScoped<FinanceRepository>();
 builder.Services.AddScoped<SettingsRepository>();
 
 builder.Services.AddScoped<AuthService>();
+builder.Services.AddSingleton<SwiftCheckoutPOS.BLL.Security.LoginThrottle>();
 builder.Services.AddScoped<UserAdminService>();
 builder.Services.AddScoped<InventoryService>();
 builder.Services.AddScoped<ReportService>();
@@ -119,6 +136,7 @@ app.UseRouting();
 app.UseSession();
 
 app.UseAuthentication();
+app.UseMiddleware<SwiftCheckoutPOS.UI.Infrastructure.IdleLockMiddleware>(); // BP-21
 app.UseAuthorization();
 
 app.MapStaticAssets();
