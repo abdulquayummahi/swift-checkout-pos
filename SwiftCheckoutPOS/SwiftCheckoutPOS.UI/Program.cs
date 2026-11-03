@@ -72,6 +72,7 @@ builder.Services.AddScoped<AuthService>();
 builder.Services.AddScoped<UserAdminService>();
 builder.Services.AddScoped<InventoryService>();
 builder.Services.AddScoped<ReportService>();
+builder.Services.AddScoped<IApprover, ApprovalService>();
 builder.Services.AddScoped<CheckoutService>();
 builder.Services.AddScoped<CustomerService>();
 builder.Services.AddScoped<DashboardService>();

@@ -29,6 +29,9 @@ public partial class ApplicationDbContext : DbContext
     public virtual DbSet<LedgerEntry> LedgerEntries { get; set; }
     public virtual DbSet<SystemSetting> SystemSettings { get; set; }
     public virtual DbSet<AuditEvent> AuditEvents { get; set; } = null!;
+    public virtual DbSet<SalePayment> SalePayments { get; set; } = null!;
+    public virtual DbSet<ReceiptSequence> ReceiptSequences { get; set; } = null!;
+    public virtual DbSet<CustomerDuePayment> CustomerDuePayments { get; set; } = null!;
 
     protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
     {
@@ -94,6 +97,7 @@ public partial class ApplicationDbContext : DbContext
             entity.HasIndex(e => new { e.SaleDate, e.OrderStatus });
             entity.Property(e => e.HeldAt).HasColumnType("datetime2");
             entity.HasIndex(e => new { e.OrderStatus, e.HeldAt });
+            entity.HasIndex(e => e.OperationKey).IsUnique().HasFilter("[OperationKey] IS NOT NULL");
         });
 
         modelBuilder.Entity<SaleItem>(entity =>
@@ -152,6 +156,24 @@ public partial class ApplicationDbContext : DbContext
             entity.Property(e => e.CountedCash).HasColumnType("decimal(18, 2)");
             entity.HasIndex(e => e.CloseTime);
         });
+
+        modelBuilder.Entity<SalePayment>(entity =>
+        {
+            entity.HasOne(e => e.Sale).WithMany(s => s.Payments).HasForeignKey(e => e.SaleId).OnDelete(DeleteBehavior.Restrict);
+            entity.ToTable(t => t.HasCheckConstraint("CK_SalePayments_Amount", "[Amount] > 0"));
+        });
+
+        modelBuilder.Entity<ReceiptSequence>(entity => entity.Property(e => e.BusinessDate).HasColumnType("date"));
+
+        modelBuilder.Entity<CustomerDuePayment>(entity =>
+        {
+            entity.Property(e => e.ReceivedAt).HasColumnType("datetime2");
+            entity.HasOne(e => e.Customer).WithMany().HasForeignKey(e => e.CustomerId).OnDelete(DeleteBehavior.Restrict);
+            entity.HasIndex(e => new { e.CustomerId, e.ReceivedAt });
+        });
+
+        modelBuilder.Entity<Customer>(entity =>
+            entity.ToTable(t => t.HasCheckConstraint("CK_Customers_DueBalance", "[DueBalance] >= 0")));
 
         modelBuilder.Entity<AuditEvent>(entity =>
         {

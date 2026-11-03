@@ -9,7 +9,7 @@ namespace SwiftCheckoutPOS.BLL.Services;
 /// Checkout use cases. Money rules live in Pricing.Money (VAT-inclusive, half away from zero,
 /// cash-only whole-taka rounding). Money/stock persistence is a single DAL unit.
 /// </summary>
-public sealed class CheckoutService(ICheckoutRepository repository)
+public sealed class CheckoutService(ICheckoutRepository repository, IApprover? approver = null)
 {
     private const decimal MaxMoney = 9999999999999999.99m; // Existing decimal(18,2).
     private const string Held = "Held";
@@ -134,7 +134,7 @@ public sealed class CheckoutService(ICheckoutRepository repository)
         return new CustomerDTO
         {
             CustomerId = customer.CustomerId, FullName = customer.FullName,
-            PhoneNumber = customer.PhoneNumber, LoyaltyPoints = customer.LoyaltyPoints
+            PhoneNumber = customer.PhoneNumber, LoyaltyPoints = customer.LoyaltyPoints, DueBalance = customer.DueBalance
         };
     }
 
@@ -148,15 +148,15 @@ public sealed class CheckoutService(ICheckoutRepository repository)
             var existing = data.FindSale(command.InvoiceNumber);
             if (existing?.OrderStatus == Held)
             {
-                RequireSameSale(existing, command, "Pending", cashierName);
+                RequireSameSale(existing, command, "Pending", cashierName, 0m, null);
                 return existing; // Lost acknowledgement/double submission: no second reservation.
             }
             CheckEditableOrder(existing, command);
             if (existing is not null) ReleaseReservation(data, existing); // re-hold: replace the old reservation
             var items = BuildItems(data, command);
             CheckCustomer(data, command);
-            var sale = existing ?? new Sale { ReceiptNumber = command.InvoiceNumber };
-            SetSale(sale, command, "Pending", cashierName, Held);
+            var sale = existing ?? new Sale { ReceiptNumber = command.InvoiceNumber, OperationKey = command.InvoiceNumber };
+            SetSale(sale, command, "Pending", cashierName, Held, 0m);
             sale.HeldAt = DateTime.Now; // CQ-20: (re)holding starts a new expiry clock
             // PR-Q15/16: held units stay in owned stock but are reserved for this order.
             foreach (var item in items) data.FindProduct(item.ProductId)!.ReservedQuantity += item.Quantity;
@@ -211,27 +211,91 @@ public sealed class CheckoutService(ICheckoutRepository repository)
     public string FinalizeTransaction(CheckoutSessionDTO cart, string paymentMethod, string cashierName) =>
         CompleteSale(cart, paymentMethod, cashierName).ReceiptNumber;
 
-    public CompletedCheckoutDTO CompleteSale(CheckoutSessionDTO cart, string paymentMethod, string cashierName)
+    /// <summary>Single tender, no approval (Cashier limits apply).</summary>
+    public CompletedCheckoutDTO CompleteSale(CheckoutSessionDTO cart, string paymentMethod, string cashierName) =>
+        CompleteSale(cart, PaymentPlanDTO.Single(paymentMethod), cashierName, "Cashier", null);
+
+    /// <summary>
+    /// Completes a sale with up to two tenders (BP-17), the next SCP receipt number (DR-26), per-line discounts
+    /// (DR-36) and role limits / Manager-Admin approval for discounts, Due and below-cost (BP-20, PR-Q67/86/93).
+    /// <paramref name="belowCostMinRole"/> is Admin while Manager financial view is OFF (CQ-03).
+    /// </summary>
+    public CompletedCheckoutDTO CompleteSale(CheckoutSessionDTO cart, PaymentPlanDTO plan, string cashierName,
+        string actorRole, ApprovalRequestDTO? approval, string belowCostMinRole = "Admin")
     {
         var command = Copy(cart);
         ValidateCart(command);
         ValidateCashier(cashierName);
-        ValidatePayment(paymentMethod);
+        var (payments, rounding) = CheckoutRules.Resolve(plan, command.TotalAmount);
+        var summary = plan.Summary;
+        var due = payments.Where(p => p.Tender == "Due").Sum(p => p.Amount);
+        if (due > 0 && command.CustomerId is null) Fail("Due needs a registered customer. Link the customer (Loyalty) first.");
+        var lineDiscounts = CheckoutRules.LineDiscounts(command);
+        var discountPercent = CheckoutRules.CombinedDiscountPercent(command);
+        // Verify typed approver credentials once, outside the database transaction.
+        var approverInfo = approval is { Username.Length: > 0 } && approver is not null
+            ? approver.Verify(approval.Username!, approval.Password ?? "") : null;
+        if (approval is { Username.Length: > 0 } && approverInfo is null) Fail("Approval failed: wrong approver username or password.");
+
         var result = repository.Execute(data =>
         {
             var existing = data.FindSale(command.InvoiceNumber);
             if (existing?.OrderStatus == Completed)
             {
-                RequireSameSale(existing, command, paymentMethod, cashierName);
+                RequireSameSale(existing, command, summary, cashierName, rounding, payments);
                 return (Sale: existing, Replay: true);
             }
             CheckEditableOrder(existing, command);
             if (existing is not null) ReleaseReservation(data, existing); // its own reservation becomes the sale
             var items = BuildItems(data, command);
             CheckCustomer(data, command);
-            var sale = existing ?? new Sale { ReceiptNumber = command.InvoiceNumber };
-            SetSale(sale, command, paymentMethod, cashierName, Completed);
+
+            // --- approvals (role limits) ---
+            var reasons = new List<string>(); var needRank = 0;
+            if (discountPercent > CheckoutRules.DiscountLimitPercent(actorRole))
+            {
+                reasons.Add($"discount {discountPercent:0.##}% is above the {actorRole} limit");
+                needRank = Math.Max(needRank, discountPercent <= CheckoutRules.DiscountLimitPercent("Manager") ? 2 : 3);
+            }
+            if (due > 0) { reasons.Add("Due sale"); needRank = Math.Max(needRank, 2); }
+            var ordered = command.Items.OrderBy(i => i.ProductId).ToList(); // same order as items
+            for (var k = 0; k < items.Count; k++)
+            {
+                var line = ordered[k];
+                var netUnit = (line.UnitPrice * line.Quantity - lineDiscounts[command.Items.IndexOf(line)]) / line.Quantity;
+                if (netUnit < items[k].CostAtSale) // PR-Q93/CQ-02: discount may not go below cost without approval
+                {
+                    reasons.Add("price below the allowed minimum");
+                    needRank = Math.Max(needRank, CheckoutRules.Rank(belowCostMinRole));
+                    break;
+                }
+            }
+            string? approvedBy = null;
+            if (needRank > 0 && CheckoutRules.Rank(actorRole) < needRank)
+            {
+                if (approverInfo is null || CheckoutRules.Rank(approverInfo.Value.Role) < needRank)
+                    Fail($"APPROVAL REQUIRED: {string.Join(", ", reasons.Distinct())}. A {(needRank >= 3 ? "Admin" : "Manager or Admin")} must enter their username and password.");
+                approvedBy = approverInfo.Value.Actor;
+            }
+            else if (needRank > 0) approvedBy = cashierName; // the signed-in Manager/Admin approves their own exception
+
+            // --- Due (PR-Q86) ---
+            if (due > 0)
+            {
+                var customer = data.FindCustomer(command.CustomerId!.Value)!;
+                if (customer.DueBalance + due > CheckoutRules.DueLimit)
+                    Fail($"Due limit exceeded: {customer.FullName} already owes {Pricing.Money.Bdt(customer.DueBalance)}; the maximum is {Pricing.Money.Bdt(CheckoutRules.DueLimit)}.");
+                customer.DueBalance += due;
+            }
+
+            var sale = existing ?? new Sale { OperationKey = command.InvoiceNumber };
+            SetSale(sale, command, summary, cashierName, Completed, rounding);
+            sale.ReceiptNumber = data.NextReceiptNumber(sale.SaleDate); // DR-26: assigned only at completion
+            sale.ApprovedBy = approvedBy;
+            for (var k = 0; k < items.Count; k++)
+                items[k].DiscountAmount = lineDiscounts[command.Items.IndexOf(ordered[k])];
             foreach (var item in items) data.FindProduct(item.ProductId)!.StockQuantity -= item.Quantity;
+            sale.Payments = payments.Select(p => new SalePayment { Tender = p.Tender, Amount = p.Amount, Tendered = p.Tendered, Reference = p.Reference }).ToList();
             if (existing is null)
             {
                 sale.SaleItems = items;
@@ -254,12 +318,26 @@ public sealed class CheckoutService(ICheckoutRepository repository)
                     Amount = cost, Description = $"System Auto-Record: Cost of Goods Sold. Ref: {sale.ReceiptNumber}",
                     RecordedBy = cashierName
                 });
+            if (approvedBy is not null)
+                data.AddAudit(new AuditEvent
+                {
+                    OccurredAt = sale.SaleDate, Actor = approvedBy, Action = "SaleApproval", EntityType = "Sale",
+                    EntityKey = sale.ReceiptNumber, Reason = string.Join(", ", reasons.Distinct()),
+                    Details = $"Cashier {cashierName}; discount {discountPercent:0.##}%; due {due:0.00}"
+                });
             // Owner decision: associate customer; do not invent point earning/redemption.
             return (Sale: sale, Replay: false);
         });
         command.ReceiptCashierName = result.Sale.CashierName;
         command.ReceiptSaleDate = result.Sale.SaleDate;
         command.ReceiptPaymentMethod = result.Sale.PaymentMethod;
+        command.ReceiptNumber = result.Sale.ReceiptNumber;
+        command.ReceiptRounding = result.Sale.RoundingAmount;
+        command.ReceiptPayments = result.Sale.Payments.Select(p => new ResolvedTenderDTO
+        {
+            Tender = p.Tender, Amount = p.Amount, Tendered = p.Tendered, Reference = p.Reference,
+            Change = p.Tendered is decimal t ? t - p.Amount : 0
+        }).ToList();
         return new CompletedCheckoutDTO
         {
             SaleId = result.Sale.SaleId, ReceiptNumber = result.Sale.ReceiptNumber,
@@ -267,10 +345,39 @@ public sealed class CheckoutService(ICheckoutRepository repository)
         };
     }
 
-    public bool IsCompleted(string receiptNumber, string paymentMethod, string cashierName)
+    /// <summary>BP-17/CQ-10: money received against a customer's Due balance (any signed-in staff).</summary>
+    public decimal CollectDue(int customerId, decimal amount, string tender, string? reference, string actor)
     {
-        ValidatePayment(paymentMethod);
-        var sale = repository.FindSale(receiptNumber);
+        ValidateCashier(actor);
+        if (amount <= 0 || Pricing.Money.R2(amount) != amount) Fail("Enter a valid amount.");
+        if (tender is not ("Cash" or "Card" or "bKash" or "Nagad")) Fail("Collect due by Cash, Card, bKash or Nagad.");
+        if (reference?.Length > 50) Fail("Reference is too long.");
+        return repository.Execute(data =>
+        {
+            var customer = data.FindCustomer(customerId);
+            if (customer is null) Fail("Customer not found.");
+            if (amount > customer!.DueBalance) Fail($"The customer owes only {Pricing.Money.Bdt(customer.DueBalance)}.");
+            customer.DueBalance -= amount;
+            var now = DateTime.Now;
+            data.AddDuePayment(new CustomerDuePayment { CustomerId = customerId, Amount = amount, Tender = tender, Reference = reference, ReceivedAt = now, Actor = actor });
+            data.AddAudit(new AuditEvent { OccurredAt = now, Actor = actor, Action = "DueCollected", EntityType = "Customer", EntityKey = customerId.ToString(), Details = $"{amount:0.00} by {tender}" });
+            return customer.DueBalance;
+        });
+    }
+
+    public CustomerDTO FindCustomerByPhone(string phone)
+    {
+        if (string.IsNullOrWhiteSpace(phone) || phone.Trim().Length > 30) Fail("Enter a valid phone number.");
+        var c = repository.FindCustomerByPhone(phone.Trim());
+        if (c is null) Fail("Customer not found.");
+        return new CustomerDTO { CustomerId = c!.CustomerId, FullName = c.FullName, PhoneNumber = c.PhoneNumber, LoyaltyPoints = c.LoyaltyPoints, DueBalance = c.DueBalance };
+    }
+
+    public decimal GetDueBalance(int customerId) => repository.FindCustomer(customerId)?.DueBalance ?? 0m;
+
+    public bool IsCompleted(string operationKey, string paymentMethod, string cashierName)
+    {
+        var sale = repository.FindSale(operationKey);
         return sale?.OrderStatus == Completed && sale.PaymentMethod == paymentMethod && sale.CashierName == cashierName;
     }
 
@@ -326,13 +433,13 @@ public sealed class CheckoutService(ICheckoutRepository repository)
         });
     }
 
-    private static void SetSale(Sale sale, CheckoutSessionDTO cart, string payment, string actor, string status)
+    private static void SetSale(Sale sale, CheckoutSessionDTO cart, string payment, string actor, string status, decimal rounding)
     {
         sale.SaleDate = DateTime.Now; // Preserve current local-time convention, not a historical date migration.
         sale.SubTotal = cart.GrossSubTotal;
         sale.TaxAmount = cart.TaxAmount;
         sale.TotalAmount = cart.TotalAmount;
-        sale.RoundingAmount = cart.RoundingFor(payment);
+        sale.RoundingAmount = rounding;
         sale.CustomerId = cart.CustomerId;
         sale.PaymentMethod = payment;
         sale.CashierName = actor;
@@ -351,11 +458,15 @@ public sealed class CheckoutService(ICheckoutRepository repository)
             Fail("This order changed or was already processed. Reload it before trying again.");
     }
 
-    private static void RequireSameSale(Sale sale, CheckoutSessionDTO cart, string payment, string actor)
+    private static void RequireSameSale(Sale sale, CheckoutSessionDTO cart, string payment, string actor,
+        decimal rounding, List<ResolvedTenderDTO>? payments)
     {
         var lines = cart.Items.ToDictionary(i => i.ProductId);
+        if (payments is not null && (sale.Payments.Count != payments.Count ||
+            payments.Any(p => !sale.Payments.Any(s => s.Tender == p.Tender && s.Amount == p.Amount))))
+            Fail("This receipt already belongs to a different request. Reload the checkout.");
         if (sale.SubTotal != cart.GrossSubTotal || sale.TaxAmount != cart.TaxAmount ||
-            sale.TotalAmount != cart.TotalAmount || sale.RoundingAmount != cart.RoundingFor(payment) ||
+            sale.TotalAmount != cart.TotalAmount || sale.RoundingAmount != rounding ||
             sale.CustomerId != cart.CustomerId ||
             sale.PaymentMethod != payment || sale.CashierName != actor ||
             sale.SaleItems.Count != lines.Count ||
@@ -425,12 +536,6 @@ public sealed class CheckoutService(ICheckoutRepository repository)
         if (string.IsNullOrWhiteSpace(actor) || actor.Length > 100) Fail("A valid authenticated cashier is required.");
     }
 
-    private static void ValidatePayment(string payment)
-    {
-        if (payment != "Cash" && payment != "Card" && payment != "Mobile Wallet")
-            Fail("Choose Cash, Card or Mobile Wallet.");
-    }
-
     private static void CheckMoney(decimal value, string field)
     {
         if (value < 0 || value > MaxMoney || Pricing.Money.R2(value) != value)
@@ -459,6 +564,8 @@ public sealed class CheckoutService(ICheckoutRepository repository)
             if (item.ItemDiscount < 0 || item.ItemDiscount > item.UnitPrice || item.TaxRate < 0 || item.TaxRate > 100)
                 Fail("A product discount or tax rate is invalid.");
         }
+        if (cart.BillDiscountAmount > 0 && cart.BillDiscountPercentage > 0)
+            Fail("Use either a flat or a percentage bill discount, not both."); // PR-Q12
         if (cart.BillDiscountAmount < 0 || cart.BillDiscountAmount > MaxMoney ||
             cart.BillDiscountPercentage < 0 || cart.BillDiscountPercentage > 100)
             Fail("The bill discount is invalid.");

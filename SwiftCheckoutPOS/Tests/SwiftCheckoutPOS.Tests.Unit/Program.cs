@@ -470,7 +470,13 @@ internal sealed class FixtureRepository : ICheckoutRepository, ICheckoutDataSess
     public Product? FindProductByBarcode(string barcode) => Products.Values.SingleOrDefault(p => p.Barcode == barcode);
     public Customer? FindCustomerByPhone(string phone) => Customers.Values.SingleOrDefault(c => c.PhoneNumber == phone);
     public Customer? FindCustomer(int id) => Customers.GetValueOrDefault(id);
-    public Sale? FindSale(string receipt) => Sales.SingleOrDefault(s => s.ReceiptNumber == receipt);
+    public Sale? FindSale(string key) => Sales.SingleOrDefault(s => (s.OperationKey ?? s.ReceiptNumber) == key);
+    public List<AuditEvent> Audits { get; } = new();
+    public List<CustomerDuePayment> DuePayments { get; } = new();
+    private int receiptCounter;
+    public string NextReceiptNumber(DateTime day) => $"SCP-{day:yyyyMMdd}-{++receiptCounter:D4}";
+    public void AddDuePayment(CustomerDuePayment payment) => DuePayments.Add(payment);
+    public void AddAudit(AuditEvent audit) => Audits.Add(audit);
     public Sale? FindSale(int id) => Sales.SingleOrDefault(s => s.SaleId == id);
     public IReadOnlyList<Sale> GetRecoverableOrders() => Sales.Where(s => s.OrderStatus is "Held" or "Resumed").ToList();
     public void AddSale(Sale sale) { sale.SaleId = Sales.Select(s => s.SaleId).DefaultIfEmpty().Max() + 1; Sales.Add(sale); }

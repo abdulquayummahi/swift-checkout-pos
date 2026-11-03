@@ -10,7 +10,9 @@ public interface ICheckoutRepository
     Product? FindProductByBarcode(string barcode);
     Customer? FindCustomerByPhone(string phone);
     IReadOnlyList<Sale> GetRecoverableOrders();
-    Sale? FindSale(string receiptNumber);
+    /// <summary>Find by the cart's operation key (idempotency), not the printed receipt number.</summary>
+    Sale? FindSale(string operationKey);
+    Customer? FindCustomer(int customerId);
     T Execute<T>(Func<ICheckoutDataSession, T> operation);
 }
 
@@ -18,8 +20,12 @@ public interface ICheckoutDataSession
 {
     Product? FindProduct(int productId);
     Customer? FindCustomer(int customerId);
-    Sale? FindSale(string receiptNumber);
+    Sale? FindSale(string operationKey);
     Sale? FindSale(int saleId);
+    /// <summary>DR-26: next SCP-YYYYMMDD-NNNN number for the business day, inside the current transaction.</summary>
+    string NextReceiptNumber(DateTime businessDay);
+    void AddDuePayment(CustomerDuePayment payment);
+    void AddAudit(AuditEvent audit);
     void AddSale(Sale sale);
     void ReplaceItems(Sale sale, IReadOnlyList<SaleItem> items);
     void AddLedgerEntry(LedgerEntry entry);

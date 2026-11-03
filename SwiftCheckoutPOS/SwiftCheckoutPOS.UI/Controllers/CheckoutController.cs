@@ -20,12 +20,17 @@ public class CheckoutController(
     private const string ActiveCartKey = "ActiveCart";
 
     [HttpGet]
-    public IActionResult Index() => View(new CheckoutViewModel
+    public IActionResult Index()
     {
-        AvailableProducts = checkoutService.GetAvailableProducts(),
-        Cart = GetActiveSession(),
-        HeldOrders = checkoutService.GetHeldOrders()
-    });
+        var cart = GetActiveSession();
+        return View(new CheckoutViewModel
+        {
+            AvailableProducts = checkoutService.GetAvailableProducts(),
+            Cart = cart,
+            HeldOrders = checkoutService.GetHeldOrders(),
+            CustomerDue = cart.CustomerId is int id ? checkoutService.GetDueBalance(id) : 0
+        });
+    }
 
     [HttpPost]
     public IActionResult ScanBarcode(string barcode) =>
@@ -62,7 +67,7 @@ public class CheckoutController(
             var customer = checkoutService.LinkCustomer(cart, phone);
             cart.Revision = Guid.NewGuid().ToString("N");
             SaveActiveSession(cart);
-            return Json(new { success = true, name = customer.FullName, points = customer.LoyaltyPoints });
+            return Json(new { success = true, name = customer.FullName, points = customer.LoyaltyPoints, due = customer.DueBalance });
         }
         catch (CheckoutValidationException ex) { return Json(new { success = false, message = ex.Message }); }
         catch (Exception ex)
@@ -153,8 +158,21 @@ public class CheckoutController(
     });
 
     [HttpPost]
-    public IActionResult Finalize(string paymentMethod, string invoiceNumber, string cartVersion)
+    public IActionResult Finalize(string paymentMethod, string invoiceNumber, string cartVersion,
+        decimal? cashTendered = null, string? reference = null, string? secondTender = null, decimal? secondAmount = null,
+        string? secondReference = null, string? approverUsername = null, string? approverPassword = null)
     {
+        // BP-17: up to two tenders. Cash (if used) takes the remainder; otherwise the first line does.
+        var plan = new PaymentPlanDTO();
+        plan.Lines.Add(new TenderLineDTO { Tender = paymentMethod ?? "", Reference = reference,
+            Tendered = paymentMethod == "Cash" ? cashTendered : null });
+        if (!string.IsNullOrWhiteSpace(secondTender))
+            plan.Lines.Add(new TenderLineDTO { Tender = secondTender, Amount = secondTender == "Cash" ? null : secondAmount,
+                Reference = secondReference, Tendered = secondTender == "Cash" ? cashTendered : null });
+        if (plan.Lines.Count == 2 && plan.Lines[1].Tender == "Cash") plan.Lines[0].Amount = secondAmount; // cash is the remainder
+        var approval = string.IsNullOrWhiteSpace(approverUsername) ? null
+            : new ApprovalRequestDTO { Username = approverUsername, Password = approverPassword };
+        paymentMethod = plan.Summary;
         CheckoutSessionDTO? pendingCart = null;
         var databaseAttempted = false;
         try
@@ -184,10 +202,13 @@ public class CheckoutController(
             pendingCart = cart;
             databaseAttempted = true;
 
-            var result = checkoutService.CompleteSale(cart, paymentMethod, actor);
-            TempData["Success"] = $"Transaction complete. Receipt: {result.ReceiptNumber} | Payment: {paymentMethod}";
+            var role = User.FindFirstValue(ClaimTypes.Role) ?? "Cashier";
+            var result = checkoutService.CompleteSale(cart, plan, actor, role, approval);
+            var change = result.Receipt.ReceiptPayments?.Sum(p => p.Change) ?? 0;
+            TempData["Success"] = $"Transaction complete. Receipt: {result.ReceiptNumber} | Payment: {paymentMethod}"
+                + (change > 0 ? $" | Change: {SwiftCheckoutPOS.BLL.Pricing.Money.Bdt(change)}" : "");
             ClearSavedSession();
-            if (!result.AlreadyCompleted) PrintCommittedSale(result.Receipt);
+            if (!result.AlreadyCompleted) PrintCommittedSale(result.Receipt, plan.Lines.Any(l => l.Tender == "Cash"));
         }
         catch (Exception ex)
         {
@@ -204,20 +225,34 @@ public class CheckoutController(
         return RedirectToAction(nameof(Index));
     }
 
-    private void PrintCommittedSale(CheckoutSessionDTO receipt)
+    /// <summary>BP-17/CQ-10: collect money against a customer's Due balance.</summary>
+    [HttpPost]
+    public IActionResult CollectDue(string phone, decimal amount, string tender, string? reference)
+    {
+        try
+        {
+            var actor = Cashier();
+            var customer = checkoutService.FindCustomerByPhone(phone);
+            var balance = checkoutService.CollectDue(customer.CustomerId, amount, tender, reference, actor);
+            TempData["Success"] = $"Due collected from {customer.FullName}: {SwiftCheckoutPOS.BLL.Pricing.Money.Bdt(amount)} by {tender}. Remaining due: {SwiftCheckoutPOS.BLL.Pricing.Money.Bdt(balance)}.";
+        }
+        catch (Exception ex) { ReportFailure(ex); }
+        return RedirectToAction(nameof(Index));
+    }
+
+    private void PrintCommittedSale(CheckoutSessionDTO receipt, bool cashInvolved)
     {
         try
         {
             var hardwarePrinter = printerFactory();
             if (!hardwarePrinter.IsPrinterOnline()) throw new IOException("Printer unavailable.");
             hardwarePrinter.PrintReceipt(receipt);
-            // Preserve existing drawer behavior; tender-specific policy remains PR-Q47.
-            hardwarePrinter.OpenCashDrawer();
+            if (cashInvolved) hardwarePrinter.OpenCashDrawer(); // PR-Q47/DR-30: drawer opens for cash only
         }
         catch (Exception ex)
         {
             LogFailure(ex);
-            TempData["Warning"] = $"Sale {receipt.InvoiceNumber} is saved. Printing or drawer delivery could not be confirmed; do not charge again.";
+            TempData["Warning"] = $"Sale {receipt.ReceiptNumber} is saved. Printing or drawer delivery could not be confirmed; do not charge again.";
         }
     }
 

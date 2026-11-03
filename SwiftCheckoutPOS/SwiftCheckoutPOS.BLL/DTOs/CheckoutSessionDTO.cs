@@ -23,6 +23,10 @@ namespace SwiftCheckoutPOS.BLL.DTOs
         public string? ReceiptCashierName { get; set; }
         public DateTime? ReceiptSaleDate { get; set; }
         public string? ReceiptPaymentMethod { get; set; }
+        /// <summary>DR-26: printed receipt number (SCP-YYYYMMDD-NNNN), set only after completion.</summary>
+        public string? ReceiptNumber { get; set; }
+        public List<ResolvedTenderDTO>? ReceiptPayments { get; set; }
+        public decimal? ReceiptRounding { get; set; }
 
         public string CustomerType { get; set; } = "Walk-in";
         public string CustomerName { get; set; } = "";

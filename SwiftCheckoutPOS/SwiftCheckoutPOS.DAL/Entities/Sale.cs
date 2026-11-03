@@ -12,6 +12,10 @@ namespace SwiftCheckoutPOS.DAL.Entities
         [Key]
         public int SaleId { get; set; }
 
+        /// <summary>Idempotency key from the cart (duplicate submissions find this, not a new sale).</summary>
+        [MaxLength(50)]
+        public string? OperationKey { get; set; }
+
         [Required]
         [MaxLength(50)]
         public string ReceiptNumber { get; set; } = null!;
@@ -53,6 +57,12 @@ namespace SwiftCheckoutPOS.DAL.Entities
 
         [Timestamp]
         public byte[] RowVersion { get; set; } = null!;
+
+        /// <summary>Who approved a discount/Due/below-cost exception, if one was needed (BP-20/BP-17).</summary>
+        [MaxLength(100)]
+        public string? ApprovedBy { get; set; }
+
+        public ICollection<SalePayment> Payments { get; set; } = new List<SalePayment>();
 
         public ICollection<SaleItem> SaleItems { get; set; } = new List<SaleItem>();
     }

@@ -72,7 +72,7 @@ public sealed class CheckoutCharacterizationTests
     [InlineData("Cash", "10.49", "-0.49")]
     [InlineData("Cash", "10.50", "0.50")]
     [InlineData("Card", "10.49", "0")]
-    [InlineData("Mobile Wallet", "10.50", "0")]
+    [InlineData("bKash", "10.50", "0")]
     public void Approved_CashOnlyWholeTakaRounding_PRQ07_PRQ91(string tender, string price, string rounding)
     {
         var p = Seed(price: decimal.Parse(price, System.Globalization.CultureInfo.InvariantCulture));
@@ -85,51 +85,110 @@ public sealed class CheckoutCharacterizationTests
     }
 
     [Fact]
-    [Trait("Difference", "DR-06")]
-    public void Current_ServiceInputWithBothBillModesUsesFlat_DiffersFromPRQ12()
+    [Trait("Fixes", "DR-06")]
+    public void Approved_BothBillDiscountModesRejected_PRQ12()
     {
         var p = Seed(price: 100m);
         var service = FixtureData.Checkout(fixture);
         var cart = FixtureData.Cart(service, p.ProductId);
         cart.BillDiscountAmount = 5m;
         cart.BillDiscountPercentage = 10m;
-        service.CompleteSale(cart, "Cash", FixtureData.Actor);
-        using var verify = fixture.Context();
-        Assert.Equal(95m, verify.Sales.Single().TotalAmount);
-    }
-
-    [Fact]
-    [Trait("Difference", "DR-07")]
-    [Trait("Difference", "DR-08")]
-    public void Current_HundredPercentDiscountNeedsNoApproval_DiffersFromPRQ67_PRQ93()
-    {
-        var p = Seed();
-        var service = FixtureData.Checkout(fixture);
-        var cart = FixtureData.Cart(service, p.ProductId);
-        service.ApplyBillDiscount(cart, 100m, "Percent");
-        service.CompleteSale(cart, "Cash", FixtureData.Actor);
-        using var verify = fixture.Context();
-        Assert.Equal(0m, verify.Sales.Single().TotalAmount);
-        Assert.Equal(5m, verify.LedgerEntries.Single().Amount);
-    }
-
-    [Fact]
-    [Trait("Difference", "DR-26")]
-    public void Current_ReceiptExistsBeforeCompletionAndIsRetained_DiffersFromPRQ45()
-    {
-        var p = Seed();
-        var service = FixtureData.Checkout(fixture);
-        var cart = FixtureData.Cart(service, p.ProductId);
-        Assert.Matches(@"^INV-\d{14}-[A-F0-9]{6}$", cart.InvoiceNumber);
-        var result = service.CompleteSale(cart, "Cash", FixtureData.Actor);
-        Assert.Equal(cart.InvoiceNumber, result.ReceiptNumber);
+        Assert.Throws<CheckoutValidationException>(() => service.CompleteSale(cart, "Cash", FixtureData.Actor));
+        FixtureData.AssertEmptySaleEffects(fixture, p.ProductId, 10);
     }
 
     [Theory]
+    [Trait("Fixes", "DR-07")]
+    [InlineData("Cashier", 25, false)]
+    [InlineData("Cashier", 26, true)]
+    [InlineData("Manager", 50, false)]
+    [InlineData("Manager", 51, true)]
+    [InlineData("Admin", 49, false)]
+    public void Approved_DiscountAboveRoleLimitNeedsApproval_PRQ67(string role, int percent, bool needsApproval)
+    {
+        var p = Seed(price: 100m, cost: 10m);
+        var service = FixtureData.Checkout(fixture);
+        var cart = FixtureData.Cart(service, p.ProductId);
+        service.ApplyBillDiscount(cart, percent, "Percent");
+        var plan = SwiftCheckoutPOS.BLL.DTOs.PaymentPlanDTO.Single("Card");
+        if (needsApproval)
+        {
+            var error = Assert.Throws<CheckoutValidationException>(() => service.CompleteSale(cart, plan, FixtureData.Actor, role, null));
+            Assert.StartsWith("APPROVAL REQUIRED", error.Message);
+            FixtureData.AssertEmptySaleEffects(fixture, p.ProductId, 10);
+        }
+        else
+        {
+            service.CompleteSale(cart, plan, FixtureData.Actor, role, null);
+            using var verify = fixture.Context();
+            Assert.Equal(100m - percent, verify.Sales.Single().TotalAmount);
+            Assert.Equal((decimal)percent, verify.SaleItems.Single().DiscountAmount); // DR-36 persisted
+        }
+    }
+
+    [Theory]
+    [Trait("Fixes", "DR-07")]
+    [Trait("Fixes", "DR-08")]
+    [InlineData("Manager", 40, true)]   // manager may approve 40%
+    [InlineData("Manager", 60, false)]  // above 50% needs Admin
+    [InlineData("Admin", 95, true)]     // below cost needs Admin while financial view is OFF (CQ-03)
+    [InlineData("Manager", 95, false)]
+    public void Approved_ApproverRoleDecides_PRQ67_PRQ93(string approverRole, int percent, bool succeeds)
+    {
+        var p = Seed(price: 100m, cost: 10m);
+        var service = new CheckoutService(new SwiftCheckoutPOS.DAL.Repositories.CheckoutRepository(fixture.Options()),
+            new FakeApprover(approverRole));
+        var cart = FixtureData.Cart(service, p.ProductId);
+        service.ApplyBillDiscount(cart, percent, "Percent");
+        var approval = new SwiftCheckoutPOS.BLL.DTOs.ApprovalRequestDTO { Username = "boss", Password = "pw" };
+        var plan = SwiftCheckoutPOS.BLL.DTOs.PaymentPlanDTO.Single("Card");
+        if (!succeeds)
+        {
+            Assert.Throws<CheckoutValidationException>(() => service.CompleteSale(cart, plan, FixtureData.Actor, "Cashier", approval));
+            return;
+        }
+        service.CompleteSale(cart, plan, FixtureData.Actor, "Cashier", approval);
+        using var verify = fixture.Context();
+        Assert.Equal("User 9: Boss", verify.Sales.Single().ApprovedBy);
+        Assert.Equal("SaleApproval", verify.AuditEvents.Single().Action);
+    }
+
+    private sealed class FakeApprover(string role) : IApprover
+    {
+        public (string Actor, string Role)? Verify(string username, string password) =>
+            username == "boss" && password == "pw" ? ("User 9: Boss", role) : null;
+    }
+
+    [Fact]
+    [Trait("Fixes", "DR-26")]
+    public void Approved_ReceiptNumbersAssignedAtCompletionAndSequentialPerDay_PRQ45()
+    {
+        var p = Seed(stock: 10);
+        var service = FixtureData.Checkout(fixture);
+        var held = FixtureData.Cart(service, p.ProductId);
+        service.HoldOrder(held, FixtureData.Actor);
+        var day = DateTime.Now.ToString("yyyyMMdd");
+        var first = service.CompleteSale(FixtureData.Cart(service, p.ProductId), "Cash", FixtureData.Actor);
+        var second = service.CompleteSale(FixtureData.Cart(service, p.ProductId), "Card", FixtureData.Actor);
+        Assert.Equal($"SCP-{day}-0001", first.ReceiptNumber);
+        Assert.Equal($"SCP-{day}-0002", second.ReceiptNumber);
+        using var verify = fixture.Context();
+        Assert.DoesNotContain(verify.Sales.Where(s => s.OrderStatus == "Held"), s => s.ReceiptNumber.StartsWith("SCP-")); // held: no number yet
+        // Replaying the same cart returns the same receipt, no second number.
+        var cart = FixtureData.Cart(service, p.ProductId);
+        var a = service.CompleteSale(cart, "Cash", FixtureData.Actor);
+        var b = service.CompleteSale(cart, "Cash", FixtureData.Actor);
+        Assert.Equal(a.ReceiptNumber, b.ReceiptNumber);
+        Assert.True(b.AlreadyCompleted);
+    }
+
+    [Theory]
+    [Trait("Fixes", "DR-27")]
     [InlineData("Cash")]
     [InlineData("Card")]
-    [InlineData("Mobile Wallet")]
-    public void Current_AcceptsExistingSingleTenderLabels(string tender)
+    [InlineData("bKash")]
+    [InlineData("Nagad")]
+    public void Approved_AcceptsApprovedSingleTenders_PRQ85(string tender)
     {
         var p = Seed();
         var service = FixtureData.Checkout(fixture);
@@ -139,18 +198,72 @@ public sealed class CheckoutCharacterizationTests
     }
 
     [Theory]
-    [InlineData("bKash")]
-    [InlineData("Nagad")]
-    [InlineData("Due")]
-    [Trait("Difference", "DR-27")]
-    [Trait("Difference", "DR-28")]
-    public void Current_RejectsApprovedTenderVocabulary_DiffersFromPRQ85_PRQ86(string tender)
+    [InlineData("Mobile Wallet")]
+    [InlineData("Cheque")]
+    public void Approved_RejectsUnknownTender_PRQ85(string tender)
     {
         var p = Seed();
         var service = FixtureData.Checkout(fixture);
         Assert.Throws<CheckoutValidationException>(() =>
             service.CompleteSale(FixtureData.Cart(service, p.ProductId), tender, FixtureData.Actor));
         FixtureData.AssertEmptySaleEffects(fixture, p.ProductId, 10);
+    }
+
+    [Fact]
+    [Trait("Fixes", "DR-27")]
+    public void Approved_SplitCashAndBkashRoundsOnlyTheCashPart_CQ01()
+    {
+        var p = Seed(price: 100.49m);
+        var service = FixtureData.Checkout(fixture);
+        var plan = new SwiftCheckoutPOS.BLL.DTOs.PaymentPlanDTO { Lines = [
+            new() { Tender = "Cash", Tendered = 50m },
+            new() { Tender = "bKash", Amount = 60m, Reference = "TRX123" } ] };
+        var result = service.CompleteSale(FixtureData.Cart(service, p.ProductId), plan, FixtureData.Actor, "Cashier", null);
+        using var verify = fixture.Context();
+        var sale = verify.Sales.Single();
+        Assert.Equal("Cash+bKash", sale.PaymentMethod);
+        Assert.Equal(100.49m, sale.TotalAmount);
+        Assert.Equal(-0.49m, sale.RoundingAmount);                 // cash part 40.49 -> 40
+        var payments = verify.SalePayments.OrderBy(x => x.Tender).ToList();
+        Assert.Equal(40m, payments.Single(x => x.Tender == "Cash").Amount);
+        Assert.Equal(60m, payments.Single(x => x.Tender == "bKash").Amount);
+        Assert.Equal("TRX123", payments.Single(x => x.Tender == "bKash").Reference);
+        Assert.Equal(10m, result.Receipt.ReceiptPayments!.Single(x => x.Tender == "Cash").Change); // 50 given
+    }
+
+    [Fact]
+    [Trait("Fixes", "DR-28")]
+    public void Approved_DueSaleNeedsCustomerApprovalAndLimit_PRQ86()
+    {
+        var p = Seed(price: 1000m, cost: 100m, stock: 10);
+        int customerId;
+        using (var seed = fixture.Context())
+        {
+            var c = new Customer { FullName = "Due customer", PhoneNumber = "01700000000", DueBalance = 1000m };
+            seed.Customers.Add(c); seed.SaveChanges(); customerId = c.CustomerId;
+        }
+        var service = FixtureData.Checkout(fixture);
+        CheckoutSessionDTO Cart(int qty)
+        {
+            var cart = FixtureData.Cart(service, p.ProductId, qty);
+            cart.CustomerType = "Loyalty"; cart.CustomerId = customerId; cart.CustomerName = "Due customer";
+            return cart;
+        }
+        var duePlan = SwiftCheckoutPOS.BLL.DTOs.PaymentPlanDTO.Single("Due");
+        // Cashier alone cannot sell on Due.
+        Assert.StartsWith("APPROVAL REQUIRED", Assert.Throws<CheckoutValidationException>(() =>
+            service.CompleteSale(Cart(1), duePlan, FixtureData.Actor, "Cashier", null)).Message);
+        // Manager may; balance 1000 + 1000 = 2000 <= 2500.
+        service.CompleteSale(Cart(1), duePlan, FixtureData.Actor, "Manager", null);
+        // Next 1000 would make 3000 > 2500.
+        Assert.Contains("Due limit", Assert.Throws<CheckoutValidationException>(() =>
+            service.CompleteSale(Cart(1), duePlan, FixtureData.Actor, "Manager", null)).Message);
+        // Collect 500, then the balance is 1500.
+        Assert.Equal(1500m, service.CollectDue(customerId, 500m, "Cash", null, FixtureData.Actor));
+        using var verify = fixture.Context();
+        Assert.Equal(1500m, verify.Customers.Single().DueBalance);
+        Assert.Single(verify.CustomerDuePayments);
+        Assert.Single(verify.Sales, s => s.OrderStatus == "Completed");
     }
 
     [Fact]
@@ -393,21 +506,23 @@ public sealed class CheckoutCharacterizationTests
     [InlineData(true)]
     [InlineData(false)]
     [Trait("Category", "ControlledConcurrency")]
-    public async Task Current_ControlledConcurrentCompletionsHaveOneFinancialEffect(bool sameReceipt)
+    public async Task Approved_ConcurrentCompletionsAreSerializedWithOneFinancialEffect(bool sameReceipt)
     {
+        // The per-day receipt counter row is locked inside each completion, so concurrent completions run one
+        // after the other. The second then sees the first's result (replay, or "not enough stock").
         var p = Seed(stock: 1);
-        using var gate = new DualSaveGate();
-        var service = FixtureData.Checkout(fixture, gate);
+        var service = FixtureData.Checkout(fixture);
         var first = FixtureData.Cart(service, p.ProductId);
         var second = FixtureData.Cart(service, p.ProductId);
         if (sameReceipt) second.InvoiceNumber = first.InvoiceNumber;
+        using var start = new ManualResetEventSlim();
         var errors = await Task.WhenAll(
-            Task.Run(() => Record.Exception(() => service.CompleteSale(first, "Cash", FixtureData.Actor))),
-            Task.Run(() => Record.Exception(() => service.CompleteSale(second, "Cash", FixtureData.Actor))));
-        Assert.Contains(errors, e => e is null);
+            Task.Run(() => { start.Wait(); return Record.Exception(() => service.CompleteSale(first, "Cash", FixtureData.Actor)); }),
+            Task.Run(() => { start.Wait(); return Record.Exception(() => service.CompleteSale(second, "Cash", FixtureData.Actor)); }),
+            Task.Run(() => { start.Set(); return (Exception?)null; }));
         Assert.All(errors.Where(e => e is not null), e =>
             Assert.True(e is DbUpdateConcurrencyException || e is CheckoutValidationException,
-                "Controlled race must return a known conflict, not a timeout/unhandled SQL failure."));
+                $"Race must return a known conflict, got {e!.GetType().Name}."));
         using var verify = fixture.Context();
         Assert.Single(verify.Sales);
         Assert.Single(verify.SaleItems);

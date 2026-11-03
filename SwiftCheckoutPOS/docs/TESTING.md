@@ -69,10 +69,10 @@ The direct BLL DTO test with simultaneous discounts does not claim the UI setter
 | ~~Current_AddsVatOnTop_DiffersFromPRQ08~~ | DR-04 | Retired by IMM-05: replaced by `Approved_PricesAreVatInclusive_PRQ08` (approved rule). |
 | ~~Current_TaxHalfPaisaUsesToEven_DiffersFromPRQ06~~ | DR-03 | Retired by IMM-05: replaced by `Approved_HalfPaisaRoundsAwayFromZero_PRQ06` (approved rule). |
 | ~~Current_CashKeepsPaisa_DiffersFromPRQ07~~ | DR-05 | Retired by IMM-05: replaced by `Approved_CashOnlyWholeTakaRounding_PRQ07_PRQ91` (approved rule). |
-| [Current_ServiceInputWithBothBillModesUsesFlat_DiffersFromPRQ12](../Tests/SwiftCheckoutPOS.Tests.Integration/Checkout/CheckoutCharacterizationTests.cs), line82 | DR-06 | Direct BLL DTO with both modes prioritizes flat; UI setter is already exclusive. |
-| [Current_HundredPercentDiscountNeedsNoApproval_DiffersFromPRQ67_PRQ93](../Tests/SwiftCheckoutPOS.Tests.Integration/Checkout/CheckoutCharacterizationTests.cs), line97 | DR-07, DR-08 | 100% discount and below-cost net accepted without approval. |
-| [Current_ReceiptExistsBeforeCompletionAndIsRetained_DiffersFromPRQ45](../Tests/SwiftCheckoutPOS.Tests.Integration/Checkout/CheckoutCharacterizationTests.cs), line111 | DR-26 | Cart-created INV receipt persists at completion. |
-| [Current_RejectsApprovedTenderVocabulary_DiffersFromPRQ85_PRQ86](../Tests/SwiftCheckoutPOS.Tests.Integration/Checkout/CheckoutCharacterizationTests.cs), line140 | DR-27, DR-28 | bKash/Nagad/Due rejected. The fabricated Cash+Card label is tested separately as a correct invalid-input baseline. |
+| ~~Current_ServiceInputWithBothBillModesUsesFlat_DiffersFromPRQ12~~ | DR-06 | Retired by BP-16/17/20: replaced by `Approved_BothBillDiscountModesRejected_PRQ12` (approved rule). |
+| ~~Current_HundredPercentDiscountNeedsNoApproval_DiffersFromPRQ67_PRQ93~~ | DR-07, DR-08 | Retired by BP-16/17/20: replaced by `Approved_DiscountAboveRoleLimitNeedsApproval_PRQ67` (approved rule). |
+| ~~Current_ReceiptExistsBeforeCompletionAndIsRetained_DiffersFromPRQ45~~ | DR-26 | Retired by BP-16/17/20: replaced by `Approved_ReceiptNumbersAssignedAtCompletionAndSequentialPerDay_PRQ45` (approved rule). |
+| ~~Current_RejectsApprovedTenderVocabulary_DiffersFromPRQ85_PRQ86~~ | DR-27, DR-28 | Retired by BP-16/17/20: replaced by `Approved_SplitCashAndBkashRoundsOnlyTheCashPart_CQ01 / Approved_DueSaleNeedsCustomerApprovalAndLimit_PRQ86` (approved rule). |
 | ~~Current_ResumeReleasesStockThenCompletesOriginalSale_DiffersFromCQ04~~ | DR-33 | Retired by BP-03: replaced by `Approved_ResumeKeepsReservationUntilCompletion_CQ04` (approved rule). |
 | ~~Current_ListAndEditWholeRoundMoneyAndRates_DiffersFromPRQ02_PRQ06~~ | DR-02 | Retired by IMM-05: replaced by `Approved_ListAndEditKeepPaisaAndRates_PRQ02_PRQ04` (approved rule). |
 | ~~Current_MetadataEditRoundTripLosesPaisa_DiffersFromPRQ02~~ | DR-02 | Retired by IMM-05: replaced by `Approved_MetadataEditKeepsPaisa_PRQ02` (approved rule). |

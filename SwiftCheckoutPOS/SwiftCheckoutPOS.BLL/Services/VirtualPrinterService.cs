@@ -89,7 +89,7 @@ namespace SwiftCheckoutPOS.BLL.Services
             receipt.AppendLine(new string('-', paperWidth));
 
             receipt.AppendLine($"Date: {session.ReceiptSaleDate ?? DateTime.Now:yyyy-MM-dd HH:mm:ss}");
-            receipt.AppendLine($"Receipt #: {session.InvoiceNumber}");
+            receipt.AppendLine($"Receipt #: {session.ReceiptNumber ?? "(not yet saved)"}");
             receipt.AppendLine($"Cashier: {session.ReceiptCashierName ?? "Preview"}");
             if (session.ReceiptPaymentMethod is not null)
                 receipt.AppendLine($"Payment: {session.ReceiptPaymentMethod}");
@@ -125,11 +125,24 @@ namespace SwiftCheckoutPOS.BLL.Services
             if (session.TaxAmount > 0)
                 receipt.AppendLine(PadColumns("VAT (incl.):", "", $"{session.TaxAmount:N2}", paperWidth));
             receipt.AppendLine(PadColumns("TOTAL:", "", $"BDT {session.TotalAmount:N2}", paperWidth));
-            var rounding = session.RoundingFor(session.ReceiptPaymentMethod);
+            var rounding = session.ReceiptRounding ?? session.RoundingFor(session.ReceiptPaymentMethod);
             if (rounding != 0)
             {
                 receipt.AppendLine(PadColumns("ROUNDING:", "", $"{rounding:N2}", paperWidth));
                 receipt.AppendLine(PadColumns("PAYABLE:", "", $"BDT {session.TotalAmount + rounding:N2}", paperWidth));
+            }
+            if (session.ReceiptPayments is { Count: > 0 })
+            {
+                receipt.AppendLine(new string('-', paperWidth));
+                foreach (var p in session.ReceiptPayments)
+                {
+                    receipt.AppendLine(PadColumns($"PAID {p.Tender.ToUpperInvariant()}:", p.Reference ?? "", $"{p.Amount:N2}", paperWidth));
+                    if (p.Tendered is decimal given)
+                    {
+                        receipt.AppendLine(PadColumns("CASH RECEIVED:", "", $"{given:N2}", paperWidth));
+                        receipt.AppendLine(PadColumns("CHANGE:", "", $"{p.Change:N2}", paperWidth));
+                    }
+                }
             }
             receipt.AppendLine(new string('=', paperWidth));
 

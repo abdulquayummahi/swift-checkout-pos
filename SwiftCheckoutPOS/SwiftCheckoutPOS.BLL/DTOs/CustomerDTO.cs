@@ -1,4 +1,4 @@
-﻿// Project: SwiftCheckoutPOS.BLL
+// Project: SwiftCheckoutPOS.BLL
 // File: DTOs/CustomerDTO.cs
 namespace SwiftCheckoutPOS.BLL.DTOs
 {
@@ -8,5 +8,6 @@ namespace SwiftCheckoutPOS.BLL.DTOs
         public string PhoneNumber { get; set; }
         public string FullName { get; set; }
         public int LoyaltyPoints { get; set; }
+        public decimal DueBalance { get; set; }
     }
 }
