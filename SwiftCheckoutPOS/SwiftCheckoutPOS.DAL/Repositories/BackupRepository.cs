@@ -153,6 +153,16 @@ namespace SwiftCheckoutPOS.DAL.Repositories
         public void CheckDatabase(string databaseName) =>
             Exec(MasterConnection(), "DECLARE @s nvarchar(400) = N'DBCC CHECKDB(' + QUOTENAME(@db) + N') WITH NO_INFOMSGS'; EXEC(@s);", ("@db", databaseName));
 
+        /// <summary>Owner maintenance only (--recreate-database, after typed confirmation): drops THIS database.</summary>
+        public void DropThisDatabase()
+        {
+            SqlConnection.ClearAllPools();
+            Exec(MasterConnection(),
+                "IF DB_ID(@db) IS NOT NULL BEGIN DECLARE @s nvarchar(600) = N'ALTER DATABASE ' + QUOTENAME(@db) + N' SET SINGLE_USER WITH ROLLBACK IMMEDIATE; DROP DATABASE ' + QUOTENAME(@db); EXEC(@s); END",
+                ("@db", DatabaseName));
+            SqlConnection.ClearAllPools();
+        }
+
         public void DropDatabase(string databaseName)
         {
             if (string.Equals(databaseName, DatabaseName, StringComparison.OrdinalIgnoreCase))

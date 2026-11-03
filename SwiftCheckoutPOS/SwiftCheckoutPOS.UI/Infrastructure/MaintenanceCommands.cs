@@ -12,6 +12,7 @@ namespace SwiftCheckoutPOS.UI.Infrastructure;
 ///   SwiftCheckoutPOS.UI.exe --backup            (verified PreUpgrade backup, PR-Q53)
 ///   SwiftCheckoutPOS.UI.exe --restore-drill [name]  (PR-Q84 test restore into a separate database; live data unchanged)
 ///   SwiftCheckoutPOS.UI.exe --restore name      (replaces live data; safety backup first; stop the service first)
+///   SwiftCheckoutPOS.UI.exe --recreate-database (deletes and recreates an old/test database; copy saved first)
 /// </summary>
 public static class MaintenanceCommands
 {
@@ -63,12 +64,37 @@ public static class MaintenanceCommands
         }
         if (args.Contains("--migrate"))
         {
-            using var context = new ApplicationDbContext(new DbContextOptionsBuilder<ApplicationDbContext>()
-                .UseSqlServer(connectionString, sql => sql.EnableRetryOnFailure()).Options);
-            var pending = context.Database.GetPendingMigrations().ToList();
+            var (state, pending) = Inspect(connectionString);
+            if (state == SchemaState.Legacy) { Console.WriteLine(LegacyMessage(connectionString)); Environment.ExitCode = 3; return true; }
+            using var context = Context();
             Console.WriteLine(pending.Count == 0 ? "Database is up to date." : $"Applying {pending.Count} migration(s): {string.Join(", ", pending)}");
             context.Database.Migrate();
             Console.WriteLine("Done.");
+            return true;
+        }
+        if (args.Contains("--recreate-database"))
+        {
+            var database = new Microsoft.Data.SqlClient.SqlConnectionStringBuilder(connectionString).InitialCatalog;
+            Console.WriteLine($"This DELETES database '{database}' and all its data, then creates it empty with the current schema.");
+            Console.WriteLine("Use it only for a development/test database or one made by an older development version.");
+            Console.Write($"Type the database name ({database}) to continue: ");
+            if (Console.ReadLine()?.Trim() != database) { Console.WriteLine("Not confirmed. Nothing changed."); return true; }
+            var repo = new BackupRepository(connectionString);
+            try
+            {
+                var backups = new BackupService(repo, paths, null, null, [legacyImageFolder]);
+                var set = backups.RunBackup("PreUpgrade", Owner, applyRetention: false);
+                Console.WriteLine($"Copy of the old database saved first: {set.SetName} in {backups.EffectiveTarget(backups.GetConfiguration())}.");
+            }
+            catch (Exception ex) when (ex is InvalidOperationException or Microsoft.Data.SqlClient.SqlException)
+            {
+                Console.WriteLine($"A copy of the old database could not be made ({ex.Message}).");
+                Console.Write("Type YES to delete it anyway without a copy: ");
+                if (Console.ReadLine()?.Trim() != "YES") { Console.WriteLine("Nothing changed."); return true; }
+            }
+            repo.DropThisDatabase();
+            using (var context = Context()) context.Database.Migrate();
+            Console.WriteLine($"Database '{database}' created with the current schema. Start the program: the first page asks for the first Admin.");
             return true;
         }
         if (!args.Contains("--reset-admin")) return false;
@@ -85,6 +111,60 @@ public static class MaintenanceCommands
         }
         Console.WriteLine($"Admin '{username.Trim()}' is active with the new password. All of that user's existing logins were ended.");
         return true;
+    }
+
+    public enum SchemaState { Current, Pending, Missing, Legacy, Unreachable }
+    private const string BaselineMigration = "20261103183746_InitialBaseline";
+
+    /// <summary>
+    /// Reads (never changes) the database state: missing, made by a pre-baseline development version (tables but no
+    /// InitialBaseline in the history), migrations pending, or current.
+    /// </summary>
+    public static (SchemaState State, IReadOnlyList<string> Pending) Inspect(string connectionString)
+    {
+        try
+        {
+            using var context = new ApplicationDbContext(new DbContextOptionsBuilder<ApplicationDbContext>()
+                .UseSqlServer(connectionString).Options);
+            if (!context.Database.CanConnect()) return (SchemaState.Missing, context.Database.GetMigrations().ToList());
+            var applied = context.Database.GetAppliedMigrations().ToList();
+            if (!applied.Contains(BaselineMigration))
+            {
+                var tables = context.Database.SqlQueryRaw<int>(
+                    "SELECT COUNT(*) AS [Value] FROM sys.tables WHERE name <> N'__EFMigrationsHistory'").Single();
+                if (tables > 0) return (SchemaState.Legacy, Array.Empty<string>());
+            }
+            var pending = context.Database.GetPendingMigrations().ToList();
+            return (pending.Count == 0 ? SchemaState.Current : SchemaState.Pending, pending);
+        }
+        catch (Exception ex) when (ex is Microsoft.Data.SqlClient.SqlException or InvalidOperationException)
+        {
+            return (SchemaState.Unreachable, Array.Empty<string>());
+        }
+    }
+
+    public static string LegacyMessage(string connectionString)
+    {
+        var database = new Microsoft.Data.SqlClient.SqlConnectionStringBuilder(connectionString).InitialCatalog;
+        return $"Database '{database}' was made by an older development version and cannot be upgraded (see UPGRADE_GUIDE.md).\n" +
+               "If its data is not needed, run the program once with --recreate-database (it saves a copy first, then creates it empty).";
+    }
+
+    /// <summary>Startup gate: the till never runs on a database whose tables do not match this version.</summary>
+    public static bool SchemaReady(string connectionString)
+    {
+        var (state, pending) = Inspect(connectionString);
+        var message = state switch
+        {
+            SchemaState.Legacy => LegacyMessage(connectionString),
+            SchemaState.Missing => "The database does not exist yet. Run the program once with --migrate to create it.",
+            SchemaState.Pending => $"The database needs {pending.Count} update(s) ({string.Join(", ", pending)}). Make a backup, then run the program once with --migrate.",
+            _ => null
+        };
+        if (message is null) return true; // Current, or SQL Server not reachable yet (the service restarts and retries)
+        Console.Error.WriteLine("SwiftCheckoutPOS cannot start: " + message);
+        Environment.ExitCode = 3;
+        return false;
     }
 
     private static string ReadHidden()

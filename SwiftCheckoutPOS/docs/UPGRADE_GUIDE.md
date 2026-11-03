@@ -22,9 +22,16 @@ The database history was restarted with one clean migration (`InitialBaseline`, 
 versions (for example the developer's `SwiftCheckoutPOSDb` with test data) **cannot be upgraded**; `--migrate` would try to
 create tables that already exist. The owner confirmed that database holds only test data, so:
 
-1. Back up the old database if you want to keep a copy (SQL Server Management Studio → Tasks → Back Up).
-2. Delete it (SSMS → Delete) or point `DbConn` at a new name (e.g. `SwiftCheckoutPOS`).
-3. `--migrate` creates the new empty database; the first page asks for the first Admin.
+The program now refuses to start on such a database and says so (exit code 3) instead of failing later with
+"Invalid object name ...". To replace it with an empty current one, in a terminal in the solution folder:
+
+```
+dotnet run --project SwiftCheckoutPOS.UI -- --recreate-database
+```
+
+Type the database name to confirm. It first saves a copy (`PreUpgrade` backup in the backup folder; if that is not possible it
+asks before continuing), deletes the database, creates it with the current schema, and the first page then asks for the first Admin.
+On the shop PC the same command is `SwiftCheckoutPOS.UI.exe --recreate-database`.
 
 Old settings: a `backup_config.json` in the program folder is read once and kept; product images from the old
 `wwwroot\images\products` folder keep working and are included in backups.

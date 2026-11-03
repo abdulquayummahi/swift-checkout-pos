@@ -33,6 +33,7 @@ if (string.IsNullOrWhiteSpace(connectionString))
 }
 var legacyImageFolder = Path.Combine(builder.Environment.WebRootPath ?? Path.Combine(AppContext.BaseDirectory, "wwwroot"), "images", "products");
 if (SwiftCheckoutPOS.UI.Infrastructure.MaintenanceCommands.TryRun(args, connectionString, dataPaths, legacyImageFolder)) return; // PR-Q68 owner maintenance
+if (!SwiftCheckoutPOS.UI.Infrastructure.MaintenanceCommands.SchemaReady(connectionString)) return; // never run on a wrong schema
 
 // BP-06: local rolling log files; console logging stays for development.
 builder.Logging.AddProvider(new SwiftCheckoutPOS.UI.Infrastructure.FileLoggerProvider(dataPaths.Logs));

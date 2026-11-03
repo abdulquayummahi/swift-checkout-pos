@@ -94,6 +94,10 @@ restore the pre-upgrade backup (`--restore <set name>`, DATA_RECOVERY_PLAN.md se
 | `--restore-drill [set]` | Monthly test restore into a separate database |
 | `--restore <set>` | Replace live data from a backup (stop the service first) |
 | `--reset-admin` | Set a new password for an Admin who is locked out |
+| `--recreate-database` | Delete and recreate an old development/test database (copy saved first) |
+
+At every start the program checks the database: missing, older-version, or needing `--migrate` → it prints what to do and
+stops (exit code 3) instead of running on the wrong tables.
 
 ## 8. Remove
 
