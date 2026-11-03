@@ -1,4 +1,4 @@
-﻿// Project: SwiftCheckoutPOS.BLL
+// Project: SwiftCheckoutPOS.BLL
 // File: Services/RefundService.cs
 using System;
 using System.Linq;
@@ -47,19 +47,18 @@ namespace SwiftCheckoutPOS.BLL.Services
 
         public void ExecuteRefund(string receiptNumber)
         {
-            var sale = _salesRepo.GetSaleByReceiptNumber(receiptNumber.Trim());
+            if (string.IsNullOrWhiteSpace(receiptNumber))
+                throw new ArgumentException("Receipt barcode cannot be empty.");
 
-            if (sale == null)
-                throw new InvalidOperationException("Transaction not found.");
-
-            if (sale.OrderStatus == "Refunded")
-                throw new InvalidOperationException("SECURITY FAULT: This transaction has already been refunded.");
-
-            if (sale.OrderStatus != "Completed")
-                throw new InvalidOperationException("Only completed sales can be refunded.");
-
-            // Delegate to the DAL to execute the atomic database transaction
-            _salesRepo.ProcessRefundTransaction(sale);
+            // Status checks run again inside the database unit; this avoids acting on a stale read.
+            switch (_salesRepo.RefundCompletedSale(receiptNumber.Trim()))
+            {
+                case RefundOutcome.Refunded: return;
+                case RefundOutcome.NotFound: throw new InvalidOperationException("Transaction not found.");
+                case RefundOutcome.AlreadyRefunded: throw new InvalidOperationException("This transaction has already been refunded.");
+                case RefundOutcome.NotRefundable: throw new InvalidOperationException("Only completed sales can be refunded.");
+                default: throw new InvalidOperationException("The sale was changed by another action. Look it up again and retry.");
+            }
         }
     }
 }
