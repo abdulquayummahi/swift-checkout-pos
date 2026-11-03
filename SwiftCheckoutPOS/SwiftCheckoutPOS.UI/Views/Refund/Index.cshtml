@@ -1,6 +1,6 @@
 <!-- Project: SwiftCheckoutPOS.UI -->
 <!-- File: Views/Refund/Index.cshtml -->
-@model SwiftCheckoutPOS.BLL.DTOs.SaleDTO
+@model SwiftCheckoutPOS.BLL.DTOs.RefundLookupDTO
 
 @{
     ViewData["Title"] = "Refund Processing";
@@ -134,52 +134,65 @@
                         <div class="p-4 border-bottom d-flex justify-content-between align-items-center bg-light rounded-top">
                             <div>
                                 <h3 class="fw-bold text-dark m-0 font-monospace">@Model.ReceiptNumber</h3>
-                                <div class="text-muted fw-bold mt-1">Processed: @Model.SaleDate.ToString("yyyy-MM-dd HH:mm:ss") | Tender: @Model.PaymentMethod</div>
+                                <div class="text-muted fw-bold mt-1">Sold: @Model.SaleDate.ToString("yyyy-MM-dd HH:mm:ss") | Tender: @Model.PaymentMethod
+                                    @if (!string.IsNullOrEmpty(Model.CustomerName)) { <span> | Customer: @Model.CustomerName</span> }</div>
+                                <div class="text-muted small mt-1">Total BDT @Model.TotalAmount.ToString("N2") · Already refunded BDT @Model.RefundedAmount.ToString("N2")</div>
                             </div>
                             <div>
-                                @if (Model.OrderStatus == "Refunded")
-                                {
-                                    <span class="status-badge status-refunded">ALREADY REFUNDED</span>
-                                }
-                                else
-                                {
-
-                                    <span class="status-badge status-completed">COMPLETED</span>
-                                }
+                                <span class="status-badge @(Model.CanRefund ? "status-completed" : "status-refunded")">@Model.OrderStatus.ToUpperInvariant()</span>
                             </div>
                         </div>
-
-                        <div class="item-grid item-grid-header">
-                            <div>Product Name</div>
-                            <div class="text-end">Unit Price</div>
-                            <div class="text-center">Quantity</div>
-                            <div class="text-end">Line Total</div>
-                        </div>
-
-                        <div style="max-height: 400px; overflow-y: auto;">
-                            @foreach (var item in Model.SaleItems)
-                            {
-                                <div class="item-grid">
-                                    <div class="fw-bold text-dark text-truncate">@item.ProductName</div>
-                                    <div class="text-end text-muted">@item.UnitPrice.ToString("N2")</div>
-                                    <div class="text-center fw-bold fs-5">@item.Quantity</div>
-                                    <div class="text-end fw-bold text-dark">@item.LineTotal.ToString("N2")</div>
-                                </div>
-                            }
-                        </div>
-
-                        <div class="p-4 bg-light border-top rounded-bottom d-flex justify-content-between align-items-center">
-                            <div>
-                                <h2 class="fw-bold m-0" style="color: #0f172a;">REFUND TOTAL: BDT @Model.TotalAmount.ToString("N2")</h2>
+                        @if (Model.RefundBlockedReason != null)
+                        {
+                            <div class="alert alert-warning m-3 fw-bold">@Model.RefundBlockedReason</div>
+                        }
+                        <form asp-action="ConfirmRefund" method="post" id="refundForm" class="m-0">
+                            <input type="hidden" name="receiptNumber" value="@Model.ReceiptNumber" />
+                            <div class="item-grid item-grid-header">
+                                <div>Product</div>
+                                <div class="text-end">Paid (line)</div>
+                                <div class="text-center">Sold / left</div>
+                                <div class="text-end">Refund qty · Returned goods</div>
                             </div>
-                            @if (Model.OrderStatus != "Refunded")
-                            {
-                                <form asp-action="ConfirmRefund" method="post" id="refundForm" class="m-0">
-                                    <input type="hidden" name="receiptNumber" value="@Model.ReceiptNumber" />
-                                    <button type="button" class="btn btn-danger btn-lg fw-bold px-5 shadow" onclick="triggerRefund()" id="refundBtn">EXECUTE REFUND (F12)</button>
-                                </form>
-                            }
-                        </div>
+                            <div style="max-height: 400px; overflow-y: auto;">
+                                @for (var i = 0; i < Model.Lines.Count; i++)
+                                {
+                                    var line = Model.Lines[i];
+                                    <div class="item-grid">
+                                        <div class="fw-bold text-dark text-truncate">@line.ProductName</div>
+                                        <div class="text-end text-muted">@line.LineNet.ToString("N2")</div>
+                                        <div class="text-center fw-bold">@line.Quantity / @line.Remaining</div>
+                                        <div class="text-end d-flex gap-2 justify-content-end">
+                                            <input type="hidden" name="lines[@i].SaleItemId" value="@line.SaleItemId" />
+                                            <input type="number" name="lines[@i].Quantity" min="0" max="@line.Remaining" value="@(Model.CanRefund ? line.Remaining : 0)"
+                                                   class="form-control form-control-sm text-end" style="width: 80px;" @(Model.CanRefund && line.Remaining > 0 ? "" : "disabled") />
+                                            <select name="lines[@i].Disposition" class="form-select form-select-sm" style="width: 150px;" @(Model.CanRefund ? "" : "disabled")>
+                                                <option value="Restock">Return to stock</option>
+                                                <option value="Damaged">Damaged</option>
+                                            </select>
+                                        </div>
+                                    </div>
+                                }
+                            </div>
+                            <div class="p-4 bg-light border-top rounded-bottom">
+                                @if (Model.CanRefund)
+                                {
+                                    <div class="d-flex gap-3 align-items-center">
+                                        <input type="text" name="reason" maxlength="200" class="form-control" placeholder="Reason (optional)" />
+                                        <button type="button" class="btn btn-danger btn-lg fw-bold px-5 shadow text-nowrap" onclick="triggerRefund()" id="refundBtn">REFUND SELECTED (F12)</button>
+                                    </div>
+                                    <div class="small text-muted mt-2">Unpaid Due on this sale is cancelled first; the rest is paid back to the original payment methods (cash rounded to whole taka).</div>
+                                }
+                            </div>
+                        </form>
+                        @if (Model.CanVoid)
+                        {
+                            <form asp-action="VoidSale" method="post" class="p-4 border-top d-flex gap-3 align-items-center" onsubmit="return confirm('Void the whole sale? Stock is restored and all money given back.');">
+                                <input type="hidden" name="receiptNumber" value="@Model.ReceiptNumber" />
+                                <input type="text" name="reason" maxlength="200" class="form-control" placeholder="Reason for void (required)" required />
+                                <button type="submit" class="btn btn-outline-danger fw-bold text-nowrap">VOID SALE (within 5 min)</button>
+                            </form>
+                        }
                     </div>
                 }
             </div>
@@ -189,7 +202,7 @@
     <script src="~/lib/bootstrap/dist/js/bootstrap.bundle.min.js"></script>
     <script>
         function triggerRefund() {
-        if(confirm('CRITICAL ACTION: This will reverse the transaction and return inventory to stock. Do you wish to proceed?')) {
+        if(confirm('Refund the selected quantities? Returned items go back to stock unless marked Damaged.')) {
         document.getElementById('refundBtn').disabled = true;
         document.getElementById('refundBtn').innerText = "PROCESSING...";
         document.getElementById('refundForm').submit();

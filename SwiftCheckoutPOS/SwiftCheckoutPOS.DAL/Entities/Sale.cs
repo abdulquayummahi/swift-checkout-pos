@@ -62,6 +62,12 @@ namespace SwiftCheckoutPOS.DAL.Entities
         [MaxLength(100)]
         public string? ApprovedBy { get; set; }
 
+        /// <summary>Total exact value refunded/voided so far (always changes on a refund, so RowVersion guards repeats).</summary>
+        [Column(TypeName = "decimal(18, 2)")]
+        public decimal RefundedAmount { get; set; }
+
+        public ICollection<Refund> Refunds { get; set; } = new List<Refund>();
+
         public ICollection<SalePayment> Payments { get; set; } = new List<SalePayment>();
 
         public ICollection<SaleItem> SaleItems { get; set; } = new List<SaleItem>();

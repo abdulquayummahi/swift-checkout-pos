@@ -32,6 +32,9 @@ public partial class ApplicationDbContext : DbContext
     public virtual DbSet<SalePayment> SalePayments { get; set; } = null!;
     public virtual DbSet<ReceiptSequence> ReceiptSequences { get; set; } = null!;
     public virtual DbSet<CustomerDuePayment> CustomerDuePayments { get; set; } = null!;
+    public virtual DbSet<Refund> Refunds { get; set; } = null!;
+    public virtual DbSet<RefundItem> RefundItems { get; set; } = null!;
+    public virtual DbSet<RefundPayout> RefundPayouts { get; set; } = null!;
 
     protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
     {
@@ -161,6 +164,20 @@ public partial class ApplicationDbContext : DbContext
         {
             entity.HasOne(e => e.Sale).WithMany(s => s.Payments).HasForeignKey(e => e.SaleId).OnDelete(DeleteBehavior.Restrict);
             entity.ToTable(t => t.HasCheckConstraint("CK_SalePayments_Amount", "[Amount] > 0"));
+        });
+
+        modelBuilder.Entity<Refund>(entity =>
+        {
+            entity.Property(e => e.RefundedAt).HasColumnType("datetime2");
+            entity.HasOne(e => e.Sale).WithMany(s => s.Refunds).HasForeignKey(e => e.SaleId).OnDelete(DeleteBehavior.Restrict);
+            entity.HasMany(e => e.Items).WithOne().HasForeignKey(i => i.RefundId).OnDelete(DeleteBehavior.Restrict);
+            entity.HasMany(e => e.Payouts).WithOne().HasForeignKey(i => i.RefundId).OnDelete(DeleteBehavior.Restrict);
+            entity.HasIndex(e => e.RefundedAt);
+        });
+        modelBuilder.Entity<RefundItem>(entity =>
+        {
+            entity.HasOne<SaleItem>().WithMany().HasForeignKey(e => e.SaleItemId).OnDelete(DeleteBehavior.Restrict);
+            entity.ToTable(t => t.HasCheckConstraint("CK_RefundItems_Quantity", "[Quantity] > 0"));
         });
 
         modelBuilder.Entity<ReceiptSequence>(entity => entity.Property(e => e.BusinessDate).HasColumnType("date"));

@@ -80,53 +80,19 @@ namespace SwiftCheckoutPOS.DAL.Repositories
                 .FirstOrDefault(s => s.ReceiptNumber == receiptNumber);
         }
 
-        /// <summary>
-        /// IMM-04: full-sale refund as ONE unit inside the EF execution strategy, so
-        /// EnableRetryOnFailure stays on. Each attempt starts from a clean change tracker and
-        /// re-reads the sale, so a retry never reapplies stale state. The sale RowVersion makes
-        /// a concurrent second refund fail instead of restocking twice.
-        /// Business rules (window, approval, ledger reversal) are NOT decided here (BP-04/IMM-07).
-        /// </summary>
-        public RefundOutcome RefundCompletedSale(string receiptNumber)
-        {
-            var strategy = _context.Database.CreateExecutionStrategy();
-            try
-            {
-                return strategy.Execute(() =>
-                {
-                    _context.ChangeTracker.Clear();
-                    using var transaction = _context.Database.BeginTransaction();
-                    var sale = _context.Sales.Include(s => s.SaleItems)
-                        .SingleOrDefault(s => s.ReceiptNumber == receiptNumber);
-                    if (sale == null) return RefundOutcome.NotFound;
-                    if (sale.OrderStatus == "Refunded") return RefundOutcome.AlreadyRefunded;
-                    if (sale.OrderStatus != "Completed") return RefundOutcome.NotRefundable;
+        /// <summary>Tracked sale with everything a refund/void needs. Use inside an AtomicUnit.</summary>
+        public Sale? LoadForRefund(string receiptNumber) => _context.Sales
+            .Include(s => s.SaleItems).ThenInclude(i => i.Product)
+            .Include(s => s.Payments)
+            .Include(s => s.Refunds).ThenInclude(r => r.Items)
+            .Include(s => s.Refunds).ThenInclude(r => r.Payouts)
+            .Include(s => s.Customer)
+            .AsSplitQuery()
+            .SingleOrDefault(s => s.ReceiptNumber == receiptNumber);
 
-                    sale.OrderStatus = "Refunded";
-                    foreach (var item in sale.SaleItems)
-                    {
-                        var product = _context.Products.Find(item.ProductId);
-                        if (product != null) product.StockQuantity += item.Quantity;
-                    }
-
-                    _context.SaveChanges();
-                    transaction.Commit();
-                    return RefundOutcome.Refunded;
-                });
-            }
-            catch (DbUpdateConcurrencyException)
-            {
-                // Another request changed this sale or its stock first; nothing of this attempt was committed.
-                _context.ChangeTracker.Clear();
-                var status = _context.Sales.AsNoTracking().Where(s => s.ReceiptNumber == receiptNumber)
-                    .Select(s => s.OrderStatus).SingleOrDefault();
-                return status == "Refunded" ? RefundOutcome.AlreadyRefunded : RefundOutcome.Conflict;
-            }
-            finally
-            {
-                _context.ChangeTracker.Clear();
-            }
-        }
+        public Product? FindProduct(int productId) => _context.Products.Find(productId);
+        public void AddRefund(Refund refund) => _context.Refunds.Add(refund);
+        public void AddLedger(LedgerEntry entry) => _context.LedgerEntries.Add(entry);
 
         public IEnumerable<Sale> GetSalesByCustomerId(int customerId)
         {

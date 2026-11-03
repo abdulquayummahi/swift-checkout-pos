@@ -80,8 +80,8 @@ The direct BLL DTO test with simultaneous discounts does not claim the UI setter
 | ~~Current_RestockWacUsesToEven_DiffersFromPRQ06~~ | DR-03 | Retired by IMM-05: replaced by `Approved_RestockWacRoundsHalfAwayFromZero_PRQ06` (approved rule). |
 | ~~Current_HeldStockIsExcludedFromWac_DiffersFromPRQ16~~ | DR-09 | Retired by BP-03: replaced by `Approved_HeldStockStaysInWac_PRQ16` (approved rule). |
 | ~~Current_LedgerFailureLeavesProductCommitted_DiffersFromAtomicInventory~~ | DR-02, PB-03 | Retired by BP-24/IMM-06: replaced by `Approved_LedgerFailureRollsBackProductToo_T06` (approved rule). |
-| [Current_RefundAcceptsThirtyDayOldSale_DiffersFromPRQ27](../Tests/SwiftCheckoutPOS.Tests.Integration/Refund/LegacyRefundCharacterizationTests.cs) | DR-14 | Production refund path accepts a 30-day-old receipt; PR-Q27 7-day window not yet enforced (BP-04). |
-| [Current_RefundRestocksEverythingWithoutCostOrPayoutEvent_DiffersFromPRQ65_PRQ66](../Tests/SwiftCheckoutPOS.Tests.Integration/Refund/LegacyRefundCharacterizationTests.cs) | DR-15, DR-34 | Refund restores all stock, changes status only; no refund record, COGS reversal or payout event (IMM-07/BP-04). |
+| ~~Current_RefundAcceptsThirtyDayOldSale_DiffersFromPRQ27~~ | DR-14 | Retired by BP-04/18: replaced by `Approved_RefundOnlyWithinSevenDays_PRQ27` (approved rule). |
+| ~~Current_RefundRestocksEverythingWithoutCostOrPayoutEvent_DiffersFromPRQ65_PRQ66~~ | DR-15, DR-34 | Retired by BP-04/18: replaced by `Approved_RefundIsADatedEventWithCogsReversalAndPayout_PRQ31_PRQ65_PRQ66` (approved rule). |
 | ~~Current_MigrationsOmitRequiredModelFields_DiffersFromAUD03~~ (retired by IMM-03, replaced by Migrations_MatchCurrentModel) (../Tests/SwiftCheckoutPOS.Tests.Integration/Schema/SchemaDriftCharacterizationTests.cs), line13 | AUD-03 | Snapshot still lacks fields/tables required by current model. |
 
 Correct baseline tests have no fabricated DR mismatch. They cover real sale/items/stock/COGS commits, cost capture stability, validation failures, loyalty without point changes, sequential replay, payload conflicts and real-SQL rollback.

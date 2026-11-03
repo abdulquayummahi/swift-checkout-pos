@@ -1,14 +1,14 @@
-﻿// Project: SwiftCheckoutPOS.UI
+// Project: SwiftCheckoutPOS.UI
 // File: Controllers/RefundController.cs
-using System;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using SwiftCheckoutPOS.BLL.DTOs;
 using SwiftCheckoutPOS.BLL.Services;
+using SwiftCheckoutPOS.UI.Infrastructure;
 
 namespace SwiftCheckoutPOS.UI.Controllers
 {
-    // ARCHITECT DIRECTIVE: Hard authorization lock. Cashiers cannot reverse financial ledgers.
+    /// <summary>PR-Q27/Q87: refunds and voids need a Manager or Admin.</summary>
     [Authorize(Roles = "Admin,Manager")]
     public class RefundController : Controller
     {
@@ -20,10 +20,7 @@ namespace SwiftCheckoutPOS.UI.Controllers
         }
 
         [HttpGet]
-        public IActionResult Index()
-        {
-            return View();
-        }
+        public IActionResult Index() => View();
 
         [HttpPost]
         [ValidateAntiForgeryToken]
@@ -31,10 +28,9 @@ namespace SwiftCheckoutPOS.UI.Controllers
         {
             try
             {
-                var saleData = _refundService.LookupTransaction(receiptNumber);
-                return View("Index", saleData);
+                return View("Index", _refundService.LookupTransaction(receiptNumber));
             }
-            catch (Exception ex)
+            catch (Exception ex) when (ex is ArgumentException or InvalidOperationException)
             {
                 TempData["Error"] = ex.Message;
                 return RedirectToAction(nameof(Index));
@@ -43,20 +39,44 @@ namespace SwiftCheckoutPOS.UI.Controllers
 
         [HttpPost]
         [ValidateAntiForgeryToken]
-        public IActionResult ConfirmRefund(string receiptNumber)
+        public IActionResult ConfirmRefund(string receiptNumber, List<RefundRequestLineDTO> lines, string? reason)
         {
             try
             {
-                _refundService.ExecuteRefund(receiptNumber);
-                TempData["Success"] = $"Transaction [{receiptNumber}] was successfully refunded. Stock levels have been restored.";
+                var result = _refundService.ExecuteRefund(receiptNumber, lines ?? new(), User.Actor(), reason);
+                TempData["Success"] = $"Refund of {receiptNumber} saved: {SwiftCheckoutPOS.BLL.Pricing.Money.Bdt(result.Amount)}."
+                    + (result.DueCancelled > 0 ? $" Due cancelled: {SwiftCheckoutPOS.BLL.Pricing.Money.Bdt(result.DueCancelled)}." : "")
+                    + (result.Payouts.Count > 0 ? $" Pay back: {result.Summary}." : "");
                 return RedirectToAction(nameof(Index));
             }
-            catch (Exception ex)
+            catch (Exception ex) when (ex is ArgumentException or InvalidOperationException)
             {
-                TempData["Error"] = $"Refund Failed: {ex.Message}";
-                // Reload the view with the data intact so the operator sees the error context
-                return View("Index", _refundService.LookupTransaction(receiptNumber));
+                TempData["Error"] = $"Refund failed: {ex.Message}";
+                return Reload(receiptNumber);
             }
+        }
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public IActionResult VoidSale(string receiptNumber, string reason)
+        {
+            try
+            {
+                var result = _refundService.VoidSale(receiptNumber, reason, User.Actor());
+                TempData["Success"] = $"Sale {receiptNumber} voided." + (result.Payouts.Count > 0 ? $" Give back: {result.Summary}." : "");
+                return RedirectToAction(nameof(Index));
+            }
+            catch (Exception ex) when (ex is ArgumentException or InvalidOperationException)
+            {
+                TempData["Error"] = $"Void failed: {ex.Message}";
+                return Reload(receiptNumber);
+            }
+        }
+
+        private IActionResult Reload(string receiptNumber)
+        {
+            try { return View("Index", _refundService.LookupTransaction(receiptNumber)); }
+            catch (Exception ex) when (ex is ArgumentException or InvalidOperationException) { return RedirectToAction(nameof(Index)); }
         }
     }
 }
