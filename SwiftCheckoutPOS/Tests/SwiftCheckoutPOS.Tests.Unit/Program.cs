@@ -68,8 +68,10 @@ internal static class Program
                 var (repo, service, cart) = Ready();
                 service.ApplyBillDiscount(cart, 1, "Flat");
                 var result = service.CompleteSale(cart, "Cash", Actor);
-                Equal(22.68m, repo.Sales.Single().TotalAmount);
-                Equal(1.18m, repo.Sales.Single().TaxAmount);
+                // IMM-05 approved rules: VAT-inclusive (21.50 incl. 5.5% VAT = 1.12), cash rounded to whole taka.
+                Equal(21.50m, repo.Sales.Single().TotalAmount);
+                Equal(1.12m, repo.Sales.Single().TaxAmount);
+                Equal(0.50m, repo.Sales.Single().RoundingAmount);
                 Equal(8, repo.Products[1].StockQuantity);
                 Equal(7.25m, repo.Sales.Single().SaleItems.Single().CostAtSale);
                 Equal(14.50m, repo.Ledger.Single().Amount);

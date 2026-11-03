@@ -1,4 +1,4 @@
-﻿// Project: SwiftCheckoutPOS.DAL
+// Project: SwiftCheckoutPOS.DAL
 // File: Context/ApplicationDbContext.cs
 using System;
 using System.Collections.Generic;
@@ -85,6 +85,7 @@ public partial class ApplicationDbContext : DbContext
             entity.Property(e => e.SubTotal).HasColumnType("decimal(18, 2)");
             entity.Property(e => e.TaxAmount).HasColumnType("decimal(18, 2)");
             entity.Property(e => e.TotalAmount).HasColumnType("decimal(18, 2)");
+            entity.Property(e => e.RoundingAmount).HasColumnType("decimal(18, 2)").HasDefaultValue(0m);
             entity.Property(e => e.OrderStatus).HasMaxLength(20);
             entity.Property(e => e.CashierName).HasMaxLength(100);
             entity.Property(e => e.RowVersion).IsRowVersion();

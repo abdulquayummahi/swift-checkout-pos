@@ -1,4 +1,4 @@
-﻿<!-- Project: SwiftCheckoutPOS.UI -->
+<!-- Project: SwiftCheckoutPOS.UI -->
 <!-- File: Views/Refund/Index.cshtml -->
 @model SwiftCheckoutPOS.BLL.DTOs.SaleDTO
 
@@ -161,16 +161,16 @@
                             {
                                 <div class="item-grid">
                                     <div class="fw-bold text-dark text-truncate">@item.ProductName</div>
-                                    <div class="text-end text-muted">@item.UnitPrice.ToString("N0")</div>
+                                    <div class="text-end text-muted">@item.UnitPrice.ToString("N2")</div>
                                     <div class="text-center fw-bold fs-5">@item.Quantity</div>
-                                    <div class="text-end fw-bold text-dark">@item.LineTotal.ToString("N0")</div>
+                                    <div class="text-end fw-bold text-dark">@item.LineTotal.ToString("N2")</div>
                                 </div>
                             }
                         </div>
 
                         <div class="p-4 bg-light border-top rounded-bottom d-flex justify-content-between align-items-center">
                             <div>
-                                <h2 class="fw-bold m-0" style="color: #0f172a;">REFUND TOTAL: BDT @Model.TotalAmount.ToString("N0")</h2>
+                                <h2 class="fw-bold m-0" style="color: #0f172a;">REFUND TOTAL: BDT @Model.TotalAmount.ToString("N2")</h2>
                             </div>
                             @if (Model.OrderStatus != "Refunded")
                             {

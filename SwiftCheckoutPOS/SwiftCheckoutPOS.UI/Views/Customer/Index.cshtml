@@ -1,4 +1,4 @@
-﻿<!-- Project: SwiftCheckoutPOS.UI -->
+<!-- Project: SwiftCheckoutPOS.UI -->
 <!-- File: Views/Customer/Index.cshtml -->
 @model IEnumerable<SwiftCheckoutPOS.BLL.DTOs.CustomerProfileDTO>
 
@@ -140,10 +140,10 @@
                                     <td class="text-center">
                                         <span class="badge bg-light-success text-success p-2" style="background:#dcfce7; color:#16a34a;">@customer.LoyaltyPoints Pts</span>
                                     </td>
-                                    <td class="text-end fw-bold text-dark">@customer.TotalRevenue.ToString("N0")</td>
-                                    <td class="text-end fw-bold @(customer.EstimatedProfit < 0 ? "text-danger" : "text-success")">@customer.EstimatedProfit.ToString("N0")</td>
-                                    <td class="text-end fw-bold @(customer.TotalDiscounts > 0 ? "text-danger" : "text-muted")">@(customer.TotalDiscounts > 0 ? $"-{customer.TotalDiscounts.ToString("N0")}" : "0")</td>
-                                    <td class="text-end fw-bold text-secondary">@customer.TotalRefunded.ToString("N0")</td>
+                                    <td class="text-end fw-bold text-dark">@customer.TotalRevenue.ToString("N2")</td>
+                                    <td class="text-end fw-bold @(customer.EstimatedProfit < 0 ? "text-danger" : "text-success")">@customer.EstimatedProfit.ToString("N2")</td>
+                                    <td class="text-end fw-bold @(customer.TotalDiscounts > 0 ? "text-danger" : "text-muted")">@(customer.TotalDiscounts > 0 ? $"-{customer.TotalDiscounts.ToString("N2")}" : "0")</td>
+                                    <td class="text-end fw-bold text-secondary">@customer.TotalRefunded.ToString("N2")</td>
                                     <td class="text-center">
                                         <a asp-controller="Customer" asp-action="Details" asp-route-id="@customer.CustomerId" class="btn btn-sm btn-light border fw-bold text-primary px-3 rounded-pill">View Profile</a>
                                     </td>

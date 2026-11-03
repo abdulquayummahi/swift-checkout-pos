@@ -1,4 +1,4 @@
-﻿// Project: SwiftCheckoutPOS.BLL
+// Project: SwiftCheckoutPOS.BLL
 // File: Services/InventoryService.cs
 using SwiftCheckoutPOS.BLL.DTOs;
 using SwiftCheckoutPOS.DAL.Entities;
@@ -34,13 +34,13 @@ namespace SwiftCheckoutPOS.BLL.Services
                 CategoryName = p.Category?.CategoryName ?? "Uncategorized",
                 VendorId = p.VendorId,
                 VendorName = p.Vendor?.VendorName ?? "Unknown",
-                CostPrice = Math.Round(p.CostPrice),
-                SellingPrice = Math.Round(p.SellingPrice),
+                CostPrice = p.CostPrice,
+                SellingPrice = p.SellingPrice,
                 MarginPercentage = p.SellingPrice > 0 ? ((p.SellingPrice - p.CostPrice) / p.SellingPrice) * 100 : 0,
                 StockQuantity = p.StockQuantity,
                 IsActive = p.IsActive,
                 ImagePath = p.ImagePath,
-                TaxRate = Math.Round(p.TaxRate),
+                TaxRate = p.TaxRate,
                 UnitOfMeasure = p.UnitOfMeasure,
                 ReorderLevel = p.ReorderLevel,
                 Description = p.Description
@@ -93,9 +93,9 @@ namespace SwiftCheckoutPOS.BLL.Services
                 ProductName = p.ProductName,
                 CategoryId = p.CategoryId,
                 VendorId = p.VendorId,
-                CostPrice = Math.Round(p.CostPrice),
-                SellingPrice = Math.Round(p.SellingPrice),
-                TaxRate = Math.Round(p.TaxRate),
+                CostPrice = p.CostPrice,
+                SellingPrice = p.SellingPrice,
+                TaxRate = p.TaxRate,
                 StockQuantity = p.StockQuantity,
                 UnitOfMeasure = p.UnitOfMeasure,
                 ReorderLevel = p.ReorderLevel,
@@ -117,13 +117,13 @@ namespace SwiftCheckoutPOS.BLL.Services
                 ProductName = newProductDto.ProductName,
                 CategoryId = categoryId,
                 VendorId = newProductDto.VendorId,
-                TaxRate = Math.Round(newProductDto.TaxRate),
+                TaxRate = Pricing.Money.R2(newProductDto.TaxRate),
                 UnitOfMeasure = newProductDto.UnitOfMeasure,
                 ReorderLevel = newProductDto.ReorderLevel,
                 Description = newProductDto.Description,
                 ImagePath = newProductDto.ImagePath,
-                CostPrice = Math.Round(newProductDto.CostPrice),
-                SellingPrice = Math.Round(newProductDto.SellingPrice),
+                CostPrice = Pricing.Money.R2(newProductDto.CostPrice),
+                SellingPrice = Pricing.Money.R2(newProductDto.SellingPrice),
                 StockQuantity = newProductDto.StockQuantity,
                 IsActive = true
             };
@@ -149,7 +149,7 @@ namespace SwiftCheckoutPOS.BLL.Services
 
             if (dto.SellingPrice < dto.CostPrice) throw new ArgumentException("Loss Prevention: Selling price cannot be lower than cost price.");
 
-            entity.Barcode = dto.Barcode; entity.ProductName = dto.ProductName; entity.CategoryId = categoryId; entity.VendorId = dto.VendorId; entity.CostPrice = Math.Round(dto.CostPrice); entity.SellingPrice = Math.Round(dto.SellingPrice); entity.TaxRate = Math.Round(dto.TaxRate); entity.StockQuantity = dto.StockQuantity; entity.UnitOfMeasure = dto.UnitOfMeasure; entity.ReorderLevel = dto.ReorderLevel; entity.Description = dto.Description; entity.IsActive = dto.IsActive;
+            entity.Barcode = dto.Barcode; entity.ProductName = dto.ProductName; entity.CategoryId = categoryId; entity.VendorId = dto.VendorId; entity.CostPrice = Pricing.Money.R2(dto.CostPrice); entity.SellingPrice = Pricing.Money.R2(dto.SellingPrice); entity.TaxRate = Pricing.Money.R2(dto.TaxRate); entity.StockQuantity = dto.StockQuantity; entity.UnitOfMeasure = dto.UnitOfMeasure; entity.ReorderLevel = dto.ReorderLevel; entity.Description = dto.Description; entity.IsActive = dto.IsActive;
 
             if (!string.IsNullOrWhiteSpace(dto.ImagePath)) entity.ImagePath = dto.ImagePath;
 
@@ -169,7 +169,7 @@ namespace SwiftCheckoutPOS.BLL.Services
             int resultingQty = Math.Max(0, product.StockQuantity) + addedQty;
             decimal weightedAverageCost = (currentTotalValue + totalBatchCost) / resultingQty;
 
-            product.CostPrice = Math.Round(weightedAverageCost, 2);
+            product.CostPrice = Pricing.Money.R2(weightedAverageCost);
             product.StockQuantity += addedQty;
 
             if (newRetailPrice.HasValue && newRetailPrice.Value > 0)
@@ -177,7 +177,7 @@ namespace SwiftCheckoutPOS.BLL.Services
                 if (newRetailPrice.Value < product.CostPrice)
                     throw new InvalidOperationException("Loss Prevention Alert: Target retail price is below the new blended wholesale cost.");
 
-                product.SellingPrice = Math.Round(newRetailPrice.Value, 2);
+                product.SellingPrice = Pricing.Money.R2(newRetailPrice.Value);
             }
 
             _inventoryRepo.UpdateProduct(product);

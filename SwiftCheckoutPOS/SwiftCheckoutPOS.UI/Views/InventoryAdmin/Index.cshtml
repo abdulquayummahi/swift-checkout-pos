@@ -1,4 +1,4 @@
-﻿<!-- Project: SwiftCheckoutPOS.UI -->
+<!-- Project: SwiftCheckoutPOS.UI -->
 <!-- File: Views/InventoryAdmin/Index.cshtml -->
 @model IEnumerable<SwiftCheckoutPOS.BLL.DTOs.ProductDTO>
 
@@ -176,8 +176,8 @@
                                 <td class="font-monospace fw-bold text-muted">@product.Barcode</td>
                                 <td class="fw-bold text-dark">@product.ProductName</td>
                                 <td class="text-center"><span class="badge bg-secondary rounded-pill px-3 py-2 text-white">@product.CategoryName</span></td>
-                                <td class="text-end text-muted">BDT @product.CostPrice.ToString("N0")</td>
-                                <td class="text-end fw-bold text-dark fs-6">BDT @product.SellingPrice.ToString("N0")</td>
+                                <td class="text-end text-muted">BDT @product.CostPrice.ToString("N2")</td>
+                                <td class="text-end fw-bold text-dark fs-6">BDT @product.SellingPrice.ToString("N2")</td>
 
                                 <td class="text-end fw-bold @(product.MarginPercentage >= 0 ? "text-success" : "text-danger")">
                                     @product.MarginPercentage.ToString("0.0")%

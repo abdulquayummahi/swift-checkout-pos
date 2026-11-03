@@ -41,40 +41,47 @@ public sealed class CheckoutCharacterizationTests
     }
 
     [Fact]
-    [Trait("Difference", "DR-04")]
-    public void Current_AddsVatOnTop_DiffersFromPRQ08()
+    [Trait("Fixes", "DR-04")]
+    public void Approved_PricesAreVatInclusive_PRQ08()
     {
         var p = Seed(price: 115m, tax: 15m);
         var service = FixtureData.Checkout(fixture);
         service.CompleteSale(FixtureData.Cart(service, p.ProductId), "Card", FixtureData.Actor);
         using var verify = fixture.Context();
         var sale = verify.Sales.Single();
-        Assert.Equal(17.25m, sale.TaxAmount);
-        Assert.Equal(132.25m, sale.TotalAmount);
+        Assert.Equal(15.00m, sale.TaxAmount);    // 115 x 15/115 contained in the shelf price
+        Assert.Equal(115.00m, sale.TotalAmount); // customer pays the shelf price
+        Assert.Equal(0m, sale.RoundingAmount);   // card is exact (PR-Q91)
     }
 
     [Fact]
-    [Trait("Difference", "DR-03")]
-    public void Current_TaxHalfPaisaUsesToEven_DiffersFromPRQ06()
+    [Trait("Fixes", "DR-03")]
+    public void Approved_HalfPaisaRoundsAwayFromZero_PRQ06()
     {
-        var p = Seed(price: 1m, cost: 0m, tax: 0.50m);
+        var p = Seed(price: 0.01m, cost: 0m, tax: 100m);  // VAT contained = 0.01 x 100/200 = 0.005 exactly
         var service = FixtureData.Checkout(fixture);
-        service.CompleteSale(FixtureData.Cart(service, p.ProductId), "Cash", FixtureData.Actor);
-        using var verify = fixture.Context();
-        Assert.Equal(0m, verify.Sales.Single().TaxAmount);
-        Assert.Empty(verify.LedgerEntries); // current zero cost path
+        var cart = FixtureData.Cart(service, p.ProductId);
+        Assert.Equal(0.01m, cart.TaxAmount);              // ToEven would give 0.00
+        Assert.Equal(0.01m, SwiftCheckoutPOS.BLL.Pricing.Money.R2(0.005m));
+        Assert.Equal(-0.01m, SwiftCheckoutPOS.BLL.Pricing.Money.R2(-0.005m));
+        Assert.Equal(11m, SwiftCheckoutPOS.BLL.Pricing.Money.WholeTaka(10.50m));
     }
 
-    [Fact]
-    [Trait("Difference", "DR-05")]
-    public void Current_CashKeepsPaisa_DiffersFromPRQ07()
+    [Theory]
+    [Trait("Fixes", "DR-05")]
+    [InlineData("Cash", "10.49", "-0.49")]
+    [InlineData("Cash", "10.50", "0.50")]
+    [InlineData("Card", "10.49", "0")]
+    [InlineData("Mobile Wallet", "10.50", "0")]
+    public void Approved_CashOnlyWholeTakaRounding_PRQ07_PRQ91(string tender, string price, string rounding)
     {
-        var p = Seed(price: 10.49m);
+        var p = Seed(price: decimal.Parse(price, System.Globalization.CultureInfo.InvariantCulture));
         var service = FixtureData.Checkout(fixture);
-        service.CompleteSale(FixtureData.Cart(service, p.ProductId), "Cash", FixtureData.Actor);
+        service.CompleteSale(FixtureData.Cart(service, p.ProductId), tender, FixtureData.Actor);
         using var verify = fixture.Context();
-        Assert.Equal(10.49m, verify.Sales.Single().TotalAmount);
-        Assert.Null(verify.Model.FindEntityType(typeof(Sale))!.FindProperty("RoundingAdjustment"));
+        var sale = verify.Sales.Single();
+        Assert.Equal(decimal.Parse(price, System.Globalization.CultureInfo.InvariantCulture), sale.TotalAmount);
+        Assert.Equal(decimal.Parse(rounding, System.Globalization.CultureInfo.InvariantCulture), sale.RoundingAmount);
     }
 
     [Fact]

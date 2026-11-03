@@ -14,11 +14,10 @@ public sealed class InventoryMappingCharacterizationTests
     }
 
     [Theory]
-    [InlineData("10.50", "11.50", "5.50", 10, 12, 6)]
-    [InlineData("11.50", "12.50", "4.50", 12, 12, 4)]
-    [Trait("Difference", "DR-02")]
-    public void Current_ListAndEditWholeRoundMoneyAndRates_DiffersFromPRQ02_PRQ06(
-        string inputCost, string inputPrice, string inputTax, int cost, int price, int tax)
+    [InlineData("10.50", "11.50", "5.50")]
+    [InlineData("11.55", "12.95", "7.50")]
+    [Trait("Fixes", "DR-02")]
+    public void Approved_ListAndEditKeepPaisaAndRates_PRQ02_PRQ04(string inputCost, string inputPrice, string inputTax)
     {
         var rawCost = decimal.Parse(inputCost, System.Globalization.CultureInfo.InvariantCulture);
         var rawPrice = decimal.Parse(inputPrice, System.Globalization.CultureInfo.InvariantCulture);
@@ -26,22 +25,17 @@ public sealed class InventoryMappingCharacterizationTests
         using var context = fixture.Context();
         var product = FixtureData.Product(context, rawPrice, rawCost, rawTax);
         var service = FixtureData.Inventory(context);
-        var list = service.GetAllSystemProducts().Single();
-        var edit = service.GetProductForEdit(product.ProductId);
-        foreach (var dto in new[] { list, edit })
+        foreach (var dto in new[] { service.GetAllSystemProducts().Single(), service.GetProductForEdit(product.ProductId) })
         {
-            Assert.Equal((decimal)cost, dto.CostPrice);
-            Assert.Equal((decimal)price, dto.SellingPrice);
-            Assert.Equal((decimal)tax, dto.TaxRate);
+            Assert.Equal(rawCost, dto.CostPrice);
+            Assert.Equal(rawPrice, dto.SellingPrice);
+            Assert.Equal(rawTax, dto.TaxRate);
         }
-        using var verify = fixture.Context();
-        Assert.Equal(rawCost, verify.Products.Single().CostPrice); // projection alone does not update SQL
-        Assert.Equal(rawPrice, verify.Products.Single().SellingPrice);
     }
 
     [Fact]
-    [Trait("Difference", "DR-02")]
-    public void Current_MetadataEditRoundTripLosesPaisa_DiffersFromPRQ02()
+    [Trait("Fixes", "DR-02")]
+    public void Approved_MetadataEditKeepsPaisa_PRQ02()
     {
         using var context = fixture.Context();
         var p = FixtureData.Product(context, price: 12.50m, cost: 10.50m, tax: 5.50m);
@@ -51,36 +45,35 @@ public sealed class InventoryMappingCharacterizationTests
         service.UpdateProduct(dto, p.CategoryId);
         using var verify = fixture.Context();
         var stored = verify.Products.Single();
-        Assert.Equal(10m, stored.CostPrice);
-        Assert.Equal(12m, stored.SellingPrice);
-        Assert.Equal(6m, stored.TaxRate);
+        Assert.Equal(10.50m, stored.CostPrice);
+        Assert.Equal(12.50m, stored.SellingPrice);
+        Assert.Equal(5.50m, stored.TaxRate);
     }
 
     [Fact]
-    [Trait("Difference", "DR-02")]
-    public void Current_CreateRoundsMoneyBeforeRecordingInitialCost_DiffersFromPRQ02()
+    [Trait("Fixes", "DR-02")]
+    public void Approved_CreateKeepsPaisaAndRecordsExactInitialCost_PRQ02()
     {
         using var context = fixture.Context();
         var seed = FixtureData.Product(context, stock: 0);
-        var dto = NewProduct(seed.CategoryId, seed.VendorId);
-        FixtureData.Inventory(context).AddNewProduct(dto, seed.CategoryId);
+        FixtureData.Inventory(context).AddNewProduct(NewProduct(seed.CategoryId, seed.VendorId), seed.CategoryId);
         using var verify = fixture.Context();
         var stored = verify.Products.Single(p => p.Barcode == "BP10-NEW");
-        Assert.Equal(10m, stored.CostPrice);
-        Assert.Equal(12m, stored.SellingPrice);
-        Assert.Equal(6m, stored.TaxRate);
-        Assert.Equal(20m, verify.LedgerEntries.Single().Amount);
+        Assert.Equal(10.50m, stored.CostPrice);
+        Assert.Equal(12.50m, stored.SellingPrice);
+        Assert.Equal(5.50m, stored.TaxRate);
+        Assert.Equal(21m, verify.LedgerEntries.Single().Amount); // 2 x 10.50
     }
 
     [Fact]
-    [Trait("Difference", "DR-03")]
-    public void Current_RestockWacUsesToEven_DiffersFromPRQ06()
+    [Trait("Fixes", "DR-03")]
+    public void Approved_RestockWacRoundsHalfAwayFromZero_PRQ06()
     {
         using var context = fixture.Context();
         FixtureData.Product(context, price: 5m, cost: 1m, stock: 1);
         FixtureData.Inventory(context).RestockProduct("BP10-ITEM", 1, 1.01m, null);
         using var verify = fixture.Context();
-        Assert.Equal(1.00m, verify.Products.Single().CostPrice); // (1+1.01)/2=1.005
+        Assert.Equal(1.01m, verify.Products.Single().CostPrice); // (1+1.01)/2 = 1.005 -> 1.01
         Assert.Equal(2, verify.Products.Single().StockQuantity);
         Assert.Equal(1.01m, verify.LedgerEntries.Single().Amount);
     }
@@ -134,9 +127,8 @@ public sealed class InventoryMappingCharacterizationTests
     }
 
     [Fact]
-    [Trait("Difference", "DR-02")]
     [Trait("Audit", "PB-03")]
-    public void Current_LedgerFailureLeavesRoundedProductCommitted_DiffersFromAtomicInventory()
+    public void Current_LedgerFailureLeavesProductCommitted_DiffersFromAtomicInventory()
     {
         int categoryId, vendorId;
         using (var seed = fixture.Context())
@@ -151,7 +143,7 @@ public sealed class InventoryMappingCharacterizationTests
         using var verify = fixture.Context();
         var stored = verify.Products.Single(p => p.Barcode == "BP10-NEW");
         Assert.Equal(2, stored.StockQuantity);
-        Assert.Equal(10m, stored.CostPrice);
+        Assert.Equal(10.50m, stored.CostPrice); // paisa kept (IMM-05); atomicity gap PB-03 remains
         Assert.Empty(verify.LedgerEntries); // product save committed before failed ledger save
     }
 

@@ -1,4 +1,4 @@
-﻿// Project: SwiftCheckoutPOS.DAL
+// Project: SwiftCheckoutPOS.DAL
 // File: Entities/Sale.cs
 using System;
 using System.Collections.Generic;
@@ -41,6 +41,10 @@ namespace SwiftCheckoutPOS.DAL.Entities
         public string OrderStatus { get; set; } = "Completed";
 
         // ARCHITECT NEW: Immutable Cashier Audit Log
+        /// <summary>PR-Q07/Q91: whole-taka adjustment on the cash part (payable = TotalAmount + RoundingAmount).</summary>
+        [Column(TypeName = "decimal(18, 2)")]
+        public decimal RoundingAmount { get; set; }
+
         [MaxLength(100)]
         public string? CashierName { get; set; }
 

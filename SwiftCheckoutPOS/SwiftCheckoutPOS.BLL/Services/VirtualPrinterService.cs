@@ -1,4 +1,4 @@
-﻿// Project: SwiftCheckoutPOS.BLL
+// Project: SwiftCheckoutPOS.BLL
 // File: Services/VirtualPrinterService.cs
 using System;
 using System.IO;
@@ -121,8 +121,16 @@ namespace SwiftCheckoutPOS.BLL.Services
                 receipt.AppendLine(PadColumns("DISCOUNT:", "", $"-{session.CalculatedDiscount:N2}", paperWidth));
             }
 
-            receipt.AppendLine(PadColumns("TAX:", "", $"{session.TaxAmount:N2}", paperWidth));
-            receipt.AppendLine(PadColumns("TOTAL DUE:", "", $"BDT {session.TotalAmount:N2}", paperWidth));
+            // PR-Q10: no VAT line while the shop is not VAT-registered (all rates 0%).
+            if (session.TaxAmount > 0)
+                receipt.AppendLine(PadColumns("VAT (incl.):", "", $"{session.TaxAmount:N2}", paperWidth));
+            receipt.AppendLine(PadColumns("TOTAL:", "", $"BDT {session.TotalAmount:N2}", paperWidth));
+            var rounding = session.RoundingFor(session.ReceiptPaymentMethod);
+            if (rounding != 0)
+            {
+                receipt.AppendLine(PadColumns("ROUNDING:", "", $"{rounding:N2}", paperWidth));
+                receipt.AppendLine(PadColumns("PAYABLE:", "", $"BDT {session.TotalAmount + rounding:N2}", paperWidth));
+            }
             receipt.AppendLine(new string('=', paperWidth));
 
             receipt.AppendLine(CenterText("Thank you for your purchase!", paperWidth));

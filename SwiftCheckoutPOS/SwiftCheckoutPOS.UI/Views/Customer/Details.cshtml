@@ -1,4 +1,4 @@
-﻿<!-- Project: SwiftCheckoutPOS.UI -->
+<!-- Project: SwiftCheckoutPOS.UI -->
 <!-- File: Views/Customer/Details.cshtml -->
 @model SwiftCheckoutPOS.BLL.DTOs.CustomerProfileDTO
 
@@ -148,19 +148,19 @@
                 <div class="col-md-3">
                     <div class="metric-card card-blue p-3">
                         <div class="metric-icon mb-2" style="width:30px; height:30px; font-size:1rem;">💰</div>
-                        <div><div class="metric-value fs-4">@Model.TotalRevenue.ToString("N0")</div><div class="metric-label" style="font-size:0.7rem;">Total Spent</div></div>
+                        <div><div class="metric-value fs-4">@Model.TotalRevenue.ToString("N2")</div><div class="metric-label" style="font-size:0.7rem;">Total Spent</div></div>
                     </div>
                 </div>
                 <div class="col-md-3">
                     <div class="metric-card card-green p-3">
                         <div class="metric-icon mb-2" style="width:30px; height:30px; font-size:1rem;">📈</div>
-                        <div><div class="metric-value fs-4">@Model.EstimatedProfit.ToString("N0")</div><div class="metric-label" style="font-size:0.7rem;">Generated Profit</div></div>
+                        <div><div class="metric-value fs-4">@Model.EstimatedProfit.ToString("N2")</div><div class="metric-label" style="font-size:0.7rem;">Generated Profit</div></div>
                     </div>
                 </div>
                 <div class="col-md-3">
                     <div class="metric-card card-red p-3">
                         <div class="metric-icon mb-2" style="width:30px; height:30px; font-size:1rem;">🏷️</div>
-                        <div><div class="metric-value fs-4">-@Model.TotalDiscounts.ToString("N0")</div><div class="metric-label" style="font-size:0.7rem;">Discounts Received</div></div>
+                        <div><div class="metric-value fs-4">-@Model.TotalDiscounts.ToString("N2")</div><div class="metric-label" style="font-size:0.7rem;">Discounts Received</div></div>
                     </div>
                 </div>
                 <div class="col-md-3">
@@ -319,7 +319,7 @@
                                     <tr>
                                         <td class="fw-bold text-dark" style="font-size: 0.9rem;">@item.ProductName</td>
                                         <td class="text-center fw-bold">@item.Quantity</td>
-                                        <td class="text-end fw-bold text-muted">@item.LineTotal.ToString("N0")</td>
+                                        <td class="text-end fw-bold text-muted">@item.LineTotal.ToString("N2")</td>
                                     </tr>
                                 }
                             </tbody>
@@ -328,7 +328,7 @@
                 </div>
                 <div class="modal-footer bg-light border-top-0 d-flex justify-content-between align-items-center p-4">
                     <span class="text-muted fw-bold">Tender: @txn.PaymentMethod</span>
-                    <h4 class="fw-bold m-0 text-dark">BDT @txn.TotalAmount.ToString("N0")</h4>
+                    <h4 class="fw-bold m-0 text-dark">BDT @txn.TotalAmount.ToString("N2")</h4>
                 </div>
             </div>
         </div>

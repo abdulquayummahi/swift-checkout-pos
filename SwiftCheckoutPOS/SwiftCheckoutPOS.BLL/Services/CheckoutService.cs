@@ -6,8 +6,8 @@ using System.Diagnostics.CodeAnalysis;
 namespace SwiftCheckoutPOS.BLL.Services;
 
 /// <summary>
-/// Restores the existing checkout use cases without changing the DTO's tax,
-/// discount or rounding formulas. Money/stock persistence is a single DAL unit.
+/// Checkout use cases. Money rules live in Pricing.Money (VAT-inclusive, half away from zero,
+/// cash-only whole-taka rounding). Money/stock persistence is a single DAL unit.
 /// </summary>
 public sealed class CheckoutService(ICheckoutRepository repository)
 {
@@ -303,6 +303,7 @@ public sealed class CheckoutService(ICheckoutRepository repository)
         sale.SubTotal = cart.GrossSubTotal;
         sale.TaxAmount = cart.TaxAmount;
         sale.TotalAmount = cart.TotalAmount;
+        sale.RoundingAmount = cart.RoundingFor(payment);
         sale.CustomerId = cart.CustomerId;
         sale.PaymentMethod = payment;
         sale.CashierName = actor;
@@ -325,7 +326,8 @@ public sealed class CheckoutService(ICheckoutRepository repository)
     {
         var lines = cart.Items.ToDictionary(i => i.ProductId);
         if (sale.SubTotal != cart.GrossSubTotal || sale.TaxAmount != cart.TaxAmount ||
-            sale.TotalAmount != cart.TotalAmount || sale.CustomerId != cart.CustomerId ||
+            sale.TotalAmount != cart.TotalAmount || sale.RoundingAmount != cart.RoundingFor(payment) ||
+            sale.CustomerId != cart.CustomerId ||
             sale.PaymentMethod != payment || sale.CashierName != actor ||
             sale.SaleItems.Count != lines.Count ||
             sale.SaleItems.Any(i => !lines.TryGetValue(i.ProductId, out var line) ||
@@ -357,7 +359,8 @@ public sealed class CheckoutService(ICheckoutRepository repository)
                 TaxRate = product.TaxRate
             });
         }
-        cart.BillDiscountAmount = sale.SubTotal + sale.TaxAmount - sale.TotalAmount;
+        // VAT-inclusive (PR-Q08): the saved bill discount is subtotal minus total.
+        cart.BillDiscountAmount = sale.SubTotal - sale.TotalAmount;
         ValidateCart(cart);
         // Legacy schema has no per-line tax/discount intent snapshot. Refuse any
         // reconstruction that changes persisted amounts instead of guessing policy.
@@ -401,7 +404,7 @@ public sealed class CheckoutService(ICheckoutRepository repository)
 
     private static void CheckMoney(decimal value, string field)
     {
-        if (value < 0 || value > MaxMoney || Math.Round(value, 2) != value)
+        if (value < 0 || value > MaxMoney || Pricing.Money.R2(value) != value)
             Fail($"{field} is outside the supported monetary precision or range.");
     }
 

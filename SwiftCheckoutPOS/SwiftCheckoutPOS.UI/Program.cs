@@ -8,6 +8,9 @@ using SwiftCheckoutPOS.BLL.Interfaces;
 using SwiftCheckoutPOS.BLL.Services;
 using SwiftCheckoutPOS.DAL.Context;
 using SwiftCheckoutPOS.DAL.Repositories;
+// PR-Q01: always BDT and fixed number formatting, never the Windows regional settings.
+System.Globalization.CultureInfo.DefaultThreadCurrentCulture = SwiftCheckoutPOS.BLL.Pricing.Money.Culture;
+System.Globalization.CultureInfo.DefaultThreadCurrentUICulture = SwiftCheckoutPOS.BLL.Pricing.Money.Culture;
 var builder = WebApplication.CreateBuilder(args);
 
 var connectionString = builder.Configuration.GetConnectionString("DbConn")
@@ -94,6 +97,13 @@ if (!app.Environment.IsDevelopment())
 }
 
 app.UseHttpsRedirection();
+app.UseRequestLocalization(new Microsoft.AspNetCore.Builder.RequestLocalizationOptions
+{
+    DefaultRequestCulture = new Microsoft.AspNetCore.Localization.RequestCulture(SwiftCheckoutPOS.BLL.Pricing.Money.Culture),
+    SupportedCultures = [SwiftCheckoutPOS.BLL.Pricing.Money.Culture],
+    SupportedUICultures = [SwiftCheckoutPOS.BLL.Pricing.Money.Culture],
+    RequestCultureProviders = []
+});
 app.UseRouting();
 
 app.UseSession();
