@@ -37,29 +37,10 @@ namespace SwiftCheckoutPOS.BLL.Services
         // ARCHITECT FIX: Upgraded to accept sorting directives and handle derived metric ordering in RAM
         public IEnumerable<CustomerProfileDTO> GetAllCustomers(string searchQuery = null, string sortOrder = null)
         {
-            var customers = _customerRepo.GetAllCustomers();
-
-            if (!string.IsNullOrWhiteSpace(searchQuery))
+            var (customers, totals) = _customerRepo.SearchWithTotals(searchQuery);
+            var aggregatedProfiles = customers.Select(c =>
             {
-                var q = searchQuery.Trim().ToLower();
-                customers = customers.Where(c =>
-                    c.FullName.ToLower().Contains(q) ||
-                    c.PhoneNumber.ToLower().Contains(q) ||
-                    (c.Address != null && c.Address.ToLower().Contains(q))
-                ).ToList();
-            }
-
-            // Execute single RAM-load of historical data to prevent N+1 DB Locks
-            var allLoyaltySales = _salesRepo.GetAllLoyaltySalesWithProducts();
-
-            var aggregatedProfiles = customers.Select(c => {
-                var customerSales = allLoyaltySales.Where(s => s.CustomerId == c.CustomerId).ToList();
-                var completedSales = customerSales.Where(s => (s.OrderStatus == "Completed" || s.OrderStatus == "PartiallyRefunded")).ToList();
-                var refundedSales = customerSales.Where(s => s.OrderStatus == "Refunded").ToList();
-
-                decimal totalDiscount = completedSales.Sum(s => s.SubTotal - s.TotalAmount);
-                decimal totalCost = completedSales.SelectMany(s => s.SaleItems).Sum(si => si.CostAtSale * si.Quantity);
-
+                totals.TryGetValue(c.CustomerId, out var t);
                 return new CustomerProfileDTO
                 {
                     CustomerId = c.CustomerId,
@@ -67,12 +48,12 @@ namespace SwiftCheckoutPOS.BLL.Services
                     PhoneNumber = c.PhoneNumber,
                     Address = c.Address,
                     LoyaltyPoints = c.LoyaltyPoints,
-                    TotalRevenue = completedSales.Sum(s => s.TotalAmount - s.TaxAmount),
-                    EstimatedProfit = completedSales.Sum(s => s.TotalAmount - s.TaxAmount) - totalCost,
-                    TotalDiscounts = totalDiscount,
-                    TotalRefunded = refundedSales.Sum(s => s.TotalAmount),
-                    TotalPurchases = completedSales.Count,
-                    TotalItemsSold = completedSales.SelectMany(s => s.SaleItems).Sum(si => si.Quantity)
+                    TotalRevenue = t?.Revenue ?? 0m,
+                    EstimatedProfit = (t?.Revenue ?? 0m) - (t?.Cost ?? 0m),
+                    TotalDiscounts = t?.Discounts ?? 0m,
+                    TotalRefunded = t?.Refunded ?? 0m,
+                    TotalPurchases = t?.Purchases ?? 0,
+                    TotalItemsSold = t?.Items ?? 0
                 };
             }).ToList();
 
