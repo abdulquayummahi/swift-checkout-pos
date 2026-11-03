@@ -223,6 +223,8 @@
                     }
                 </tbody>
             </table>
+
+            @if (ViewBag.Page is SwiftCheckoutPOS.UI.Models.PageInfo pager) { <partial name="_Pager" model="pager" /> }
         </div>
     </div>
 </div>

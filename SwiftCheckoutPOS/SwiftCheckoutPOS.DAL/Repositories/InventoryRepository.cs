@@ -21,6 +21,7 @@ namespace SwiftCheckoutPOS.DAL.Repositories
         public IEnumerable<Product> GetAllProducts()
         {
             return _context.Products
+                .AsNoTracking() // BP-11: read-only list
                 .Include(p => p.Category)
                 .Include(p => p.Vendor)
                 .OrderBy(p => p.ProductName)

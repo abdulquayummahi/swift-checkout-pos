@@ -31,7 +31,7 @@ namespace SwiftCheckoutPOS.UI.Controllers
         }
 
         [HttpGet]
-        public IActionResult Index(string searchQuery, string sortOrder)
+        public IActionResult Index(string searchQuery, string sortOrder, int? page)
         {
             ViewBag.SearchQuery = searchQuery;
             var canFin = User.CanViewFinancials(_settings);
@@ -41,7 +41,10 @@ namespace SwiftCheckoutPOS.UI.Controllers
             ViewBag.SortOrder = sortOrder;
             var products = _inventoryService.GetAllSystemProducts(searchQuery, sortOrder).ToList();
             if (!canFin) foreach (var p in products) { p.CostPrice = 0; p.MarginPercentage = 0; }
-            return View(products);
+            var (shown, info) = PageInfo.Of(products, page, nameof(Index),
+                new Dictionary<string, string?> { ["searchQuery"] = searchQuery, ["sortOrder"] = sortOrder });
+            ViewBag.Page = info;
+            return View(shown);
         }
 
         // IMM-10: validated store with generated names (no barcode paths or wildcards). Returns null when no file was sent.

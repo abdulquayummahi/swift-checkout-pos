@@ -22,7 +22,7 @@ namespace SwiftCheckoutPOS.UI.Controllers
         }
 
         [HttpGet]
-        public IActionResult Index(string searchQuery, string sortOrder)
+        public IActionResult Index(string searchQuery, string sortOrder, int? page)
         {
             ViewBag.SearchQuery = searchQuery;
             var canFin = SwiftCheckoutPOS.UI.Infrastructure.FinancialViewExtensions.CanViewFinancials(User, _settings);
@@ -31,7 +31,10 @@ namespace SwiftCheckoutPOS.UI.Controllers
             ViewBag.SortOrder = sortOrder;
             var customers = _customerService.GetAllCustomers(searchQuery, sortOrder).ToList();
             if (!canFin) foreach (var c in customers) c.EstimatedProfit = 0;
-            return View(customers);
+            var (shown, info) = SwiftCheckoutPOS.UI.Models.PageInfo.Of(customers, page, nameof(Index),
+                new Dictionary<string, string?> { ["searchQuery"] = searchQuery, ["sortOrder"] = sortOrder });
+            ViewBag.Page = info;
+            return View(shown);
         }
 
         [HttpPost]

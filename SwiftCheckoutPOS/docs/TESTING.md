@@ -115,7 +115,7 @@ mode with the guarded test connection and a temporary `Paths:DataRoot`: every co
 sign-in and every main page render without error text or external assets; security headers, host filtering and a manual
 backup through the Backup page are checked. No port is opened.
 
-Latest run (2026-11-04): 39/39 unit, 145/145 integration.
+Latest run (2026-11-04): 39/39 unit, 146/146 integration.
 
 ## Executed verification
 

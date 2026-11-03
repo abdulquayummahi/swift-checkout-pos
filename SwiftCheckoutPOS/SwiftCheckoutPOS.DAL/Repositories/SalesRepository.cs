@@ -25,7 +25,7 @@ namespace SwiftCheckoutPOS.DAL.Repositories
                 .Include(s => s.SaleItems).ThenInclude(si => si.Product)
                 .AsNoTracking()
                 .AsSplitQuery() // ARCHITECT FIX: Prevent Cartesian Explosion
-                .Where(s => s.SaleDate.Date == date.Date)
+                .Where(s => s.SaleDate >= date.Date && s.SaleDate < date.Date.AddDays(1)) // BP-11: index-friendly range
                 .OrderByDescending(s => s.SaleDate)
                 .ToList();
         }
