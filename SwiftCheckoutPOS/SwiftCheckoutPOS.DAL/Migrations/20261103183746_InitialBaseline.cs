@@ -6,7 +6,7 @@ using Microsoft.EntityFrameworkCore.Migrations;
 namespace SwiftCheckoutPOS.DAL.Migrations
 {
     /// <inheritdoc />
-    public partial class InitialEnterpriseSchema : Migration
+    public partial class InitialBaseline : Migration
     {
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
@@ -31,14 +31,65 @@ namespace SwiftCheckoutPOS.DAL.Migrations
                 {
                     CustomerId = table.Column<int>(type: "int", nullable: false)
                         .Annotation("SqlServer:Identity", "1, 1"),
-                    PhoneNumber = table.Column<string>(type: "nvarchar(max)", nullable: false),
-                    FullName = table.Column<string>(type: "nvarchar(max)", nullable: false),
+                    PhoneNumber = table.Column<string>(type: "nvarchar(30)", maxLength: 30, nullable: false),
+                    FullName = table.Column<string>(type: "nvarchar(150)", maxLength: 150, nullable: false),
+                    Address = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: true),
                     LoyaltyPoints = table.Column<int>(type: "int", nullable: false),
                     RegisteredAt = table.Column<DateTime>(type: "datetime2", nullable: false)
                 },
                 constraints: table =>
                 {
                     table.PrimaryKey("PK_Customers", x => x.CustomerId);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "LedgerEntries",
+                columns: table => new
+                {
+                    EntryId = table.Column<int>(type: "int", nullable: false)
+                        .Annotation("SqlServer:Identity", "1, 1"),
+                    TransactionDate = table.Column<DateTime>(type: "datetime2", nullable: false),
+                    Category = table.Column<string>(type: "nvarchar(50)", maxLength: 50, nullable: false),
+                    TransactionType = table.Column<string>(type: "nvarchar(20)", maxLength: 20, nullable: false),
+                    Amount = table.Column<decimal>(type: "decimal(18,2)", nullable: false),
+                    Description = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: true),
+                    RecordedBy = table.Column<string>(type: "nvarchar(100)", maxLength: 100, nullable: true)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_LedgerEntries", x => x.EntryId);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "SystemSettings",
+                columns: table => new
+                {
+                    SettingKey = table.Column<string>(type: "nvarchar(50)", maxLength: 50, nullable: false),
+                    SettingValue = table.Column<string>(type: "nvarchar(255)", maxLength: 255, nullable: false),
+                    Description = table.Column<string>(type: "nvarchar(255)", maxLength: 255, nullable: true),
+                    LastUpdated = table.Column<DateTime>(type: "datetime2", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_SystemSettings", x => x.SettingKey);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "TillReconciliations",
+                columns: table => new
+                {
+                    ReconciliationId = table.Column<int>(type: "int", nullable: false)
+                        .Annotation("SqlServer:Identity", "1, 1"),
+                    UserId = table.Column<int>(type: "int", nullable: false),
+                    OpenTime = table.Column<DateTime>(type: "datetime2", nullable: false),
+                    CloseTime = table.Column<DateTime>(type: "datetime2", nullable: false),
+                    ExpectedCash = table.Column<decimal>(type: "decimal(18,2)", nullable: false),
+                    CountedCash = table.Column<decimal>(type: "decimal(18,2)", nullable: false),
+                    Notes = table.Column<string>(type: "nvarchar(max)", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_TillReconciliations", x => x.ReconciliationId);
                 });
 
             migrationBuilder.CreateTable(
@@ -88,7 +139,9 @@ namespace SwiftCheckoutPOS.DAL.Migrations
                     TotalAmount = table.Column<decimal>(type: "decimal(18,2)", nullable: false),
                     PaymentMethod = table.Column<string>(type: "nvarchar(50)", maxLength: 50, nullable: false),
                     CustomerId = table.Column<int>(type: "int", nullable: true),
-                    OrderStatus = table.Column<string>(type: "nvarchar(max)", nullable: false)
+                    OrderStatus = table.Column<string>(type: "nvarchar(20)", maxLength: 20, nullable: false),
+                    CashierName = table.Column<string>(type: "nvarchar(100)", maxLength: 100, nullable: true),
+                    RowVersion = table.Column<byte[]>(type: "rowversion", rowVersion: true, nullable: false)
                 },
                 constraints: table =>
                 {
@@ -118,7 +171,8 @@ namespace SwiftCheckoutPOS.DAL.Migrations
                     Description = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: true),
                     ImagePath = table.Column<string>(type: "nvarchar(255)", maxLength: 255, nullable: true),
                     StockQuantity = table.Column<int>(type: "int", nullable: false),
-                    IsActive = table.Column<bool>(type: "bit", nullable: false, defaultValue: true)
+                    IsActive = table.Column<bool>(type: "bit", nullable: false, defaultValue: true),
+                    RowVersion = table.Column<byte[]>(type: "rowversion", rowVersion: true, nullable: false)
                 },
                 constraints: table =>
                 {
@@ -128,7 +182,7 @@ namespace SwiftCheckoutPOS.DAL.Migrations
                         column: x => x.VendorId,
                         principalTable: "Vendors",
                         principalColumn: "VendorId",
-                        onDelete: ReferentialAction.Cascade);
+                        onDelete: ReferentialAction.Restrict);
                     table.ForeignKey(
                         name: "FK__Products__Catego__3C69FB99",
                         column: x => x.CategoryId,
@@ -146,7 +200,8 @@ namespace SwiftCheckoutPOS.DAL.Migrations
                     ProductId = table.Column<int>(type: "int", nullable: false),
                     Quantity = table.Column<int>(type: "int", nullable: false),
                     UnitPrice = table.Column<decimal>(type: "decimal(18,2)", nullable: false),
-                    LineTotal = table.Column<decimal>(type: "decimal(18,2)", nullable: false)
+                    LineTotal = table.Column<decimal>(type: "decimal(18,2)", nullable: false),
+                    CostAtSale = table.Column<decimal>(type: "decimal(18,2)", nullable: false)
                 },
                 constraints: table =>
                 {
@@ -164,9 +219,29 @@ namespace SwiftCheckoutPOS.DAL.Migrations
                 });
 
             migrationBuilder.CreateIndex(
+                name: "IX_Categories_CategoryName",
+                table: "Categories",
+                column: "CategoryName");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_Customers_PhoneNumber",
+                table: "Customers",
+                column: "PhoneNumber");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_LedgerEntries_TransactionDate",
+                table: "LedgerEntries",
+                column: "TransactionDate");
+
+            migrationBuilder.CreateIndex(
                 name: "IX_Products_CategoryId",
                 table: "Products",
                 column: "CategoryId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_Products_IsActive_StockQuantity",
+                table: "Products",
+                columns: new[] { "IsActive", "StockQuantity" });
 
             migrationBuilder.CreateIndex(
                 name: "IX_Products_VendorId",
@@ -195,23 +270,47 @@ namespace SwiftCheckoutPOS.DAL.Migrations
                 column: "CustomerId");
 
             migrationBuilder.CreateIndex(
+                name: "IX_Sales_SaleDate_OrderStatus",
+                table: "Sales",
+                columns: new[] { "SaleDate", "OrderStatus" });
+
+            migrationBuilder.CreateIndex(
                 name: "UQ__Sales__C08AFDAB959AECE3",
                 table: "Sales",
                 column: "ReceiptNumber",
                 unique: true);
 
             migrationBuilder.CreateIndex(
+                name: "IX_TillReconciliations_CloseTime",
+                table: "TillReconciliations",
+                column: "CloseTime");
+
+            migrationBuilder.CreateIndex(
                 name: "UQ__Users__536C85E4F504D648",
                 table: "Users",
                 column: "Username",
                 unique: true);
+
+            migrationBuilder.CreateIndex(
+                name: "IX_Vendors_VendorName",
+                table: "Vendors",
+                column: "VendorName");
         }
 
         /// <inheritdoc />
         protected override void Down(MigrationBuilder migrationBuilder)
         {
             migrationBuilder.DropTable(
+                name: "LedgerEntries");
+
+            migrationBuilder.DropTable(
                 name: "SaleItems");
+
+            migrationBuilder.DropTable(
+                name: "SystemSettings");
+
+            migrationBuilder.DropTable(
+                name: "TillReconciliations");
 
             migrationBuilder.DropTable(
                 name: "Users");
