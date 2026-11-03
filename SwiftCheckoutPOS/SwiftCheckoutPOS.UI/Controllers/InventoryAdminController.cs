@@ -19,15 +19,15 @@ namespace SwiftCheckoutPOS.UI.Controllers
     public class InventoryAdminController : Controller
     {
         private readonly InventoryService _inventoryService;
-        private readonly IWebHostEnvironment _webHostEnvironment;
+        private readonly SwiftCheckoutPOS.BLL.Media.ProductImageStore _images;
 
         private readonly SettingsService _settings;
 
-        public InventoryAdminController(InventoryService inventoryService, IWebHostEnvironment webHostEnvironment, SettingsService settings)
+        public InventoryAdminController(InventoryService inventoryService, SwiftCheckoutPOS.BLL.Media.ProductImageStore images, SettingsService settings)
         {
             _settings = settings;
             _inventoryService = inventoryService;
-            _webHostEnvironment = webHostEnvironment;
+            _images = images;
         }
 
         [HttpGet]
@@ -44,28 +44,13 @@ namespace SwiftCheckoutPOS.UI.Controllers
             return View(products);
         }
 
-        private async Task<string> ProcessUploadedImage(IFormFile imageFile, string barcode)
+        // IMM-10: validated store with generated names (no barcode paths or wildcards). Returns null when no file was sent.
+        private string? ProcessUploadedImage(IFormFile? imageFile, string barcode)
         {
             if (imageFile == null || imageFile.Length == 0) return null;
-
-            var ext = Path.GetExtension(imageFile.FileName).ToLowerInvariant();
-            if (ext != ".jpg" && ext != ".jpeg" && ext != ".png" && ext != ".webp") { ext = ".jpg"; }
-
-            string standardizedFileName = $"{barcode}{ext}";
-            string uploadsFolder = Path.Combine(_webHostEnvironment.WebRootPath, "images", "products");
-
-            if (!Directory.Exists(uploadsFolder)) Directory.CreateDirectory(uploadsFolder);
-
-            var existingFiles = Directory.GetFiles(uploadsFolder, $"{barcode}.*");
-            foreach (var file in existingFiles) System.IO.File.Delete(file);
-
-            string filePath = Path.Combine(uploadsFolder, standardizedFileName);
-            using (var fileStream = new FileStream(filePath, FileMode.Create))
-            {
-                await imageFile.CopyToAsync(fileStream);
-            }
-
-            return standardizedFileName;
+            if (imageFile.Length > SwiftCheckoutPOS.BLL.Media.ProductImageStore.MaxBytes) throw new InvalidOperationException("The image is larger than 2 MB.");
+            using var stream = imageFile.OpenReadStream();
+            return _images.Save(stream, imageFile.FileName, barcode);
         }
 
         [HttpGet]
@@ -77,7 +62,7 @@ namespace SwiftCheckoutPOS.UI.Controllers
 
         [HttpPost]
         [ValidateAntiForgeryToken]
-        public async Task<IActionResult> Create(CreateProductViewModel model)
+        public IActionResult Create(CreateProductViewModel model)
         {
             if (!ModelState.IsValid)
             {
@@ -86,9 +71,10 @@ namespace SwiftCheckoutPOS.UI.Controllers
                 return View(model);
             }
 
+            string? imagePath = null;
             try
             {
-                string? imagePath = await ProcessUploadedImage(model.ImageFile, model.Barcode);
+                imagePath = ProcessUploadedImage(model.ImageFile, model.Barcode);
 
                 var dto = new ProductDTO
                 {
@@ -111,6 +97,7 @@ namespace SwiftCheckoutPOS.UI.Controllers
             }
             catch (Exception ex)
             {
+                _images.Remove(imagePath); // the product was not saved: do not leave an orphan file
                 ModelState.AddModelError(string.Empty, ex.Message);
                 model.AvailableCategories = GetCategorySelectList();
                 model.AvailableVendors = GetVendorSelectList();
@@ -155,7 +142,7 @@ namespace SwiftCheckoutPOS.UI.Controllers
 
         [HttpPost]
         [ValidateAntiForgeryToken]
-        public async Task<IActionResult> Edit(EditProductViewModel model)
+        public IActionResult Edit(EditProductViewModel model)
         {
             if (!ModelState.IsValid)
             {
@@ -164,9 +151,12 @@ namespace SwiftCheckoutPOS.UI.Controllers
                 return View(model);
             }
 
+            string? newImagePath = null;
             try
             {
-                string? newImagePath = await ProcessUploadedImage(model.ImageFile, model.Barcode);
+                // The old file name comes from the database, never from the posted hidden field.
+                var previousImage = _inventoryService.GetProductForEdit(model.ProductId).ImagePath;
+                newImagePath = ProcessUploadedImage(model.ImageFile, model.Barcode);
 
                 var dto = new ProductDTO
                 {
@@ -187,11 +177,13 @@ namespace SwiftCheckoutPOS.UI.Controllers
                 };
 
                 _inventoryService.UpdateProduct(dto, model.CategoryId, User.Actor());
+                if (newImagePath is not null && newImagePath != previousImage) _images.Remove(previousImage);
                 TempData["Success"] = "Product details successfully updated.";
                 return RedirectToAction(nameof(Index));
             }
             catch (Exception ex)
             {
+                _images.Remove(newImagePath); // save failed: keep the old picture, drop the new upload
                 ModelState.AddModelError(string.Empty, ex.Message);
                 model.AvailableCategories = GetCategorySelectList();
                 model.AvailableVendors = GetVendorSelectList();

@@ -481,3 +481,7 @@ $RECYCLE.BIN/
 
 # Vim temporary swap files
 *.swp
+
+# BP-06 install packages built by deploy/build-package.ps1
+SwiftCheckoutPOS/package/
+!SwiftCheckoutPOS/SwiftCheckoutPOS.UI/Properties/PublishProfiles/ShopPC.pubxml

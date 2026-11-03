@@ -102,6 +102,14 @@ Two cases cover same receipt and different receipts competing for the last unit.
 
 Both cases passed in the complete suite and in **10 further repetitions each (20/20 passes,0 failed/0 skipped)**. No case needed Skip. If a future case cannot be made deterministic, mark Skip with the specific reason instead of accepting flaky failures.
 
+## Backup and recovery tests (BP-05, IMM-10)
+
+`Recovery/BackupTests.cs` uses a temporary data root under `%TEMP%` (deleted afterwards) and the guarded test database only:
+it backs up `SwiftCheckoutPOS_Test`, restores the drill copy as `SwiftCheckoutPOS_Test_RestoreDrill` and an in-place-restore
+target as `SwiftCheckoutPOS_Test_RestoreLive`, and drops both. The fixture's own session is never cut off (the in-place restore
+runs on the copy). Pure rules (retention, schedule/catch-up, settings validation, download names, image validation) need no SQL.
+Latest run (2026-11-04): 35/35 unit, 142/142 integration.
+
 ## Executed verification
 
 Commands above ran on2026-10-31 in the absolute working copy named at the top. Baseline before adding Integration: full solution build succeeded with27 existing warnings/0 errors, and35/35 Unit checks passed.
@@ -130,7 +138,7 @@ Verified coverage includes82 discovered case instances (theories expand), SQL/ma
 ## Remaining work and owner steps
 
 - Current defects reproduced by passing characterizations remain production blockers; this task fixes none.
-- No full MVC host/HTTP authorization/financial privacy, physical device, backup/restore, power-loss, unknown network commit, production migration or manual offline acceptance was qualified.
+- No full MVC host/HTTP authorization/financial privacy, physical device, shop-PC backup/restore timing (RTO), power-loss, unknown network commit, production migration or manual offline acceptance was qualified.
 - PR-Q63 and CQ-21–23 remain open; no new rule was chosen.
 - Developer prerequisites: .NET10 SDK, nuget.org access for restore, a working local SQL/LocalDB instance and the protected user environment variable. Do not copy business settings or backups.
 - If configuration or marker checks fail, stop and inspect the **test** target; never change the business database or auto-adopt an existing catalog.

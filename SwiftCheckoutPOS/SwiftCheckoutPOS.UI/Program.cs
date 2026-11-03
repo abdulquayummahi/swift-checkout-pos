@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Authentication;
+using Microsoft.AspNetCore.DataProtection;
 // Project: SwiftCheckoutPOS.UI
 // File: Program.cs
 using Microsoft.AspNetCore.Authorization;
@@ -13,10 +14,49 @@ using SwiftCheckoutPOS.DAL.Repositories;
 System.Globalization.CultureInfo.DefaultThreadCurrentCulture = SwiftCheckoutPOS.BLL.Pricing.Money.Culture;
 System.Globalization.CultureInfo.DefaultThreadCurrentUICulture = SwiftCheckoutPOS.BLL.Pricing.Money.Culture;
 var builder = WebApplication.CreateBuilder(args);
+builder.Host.UseWindowsService(options => options.ServiceName = "SwiftCheckoutPOS"); // BP-06: no effect when run from a console
 
-var connectionString = builder.Configuration.GetConnectionString("DbConn")
-    ?? throw new InvalidOperationException("The DbConn connection string must be supplied through environment-specific configuration or user secrets.");
-if (SwiftCheckoutPOS.UI.Infrastructure.MaintenanceCommands.TryRun(args, connectionString)) return; // PR-Q68 owner maintenance
+// BP-06/T10: machine-local data root (outside the install folder) and machine-local settings file.
+var dataPaths = new SwiftCheckoutPOS.BLL.Configuration.DataPaths(builder.Configuration["Paths:DataRoot"]);
+dataPaths.EnsureCreated();
+builder.Configuration.AddJsonFile(dataPaths.LocalSettingsFile, optional: true, reloadOnChange: false);
+builder.Configuration.AddEnvironmentVariables().AddCommandLine(args); // environment/command line still win over the local file
+builder.Services.AddSingleton(dataPaths);
+
+var connectionString = builder.Configuration.GetConnectionString("DbConn");
+if (string.IsNullOrWhiteSpace(connectionString))
+{
+    Console.Error.WriteLine($"SwiftCheckoutPOS cannot start: no database connection is configured.\n" +
+        $"Create {dataPaths.LocalSettingsFile} as described in DEPLOYMENT_GUIDE.md (ConnectionStrings:DbConn).");
+    Environment.ExitCode = 2;
+    return;
+}
+var legacyImageFolder = Path.Combine(builder.Environment.WebRootPath ?? Path.Combine(AppContext.BaseDirectory, "wwwroot"), "images", "products");
+if (SwiftCheckoutPOS.UI.Infrastructure.MaintenanceCommands.TryRun(args, connectionString, dataPaths, legacyImageFolder)) return; // PR-Q68 owner maintenance
+
+// BP-06: local rolling log files; console logging stays for development.
+builder.Logging.AddProvider(new SwiftCheckoutPOS.UI.Infrastructure.FileLoggerProvider(dataPaths.Logs));
+
+// BP-06/T10: persisted Data Protection keys (cookies/antiforgery survive restarts), DPAPI-protected on Windows.
+var dataProtection = builder.Services.AddDataProtection()
+    .SetApplicationName("SwiftCheckoutPOS")
+    .PersistKeysToFileSystem(new DirectoryInfo(dataPaths.Keys));
+if (OperatingSystem.IsWindows()) dataProtection.ProtectKeysWithDpapi(protectToLocalMachine: true);
+
+// BP-06/T10: outside Development the till listens on this PC only (loopback), never on the network.
+var httpsCertificate = builder.Configuration["Hosting:CertificatePath"];
+var useHttps = !string.IsNullOrWhiteSpace(httpsCertificate);
+if (!builder.Environment.IsDevelopment())
+{
+    var port = int.TryParse(builder.Configuration["Hosting:Port"], out var p) ? p : 5080;
+    builder.WebHost.ConfigureKestrel(kestrel =>
+    {
+        kestrel.ListenLocalhost(port, listen =>
+        {
+            if (useHttps) listen.UseHttps(httpsCertificate!, builder.Configuration["Hosting:CertificatePassword"]);
+        });
+    });
+}
 
 builder.Services.AddControllersWithViews(options =>
 {
@@ -101,7 +141,9 @@ builder.Services.AddScoped<CheckoutService>();
 builder.Services.AddScoped<CustomerService>();
 builder.Services.AddScoped<DashboardService>();
 builder.Services.AddScoped<ReconciliationService>();
-builder.Services.AddScoped<BackupService>();
+builder.Services.AddScoped(services => new BackupService(services.GetRequiredService<BackupRepository>(), dataPaths,
+    services.GetRequiredService<AtomicUnit>(), null, [legacyImageFolder]));
+builder.Services.AddSingleton(new SwiftCheckoutPOS.BLL.Media.ProductImageStore(dataPaths.ProductImages, [legacyImageFolder]));
 builder.Services.AddScoped<TillReconciliationService>();
 builder.Services.AddScoped<RefundService>();
 builder.Services.AddScoped<FinanceService>();
@@ -122,7 +164,7 @@ builder.Services.AddScoped<IReceiptPrinter>(services =>
             config["Printer:Port"] ?? "COM3", int.TryParse(config["Printer:BaudRate"], out var baud) ? baud : 9600), header),
         "EscPosWindows" => new SwiftCheckoutPOS.BLL.Hardware.EscPosPrinter(new SwiftCheckoutPOS.BLL.Hardware.WindowsPrinterTransport(
             config["Printer:Name"] ?? "POS-80"), header),
-        _ => new VirtualPrinterService(header, config["Paths:VirtualReceipts"])
+        _ => new VirtualPrinterService(header, config["Paths:VirtualReceipts"] ?? dataPaths.VirtualReceipts)
     };
 });
 builder.Services.AddScoped<Func<IReceiptPrinter>>(services => () => services.GetRequiredService<IReceiptPrinter>());
@@ -135,16 +177,22 @@ var app = builder.Build();
 if (!app.Environment.IsDevelopment())
 {
     app.UseExceptionHandler("/Home/Error");
-    app.UseHsts();
+    if (useHttps) app.UseHsts();
 }
 
-app.UseHttpsRedirection();
+if (app.Environment.IsDevelopment() || useHttps) app.UseHttpsRedirection();
 app.UseRequestLocalization(new Microsoft.AspNetCore.Builder.RequestLocalizationOptions
 {
     DefaultRequestCulture = new Microsoft.AspNetCore.Localization.RequestCulture(SwiftCheckoutPOS.BLL.Pricing.Money.Culture),
     SupportedCultures = [SwiftCheckoutPOS.BLL.Pricing.Money.Culture],
     SupportedUICultures = [SwiftCheckoutPOS.BLL.Pricing.Money.Culture],
     RequestCultureProviders = []
+});
+// IMM-10/BP-06: uploaded product images live in DataRoot\Media\products; older images still come from wwwroot.
+app.UseStaticFiles(new StaticFileOptions
+{
+    FileProvider = new Microsoft.Extensions.FileProviders.PhysicalFileProvider(dataPaths.ProductImages),
+    RequestPath = "/images/products"
 });
 app.UseRouting();
 
