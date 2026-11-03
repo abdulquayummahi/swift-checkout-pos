@@ -1,11 +1,16 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
 using SwiftCheckoutPOS.BLL.Services;
-using SwiftCheckoutPOS.DAL.Context;
 using SwiftCheckoutPOS.DAL.Repositories;
 using SwiftCheckoutPOS.Tests.Integration.Infrastructure;
 
 namespace SwiftCheckoutPOS.Tests.Integration.Refund;
 
+/// <summary>
+/// Full-sale refund on real SQL with EnableRetryOnFailure (production setting), no outer helper strategy.
+/// IMM-04 replaced Current_UnwrappedRefundFailsWithRetries_DiffersFromAtomicRefund with the
+/// Refund_* tests below. Current_* tests still document refund BUSINESS rules not yet implemented (BP-04/IMM-07).
+/// </summary>
 [Collection("SqlServer")]
 public sealed class LegacyRefundCharacterizationTests
 {
@@ -24,42 +29,76 @@ public sealed class LegacyRefundCharacterizationTests
         return product.ProductId;
     }
 
-    // Diagnostic caller only: production UI does NOT supply this outer strategy.
-    // Retain EnableRetryOnFailure in every context, including this diagnostic profile.
-    private void DiagnosticCaller(Action<ApplicationDbContext> action,
-        params Microsoft.EntityFrameworkCore.Diagnostics.IInterceptor[] interceptors)
+    private void Refund(params IInterceptor[] interceptors)
     {
-        using var strategyContext = fixture.Context();
-        strategyContext.Database.CreateExecutionStrategy().Execute(() =>
-        {
-            using var context = fixture.Context(interceptors);
-            action(context);
-        });
+        using var context = fixture.Context(interceptors);
+        new RefundService(new SalesRepository(context)).ExecuteRefund("BP10-REFUND");
     }
 
-    [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    [Trait("Difference", "DR-15")]
-    [Trait("Difference", "DR-34")]
-    [Trait("Audit", "PB-02")]
-    public void Current_UnwrappedRefundFailsWithRetries_DiffersFromAtomicRefund(bool directRepository)
+    private void AssertUnchanged()
     {
-        Seed();
-        using (var context = fixture.Context())
-        {
-            var repository = new SalesRepository(context);
-            var error = Assert.Throws<InvalidOperationException>(() =>
-            {
-                if (directRepository) repository.ProcessRefundTransaction(repository.GetSaleByReceiptNumber("BP10-REFUND"));
-                else new RefundService(repository).ExecuteRefund("BP10-REFUND");
-            });
-            Assert.Contains("SqlServerRetryingExecutionStrategy", error.Message);
-        }
         using var verify = fixture.Context();
         Assert.Equal("Completed", verify.Sales.Single().OrderStatus);
         Assert.Equal(10, verify.Products.Single().StockQuantity);
         Assert.Single(verify.LedgerEntries);
+    }
+
+    [Fact]
+    [Trait("Fixes", "DR-15")]
+    [Trait("Audit", "PB-02")]
+    public void Refund_SucceedsWithRetriesEnabled()
+    {
+        Seed();
+        Refund();
+        using var verify = fixture.Context();
+        Assert.Equal("Refunded", verify.Sales.Single().OrderStatus);
+        Assert.Equal(12, verify.Products.Single().StockQuantity);
+    }
+
+    [Fact]
+    public void Refund_TransientFailureBeforeCommitIsRetriedWithSingleEffect()
+    {
+        Seed();
+        var transient = new TransientOnceAfterSave();
+        Refund(transient);
+        Assert.Equal(2, transient.Calls); // first attempt rolled back, second committed
+        using var verify = fixture.Context();
+        Assert.Equal("Refunded", verify.Sales.Single().OrderStatus);
+        Assert.Equal(12, verify.Products.Single().StockQuantity); // restocked once, not twice
+    }
+
+    [Fact]
+    public void Refund_NonTransientFailureAfterSaveRollsBackEverything()
+    {
+        Seed();
+        var failure = new FailAfterSave();
+        Assert.ThrowsAny<Exception>(() => Refund(failure));
+        Assert.Equal(1, failure.Calls);
+        AssertUnchanged();
+    }
+
+    [Fact]
+    public void Refund_RepeatIsRejectedWithoutSecondRestock()
+    {
+        Seed();
+        Refund();
+        var error = Assert.Throws<InvalidOperationException>(() => Refund());
+        Assert.Contains("already been refunded", error.Message);
+        using var verify = fixture.Context();
+        Assert.Equal(12, verify.Products.Single().StockQuantity);
+    }
+
+    [Fact]
+    public void Refund_ConcurrentSecondRefundLosesOnRowVersion()
+    {
+        Seed();
+        // While request A is about to save, request B refunds the same sale and commits first.
+        var competitor = new RunBeforeFirstSave(() => Refund());
+        var error = Assert.Throws<InvalidOperationException>(() => Refund(competitor));
+        Assert.Contains("already been refunded", error.Message);
+        using var verify = fixture.Context();
+        Assert.Equal("Refunded", verify.Sales.Single().OrderStatus);
+        Assert.Equal(12, verify.Products.Single().StockQuantity); // B restocked; A did not add again
     }
 
     [Theory]
@@ -67,19 +106,17 @@ public sealed class LegacyRefundCharacterizationTests
     [InlineData("Held")]
     [InlineData("Resumed")]
     [InlineData("Cancelled")]
-    public void Current_ServiceRejectsInvalidRefundStates(string status)
+    public void Refund_RejectsInvalidStates(string status)
     {
         Seed(status);
-        using var context = fixture.Context();
-        Assert.Throws<InvalidOperationException>(() =>
-            new RefundService(new SalesRepository(context)).ExecuteRefund("BP10-REFUND"));
+        Assert.Throws<InvalidOperationException>(() => Refund());
         using var verify = fixture.Context();
         Assert.Equal(status, verify.Sales.Single().OrderStatus);
         Assert.Equal(10, verify.Products.Single().StockQuantity);
     }
 
     [Fact]
-    public void Current_ServiceRejectsMissingReceipt()
+    public void Refund_RejectsMissingReceipt()
     {
         using var context = fixture.Context();
         Assert.Throws<InvalidOperationException>(() =>
@@ -88,27 +125,25 @@ public sealed class LegacyRefundCharacterizationTests
     }
 
     [Fact]
-    [Trait("Profile", "DiagnosticCallerStrategy_NotCurrentUI")]
     [Trait("Difference", "DR-14")]
-    public void Current_RefundBodyAcceptsThirtyDayOldSale_DiffersFromPRQ27()
+    public void Current_RefundAcceptsThirtyDayOldSale_DiffersFromPRQ27()
     {
         Seed(ageDays: 30);
-        DiagnosticCaller(context => new RefundService(new SalesRepository(context)).ExecuteRefund("BP10-REFUND"));
+        Refund();
         using var verify = fixture.Context();
         Assert.Equal("Refunded", verify.Sales.Single().OrderStatus);
         Assert.Equal(12, verify.Products.Single().StockQuantity);
     }
 
     [Fact]
-    [Trait("Profile", "DiagnosticCallerStrategy_NotCurrentUI")]
     [Trait("Difference", "DR-15")]
     [Trait("Difference", "DR-34")]
-    public void Current_RefundBodyRestocksEverythingWithoutCostOrPayoutEvent_DiffersFromPRQ65_PRQ66()
+    public void Current_RefundRestocksEverythingWithoutCostOrPayoutEvent_DiffersFromPRQ65_PRQ66()
     {
         Seed();
         DateTime originalDate;
         using (var before = fixture.Context()) originalDate = before.Sales.Single().SaleDate;
-        DiagnosticCaller(context => new RefundService(new SalesRepository(context)).ExecuteRefund("BP10-REFUND"));
+        Refund();
         using var verify = fixture.Context();
         Assert.Equal("Refunded", verify.Sales.Single().OrderStatus);
         Assert.Equal(originalDate, verify.Sales.Single().SaleDate);
@@ -117,33 +152,5 @@ public sealed class LegacyRefundCharacterizationTests
         Assert.Single(verify.SaleItems);
         Assert.DoesNotContain(verify.Model.GetEntityTypes(),
             entity => (entity.GetTableName() ?? "").Contains("Refund", StringComparison.OrdinalIgnoreCase));
-    }
-
-    [Fact]
-    [Trait("Profile", "DiagnosticCallerStrategy_NotCurrentUI")]
-    public void Current_ServiceRejectsRepeatedRefundAfterFirstBodyCommit()
-    {
-        Seed();
-        DiagnosticCaller(context => new RefundService(new SalesRepository(context)).ExecuteRefund("BP10-REFUND"));
-        Assert.Throws<InvalidOperationException>(() => DiagnosticCaller(context =>
-            new RefundService(new SalesRepository(context)).ExecuteRefund("BP10-REFUND")));
-        using var verify = fixture.Context();
-        Assert.Equal(12, verify.Products.Single().StockQuantity);
-        Assert.Single(verify.LedgerEntries);
-    }
-
-    [Fact]
-    [Trait("Profile", "DiagnosticCallerStrategy_NotCurrentUI")]
-    public void Current_RefundBodySaveFailureRollsBackRealSqlEffects()
-    {
-        Seed();
-        var failure = new FailAfterSave();
-        Assert.Throws<InvalidOperationException>(() => DiagnosticCaller(context =>
-            new RefundService(new SalesRepository(context)).ExecuteRefund("BP10-REFUND"), failure));
-        Assert.Equal(1, failure.Calls);
-        using var verify = fixture.Context();
-        Assert.Equal("Completed", verify.Sales.Single().OrderStatus);
-        Assert.Equal(10, verify.Products.Single().StockQuantity);
-        Assert.Single(verify.LedgerEntries);
     }
 }

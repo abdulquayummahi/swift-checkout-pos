@@ -30,3 +30,26 @@ public sealed class FailLedgerSave : SaveChangesInterceptor
         return result;
     }
 }
+
+/// <summary>First save attempt fails with a transient error after SQL ran (transaction still open); later attempts pass.</summary>
+public sealed class TransientOnceAfterSave : SaveChangesInterceptor
+{
+    public int Calls { get; private set; }
+    public override int SavedChanges(SaveChangesCompletedEventData eventData, int result)
+    {
+        Calls++;
+        if (Calls == 1) throw new TimeoutException("IMM-04 injected transient failure.");
+        return result;
+    }
+}
+
+/// <summary>Runs a competing action once, just before this context's first save.</summary>
+public sealed class RunBeforeFirstSave(Action competitor) : SaveChangesInterceptor
+{
+    private bool done;
+    public override InterceptionResult<int> SavingChanges(DbContextEventData eventData, InterceptionResult<int> result)
+    {
+        if (!done) { done = true; competitor(); }
+        return result;
+    }
+}

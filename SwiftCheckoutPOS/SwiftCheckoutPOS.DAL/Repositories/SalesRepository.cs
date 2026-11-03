@@ -1,4 +1,4 @@
-﻿// Project: SwiftCheckoutPOS.DAL
+// Project: SwiftCheckoutPOS.DAL
 // File: Repositories/SalesRepository.cs
 using System;
 using System.Collections.Generic;
@@ -41,84 +41,6 @@ namespace SwiftCheckoutPOS.DAL.Repositories
                 .ToList();
         }
 
-        public void FinalizeSale(Sale sale)
-        {
-            using var transaction = _context.Database.BeginTransaction();
-            try
-            {
-                _context.Sales.Add(sale);
-                foreach (var item in sale.SaleItems)
-                {
-                    var product = _context.Products.Find(item.ProductId);
-                    if (product != null) product.StockQuantity -= item.Quantity;
-                }
-                _context.SaveChanges();
-                transaction.Commit();
-            }
-            catch
-            {
-                transaction.Rollback();
-                throw new InvalidOperationException("CRITICAL FAULT: Transaction rolled back. Stock and Sale data preserved.");
-            }
-        }
-
-        public void ParkHeldOrder(Sale heldSale)
-        {
-            using var transaction = _context.Database.BeginTransaction();
-            try
-            {
-                heldSale.OrderStatus = "Held";
-                _context.Sales.Add(heldSale);
-
-                foreach (var item in heldSale.SaleItems)
-                {
-                    var product = _context.Products.Find(item.ProductId);
-                    if (product != null) product.StockQuantity -= item.Quantity;
-                }
-
-                _context.SaveChanges();
-                transaction.Commit();
-            }
-            catch
-            {
-                transaction.Rollback();
-                throw new InvalidOperationException("Failed to hold order. Database rolled back.");
-            }
-        }
-
-        public Sale ResumeHeldOrder(int saleId)
-        {
-            var sale = _context.Sales
-                .Include(s => s.SaleItems)
-                .Include(s => s.Customer)
-                .FirstOrDefault(s => s.SaleId == saleId && s.OrderStatus == "Held");
-
-            if (sale != null)
-            {
-                using var transaction = _context.Database.BeginTransaction();
-                try
-                {
-                    foreach (var item in sale.SaleItems)
-                    {
-                        var product = _context.Products.Find(item.ProductId);
-                        if (product != null) product.StockQuantity += item.Quantity;
-                    }
-
-                    _context.SaleItems.RemoveRange(sale.SaleItems);
-                    _context.Sales.Remove(sale);
-                    _context.SaveChanges();
-                    transaction.Commit();
-                }
-                catch
-                {
-                    transaction.Rollback();
-                    throw new InvalidOperationException("Failed to resume order. Database rolled back.");
-                }
-            }
-
-            return sale;
-        }
-
         // ARCHITECT FIX: Added DateTime cutoff filter to utilize the new SQL Index
         public IEnumerable<Sale> GetHeldOrders(DateTime? sinceDate = null)
         {
@@ -158,31 +80,51 @@ namespace SwiftCheckoutPOS.DAL.Repositories
                 .FirstOrDefault(s => s.ReceiptNumber == receiptNumber);
         }
 
-        public void ProcessRefundTransaction(Sale sale)
+        /// <summary>
+        /// IMM-04: full-sale refund as ONE unit inside the EF execution strategy, so
+        /// EnableRetryOnFailure stays on. Each attempt starts from a clean change tracker and
+        /// re-reads the sale, so a retry never reapplies stale state. The sale RowVersion makes
+        /// a concurrent second refund fail instead of restocking twice.
+        /// Business rules (window, approval, ledger reversal) are NOT decided here (BP-04/IMM-07).
+        /// </summary>
+        public RefundOutcome RefundCompletedSale(string receiptNumber)
         {
-            using var transaction = _context.Database.BeginTransaction();
+            var strategy = _context.Database.CreateExecutionStrategy();
             try
             {
-                sale.OrderStatus = "Refunded";
-                _context.Sales.Update(sale);
-
-                foreach (var item in sale.SaleItems)
+                return strategy.Execute(() =>
                 {
-                    var product = _context.Products.Find(item.ProductId);
-                    if (product != null)
-                    {
-                        product.StockQuantity += item.Quantity;
-                        _context.Products.Update(product);
-                    }
-                }
+                    _context.ChangeTracker.Clear();
+                    using var transaction = _context.Database.BeginTransaction();
+                    var sale = _context.Sales.Include(s => s.SaleItems)
+                        .SingleOrDefault(s => s.ReceiptNumber == receiptNumber);
+                    if (sale == null) return RefundOutcome.NotFound;
+                    if (sale.OrderStatus == "Refunded") return RefundOutcome.AlreadyRefunded;
+                    if (sale.OrderStatus != "Completed") return RefundOutcome.NotRefundable;
 
-                _context.SaveChanges();
-                transaction.Commit();
+                    sale.OrderStatus = "Refunded";
+                    foreach (var item in sale.SaleItems)
+                    {
+                        var product = _context.Products.Find(item.ProductId);
+                        if (product != null) product.StockQuantity += item.Quantity;
+                    }
+
+                    _context.SaveChanges();
+                    transaction.Commit();
+                    return RefundOutcome.Refunded;
+                });
             }
-            catch (Exception ex)
+            catch (DbUpdateConcurrencyException)
             {
-                transaction.Rollback();
-                throw new InvalidOperationException($"CRITICAL REFUND FAULT: Transaction aborted. Database state secured. Details: {ex.Message}");
+                // Another request changed this sale or its stock first; nothing of this attempt was committed.
+                _context.ChangeTracker.Clear();
+                var status = _context.Sales.AsNoTracking().Where(s => s.ReceiptNumber == receiptNumber)
+                    .Select(s => s.OrderStatus).SingleOrDefault();
+                return status == "Refunded" ? RefundOutcome.AlreadyRefunded : RefundOutcome.Conflict;
+            }
+            finally
+            {
+                _context.ChangeTracker.Clear();
             }
         }
 

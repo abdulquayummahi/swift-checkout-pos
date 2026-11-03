@@ -98,9 +98,8 @@ The direct BLL DTO test with simultaneous discounts does not claim the UI setter
 | [Current_RestockWacUsesToEven_DiffersFromPRQ06](../Tests/SwiftCheckoutPOS.Tests.Integration/Inventory/InventoryMappingCharacterizationTests.cs), line77 | DR-03 | WAC1.005 becomes1.00. |
 | [Current_HeldStockIsExcludedFromWac_DiffersFromPRQ16](../Tests/SwiftCheckoutPOS.Tests.Integration/Inventory/InventoryMappingCharacterizationTests.cs), line90 | DR-09 | Held quantity is omitted from owned-stock WAC basis. |
 | [Current_LedgerFailureLeavesRoundedProductCommitted_DiffersFromAtomicInventory](../Tests/SwiftCheckoutPOS.Tests.Integration/Inventory/InventoryMappingCharacterizationTests.cs), line139 | DR-02, PB-03 | Rounded product/stock remains committed after ledger failure; PB-03 is the atomicity finding. |
-| [Current_UnwrappedRefundFailsWithRetries_DiffersFromAtomicRefund](../Tests/SwiftCheckoutPOS.Tests.Integration/Refund/LegacyRefundCharacterizationTests.cs), line46 | DR-15, DR-34, PB-02 | Production-matching service/direct repository both fail with strategy conflict; no persisted refund. |
-| [Current_RefundBodyAcceptsThirtyDayOldSale_DiffersFromPRQ27](../Tests/SwiftCheckoutPOS.Tests.Integration/Refund/LegacyRefundCharacterizationTests.cs), line93 | DR-14 | **Diagnostic caller, not current UI.** Diagnostic outer-strategy caller reaches body, which accepts30-day receipt. |
-| [Current_RefundBodyRestocksEverythingWithoutCostOrPayoutEvent_DiffersFromPRQ65_PRQ66](../Tests/SwiftCheckoutPOS.Tests.Integration/Refund/LegacyRefundCharacterizationTests.cs), line106 | DR-15, DR-34 | **Diagnostic caller, not current UI.** Diagnostic body restores all stock, mutates status, leaves original COGS and has no refund event. |
+| [Current_RefundAcceptsThirtyDayOldSale_DiffersFromPRQ27](../Tests/SwiftCheckoutPOS.Tests.Integration/Refund/LegacyRefundCharacterizationTests.cs) | DR-14 | Production refund path accepts a 30-day-old receipt; PR-Q27 7-day window not yet enforced (BP-04). |
+| [Current_RefundRestocksEverythingWithoutCostOrPayoutEvent_DiffersFromPRQ65_PRQ66](../Tests/SwiftCheckoutPOS.Tests.Integration/Refund/LegacyRefundCharacterizationTests.cs) | DR-15, DR-34 | Refund restores all stock, changes status only; no refund record, COGS reversal or payout event (IMM-07/BP-04). |
 | [Current_MigrationsOmitRequiredModelFields_DiffersFromAUD03](../Tests/SwiftCheckoutPOS.Tests.Integration/Schema/SchemaDriftCharacterizationTests.cs), line13 | AUD-03 | Snapshot still lacks fields/tables required by current model. |
 
 Correct baseline tests have no fabricated DR mismatch. They cover real sale/items/stock/COGS commits, cost capture stability, validation failures, loyalty without point changes, sequential replay, payload conflicts and real-SQL rollback.
@@ -109,7 +108,7 @@ Correct baseline tests have no fabricated DR mismatch. They cover real sale/item
 
 The **unwrapped** service/direct-repository tests match production's retry configuration and verify the actual SqlServerRetryingExecutionStrategy conflict, with no persisted refund effects (PB-02). These passed by reproducing the failure, not by fixing it.
 
-A separate **DiagnosticCallerStrategy_NotCurrentUI** profile supplies an outer execution strategy in test code, while all contexts still enable retries. This reaches the unchanged legacy refund body to characterize old-receipt acceptance, all-item restock, absent payout/cost events, sequential BLL repeat rejection and rollback. It is never inserted into production or substituted for the ordinary failure test.
+IMM-04 (2026-11-04) made the refund retry-safe inside the EF execution strategy, so the diagnostic outer-strategy profile was removed. `Current_UnwrappedRefundFailsWithRetries_DiffersFromAtomicRefund` was replaced by `Refund_SucceedsWithRetriesEnabled`, plus transient-retry, rollback, repeat and concurrent-refund tests.
 
 FailAfterSave throws after real SQL SaveChanges while the repository's outer transaction is uncommitted; verification uses a fresh context after disposal/rollback. FailLedgerSave fails only the ledger stage and confirms the existing independent inventory commit (PB-03).
 
