@@ -1,4 +1,4 @@
-﻿// Project: SwiftCheckoutPOS.UI
+// Project: SwiftCheckoutPOS.UI
 // File: Models/EditProductViewModel.cs
 using System.ComponentModel.DataAnnotations;
 using Microsoft.AspNetCore.Http;
@@ -9,6 +9,7 @@ namespace SwiftCheckoutPOS.UI.Models
     public class EditProductViewModel
     {
         public int ProductId { get; set; }
+        public string? RowVersion { get; set; }
 
         [Required(ErrorMessage = "Hardware SKU/Barcode is required.")]
         public string Barcode { get; set; } = null!;
@@ -25,8 +26,8 @@ namespace SwiftCheckoutPOS.UI.Models
 
         [Required]
         [Range(0.01, 100000, ErrorMessage = "Cost price must be greater than zero.")]
-        [Display(Name = "Wholesale Cost (BDT)")]
-        public decimal CostPrice { get; set; }
+        [Display(Name = "Cost Price")]
+        public decimal? CostPrice { get; set; } // null = keep current cost (write-only for Managers, CQ-03)
 
         [Required]
         [Range(0.01, 100000, ErrorMessage = "Selling price must be greater than zero.")]

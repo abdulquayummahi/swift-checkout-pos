@@ -1,4 +1,4 @@
-﻿<!-- Project: SwiftCheckoutPOS.UI -->
+<!-- Project: SwiftCheckoutPOS.UI -->
 <!-- File: Views/Customer/Index.cshtml -->
 @model IEnumerable<SwiftCheckoutPOS.BLL.DTOs.CustomerProfileDTO>
 
@@ -92,8 +92,10 @@
                     <option value="" selected="@(string.IsNullOrEmpty(ViewBag.SortOrder))">Alphabetical (A-Z)</option>
                     <option value="spent_desc" selected="@(ViewBag.SortOrder == "spent_desc")">Total Spent (High to Low)</option>
                     <option value="spent_asc" selected="@(ViewBag.SortOrder == "spent_asc")">Total Spent (Low to High)</option>
+                    @if ((bool)ViewBag.CanViewFinancials) {
                     <option value="profit_desc" selected="@(ViewBag.SortOrder == "profit_desc")">Est. Profit (High to Low)</option>
                     <option value="profit_asc" selected="@(ViewBag.SortOrder == "profit_asc")">Est. Profit (Low to High)</option>
+                    }
                     <option value="discount_desc" selected="@(ViewBag.SortOrder == "discount_desc")">Discounts (High to Low)</option>
                     <option value="discount_asc" selected="@(ViewBag.SortOrder == "discount_asc")">Discounts (Low to High)</option>
                     <option value="refunded_desc" selected="@(ViewBag.SortOrder == "refunded_desc")">Refunded (High to Low)</option>
@@ -116,7 +118,7 @@
                             <th>Address</th>
                             <th class="text-center">Points</th>
                             <th class="text-end">Total Spent</th>
-                            <th class="text-end">Est. Profit</th>
+                            @if ((bool)ViewBag.CanViewFinancials) { <th class="text-end">Est. Profit</th> }
                             <th class="text-end">Discounts</th>
                             <th class="text-end">Refunded</th>
                             <th class="text-center">Actions</th>
@@ -140,10 +142,10 @@
                                     <td class="text-center">
                                         <span class="badge bg-light-success text-success p-2" style="background:#dcfce7; color:#16a34a;">@customer.LoyaltyPoints Pts</span>
                                     </td>
-                                    <td class="text-end fw-bold text-dark">@customer.TotalRevenue.ToString("N0")</td>
-                                    <td class="text-end fw-bold @(customer.EstimatedProfit < 0 ? "text-danger" : "text-success")">@customer.EstimatedProfit.ToString("N0")</td>
-                                    <td class="text-end fw-bold @(customer.TotalDiscounts > 0 ? "text-danger" : "text-muted")">@(customer.TotalDiscounts > 0 ? $"-{customer.TotalDiscounts.ToString("N0")}" : "0")</td>
-                                    <td class="text-end fw-bold text-secondary">@customer.TotalRefunded.ToString("N0")</td>
+                                    <td class="text-end fw-bold text-dark">@customer.TotalRevenue.ToString("N2")</td>
+                                    @if ((bool)ViewBag.CanViewFinancials) { <td class="text-end fw-bold @(customer.EstimatedProfit < 0 ? "text-danger" : "text-success")">@customer.EstimatedProfit.ToString("N2")</td> }
+                                    <td class="text-end fw-bold @(customer.TotalDiscounts > 0 ? "text-danger" : "text-muted")">@(customer.TotalDiscounts > 0 ? $"-{customer.TotalDiscounts.ToString("N2")}" : "0")</td>
+                                    <td class="text-end fw-bold text-secondary">@customer.TotalRefunded.ToString("N2")</td>
                                     <td class="text-center">
                                         <a asp-controller="Customer" asp-action="Details" asp-route-id="@customer.CustomerId" class="btn btn-sm btn-light border fw-bold text-primary px-3 rounded-pill">View Profile</a>
                                     </td>

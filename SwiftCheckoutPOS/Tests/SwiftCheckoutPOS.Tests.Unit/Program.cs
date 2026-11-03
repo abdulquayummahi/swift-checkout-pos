@@ -10,6 +10,7 @@ using SwiftCheckoutPOS.BLL.Services;
 using SwiftCheckoutPOS.DAL.Entities;
 using SwiftCheckoutPOS.DAL.Repositories;
 using SwiftCheckoutPOS.UI.Controllers;
+using static SwiftCheckoutPOS.Tests.Unit.StockHelpers;
 
 namespace SwiftCheckoutPOS.Tests.Unit;
 
@@ -68,8 +69,10 @@ internal static class Program
                 var (repo, service, cart) = Ready();
                 service.ApplyBillDiscount(cart, 1, "Flat");
                 var result = service.CompleteSale(cart, "Cash", Actor);
-                Equal(22.68m, repo.Sales.Single().TotalAmount);
-                Equal(1.18m, repo.Sales.Single().TaxAmount);
+                // IMM-05 approved rules: VAT-inclusive (21.50 incl. 5.5% VAT = 1.12), cash rounded to whole taka.
+                Equal(21.50m, repo.Sales.Single().TotalAmount);
+                Equal(1.12m, repo.Sales.Single().TaxAmount);
+                Equal(0.50m, repo.Sales.Single().RoundingAmount);
                 Equal(8, repo.Products[1].StockQuantity);
                 Equal(7.25m, repo.Sales.Single().SaleItems.Single().CostAtSale);
                 Equal(14.50m, repo.Ledger.Single().Amount);
@@ -175,18 +178,20 @@ internal static class Program
                 var (repo, service, cart) = Ready();
                 service.HoldOrder(cart, Actor);
                 service.HoldOrder(cart, Actor);
-                Equal(8, repo.Products[1].StockQuantity);
+                Equal(8, Avail(repo)); // BP-03: held units stay in stock, reserved
+                Equal(10, repo.Products[1].StockQuantity);
                 Equal(1, repo.Sales.Count);
                 Equal(0, repo.Ledger.Count);
                 Equal("Held", repo.Sales.Single().OrderStatus);
             }),
-            ("Repeated resume releases once and retains recoverable SQL copy", () =>
+            ("Repeated resume keeps reservation once and retains recoverable SQL copy", () =>
             {
                 var (repo, service, cart) = Ready();
                 service.HoldOrder(cart, Actor);
                 var id = repo.Sales.Single().SaleId;
                 var resumed = service.ResumeOrder(id);
                 var again = service.ResumeOrder(id);
+                Equal(8, Avail(repo)); // CQ-04: resume keeps the reservation
                 Equal(10, repo.Products[1].StockQuantity);
                 Equal(1, repo.Sales.Count);
                 Equal("Resumed", repo.Sales.Single().OrderStatus);
@@ -214,7 +219,8 @@ internal static class Program
                 var stale = Copy(resumed);
                 service.HoldOrder(resumed, Actor);
                 Reject(() => service.CompleteSale(stale, "Cash", Actor));
-                Equal(8, repo.Products[1].StockQuantity);
+                Equal(8, Avail(repo)); // BP-03: held units stay in stock, reserved
+                Equal(10, repo.Products[1].StockQuantity);
                 Equal(1, repo.Sales.Count);
             }),
             ("Clearing resumed work preserves a cancelled row without extra stock", () =>
@@ -235,7 +241,8 @@ internal static class Program
                 repo.Products[1].TaxRate = 20;
                 Reject(() => service.ResumeOrder(repo.Sales.Single().SaleId));
                 Equal("Held", repo.Sales.Single().OrderStatus);
-                Equal(8, repo.Products[1].StockQuantity);
+                Equal(8, Avail(repo)); // BP-03: held units stay in stock, reserved
+                Equal(10, repo.Products[1].StockQuantity);
             }),
             ("Saved held discount amount survives resume", () =>
             {
@@ -380,13 +387,59 @@ internal static class Program
                 service.HoldOrder(resumed, Actor);
                 service.CancelCart(stale);
                 Equal("Held", repo.Sales.Single().OrderStatus);
-                Equal(8, repo.Products[1].StockQuantity);
+                Equal(8, Avail(repo)); // BP-03: held units stay in stock, reserved
+                Equal(10, repo.Products[1].StockQuantity);
             }),
             ("Legacy direct print endpoint cannot print an unpaid cart", () =>
             {
                 var (_, service, cart) = Ready();
                 var controller = Controller(service, cart, () => throw new Exception("Must not construct printer"));
                 Check(controller.TriggerHardwarePrint() is JsonResult);
+            })
+            ,
+            ("BP-07 only login, setup, logout, access-denied and error pages allow anonymous access", () =>
+            {
+                var anonymous = Actions().Where(a => a.Method.IsDefined(typeof(Microsoft.AspNetCore.Authorization.AllowAnonymousAttribute), true)
+                        || a.Type.IsDefined(typeof(Microsoft.AspNetCore.Authorization.AllowAnonymousAttribute), true))
+                    .Select(a => $"{a.Type.Name}.{a.Method.Name}").Distinct().OrderBy(n => n).ToArray();
+                Equal("AccountController.AccessDenied,AccountController.Login,AccountController.Logout,AccountController.Setup,HomeController.Error",
+                    string.Join(",", anonymous));
+            }),
+            ("BP-07 no action skips antiforgery and Admin-only areas stay Admin-only", () =>
+            {
+                Check(!Actions().Any(a => a.Method.IsDefined(typeof(IgnoreAntiforgeryTokenAttribute), true)
+                    || a.Type.IsDefined(typeof(IgnoreAntiforgeryTokenAttribute), true)));
+                string Roles(Type t) => string.Join("|", t.GetCustomAttributes(typeof(Microsoft.AspNetCore.Authorization.AuthorizeAttribute), true)
+                    .Cast<Microsoft.AspNetCore.Authorization.AuthorizeAttribute>().Select(x => x.Roles ?? x.Policy ?? "signed-in"));
+                foreach (var t in new[] { typeof(BackupAdminController), typeof(UserAdminController), typeof(AuditLogController), typeof(AdminDashboardController), typeof(SalesAdminController) })
+                    Equal("Admin", Roles(t));
+                foreach (var name in new[] { "SetReceiptHeader", "SetManagerFinancialView" })
+                    Equal("Admin", string.Join("|", typeof(SettingsAdminController).GetMethod(name)!
+                        .GetCustomAttributes(typeof(Microsoft.AspNetCore.Authorization.AuthorizeAttribute), true)
+                        .Cast<Microsoft.AspNetCore.Authorization.AuthorizeAttribute>().Select(x => x.Roles)));
+                Check(Roles(typeof(ReportAdminController)).Contains(SwiftCheckoutPOS.UI.Infrastructure.FinancialViewRequirement.Policy));
+            }),
+            ("BP-07 database and unexpected errors never show their raw text", () =>
+            {
+                var generic = SwiftCheckoutPOS.UI.Infrastructure.SafeErrors.Generic;
+                Equal(generic, SwiftCheckoutPOS.UI.Infrastructure.SafeErrors.UserMessage(new Microsoft.EntityFrameworkCore.DbUpdateException("INSERT INTO dbo.Products cost 7.25")));
+                Equal(generic, SwiftCheckoutPOS.UI.Infrastructure.SafeErrors.UserMessage(new IOException(@"C:\ProgramData\x locked")));
+                Equal(generic, SwiftCheckoutPOS.UI.Infrastructure.SafeErrors.UserMessage(new Exception("Server=.;Password=secret")));
+                Equal("Not enough stock.", SwiftCheckoutPOS.UI.Infrastructure.SafeErrors.UserMessage(new InvalidOperationException("Not enough stock.")));
+                Equal("Bad price.", SwiftCheckoutPOS.UI.Infrastructure.SafeErrors.UserMessage(new CheckoutValidationException("Bad price.")));
+            })
+            ,
+            ("IMM-12 views and controllers never receive DAL entities or repositories", () =>
+            {
+                static bool IsDal(Type t) => (t.Namespace ?? "").StartsWith("SwiftCheckoutPOS.DAL", StringComparison.Ordinal)
+                    || (t.IsGenericType && t.GetGenericArguments().Any(IsDal)) || (t.IsArray && IsDal(t.GetElementType()!));
+                var ui = typeof(CheckoutController).Assembly.GetTypes();
+                var views = ui.Where(t => t.BaseType is { IsGenericType: true } b && b.GetGenericTypeDefinition().Name.StartsWith("RazorPage", StringComparison.Ordinal))
+                    .Where(t => IsDal(t.BaseType!.GetGenericArguments()[0])).Select(t => t.Name).ToArray();
+                Equal("", string.Join(",", views));
+                var controllers = ui.Where(t => typeof(ControllerBase).IsAssignableFrom(t))
+                    .Where(t => t.GetConstructors().SelectMany(c => c.GetParameters()).Any(p => IsDal(p.ParameterType))).Select(t => t.Name).ToArray();
+                Equal("", string.Join(",", controllers));
             })
         ];
         var failures = 0;
@@ -432,6 +485,11 @@ internal static class Program
 
     private static CheckoutSessionDTO Copy(CheckoutSessionDTO cart) =>
         JsonConvert.DeserializeObject<CheckoutSessionDTO>(JsonConvert.SerializeObject(cart))!;
+    private static IEnumerable<(Type Type, System.Reflection.MethodInfo Method)> Actions() =>
+        typeof(CheckoutController).Assembly.GetTypes()
+            .Where(t => typeof(ControllerBase).IsAssignableFrom(t) && !t.IsAbstract)
+            .SelectMany(t => t.GetMethods(System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.DeclaredOnly)
+                .Where(m => !m.IsSpecialName && !m.IsDefined(typeof(NonActionAttribute), true)).Select(m => (t, m)));
     private static void Check(bool condition) { if (!condition) throw new Exception("Assertion failed"); }
     private static void Equal<T>(T expected, T actual) { if (!EqualityComparer<T>.Default.Equals(expected, actual)) throw new Exception($"Expected {expected}; got {actual}"); }
     private static void Reject(Action action) => Throws<CheckoutValidationException>(action);
@@ -440,6 +498,11 @@ internal static class Program
         try { action(); } catch (T) { return; }
         throw new Exception($"Expected {typeof(T).Name}");
     }
+}
+
+internal static class StockHelpers
+{
+    public static int Avail(FixtureRepository repo) => repo.Products[1].StockQuantity - repo.Products[1].ReservedQuantity;
 }
 
 internal sealed class FixtureRepository : ICheckoutRepository, ICheckoutDataSession
@@ -452,17 +515,25 @@ internal sealed class FixtureRepository : ICheckoutRepository, ICheckoutDataSess
     public bool FailCommit { get; set; }
     public bool LoseAcknowledgement { get; set; }
 
-    public IReadOnlyList<Product> GetAvailableProducts() => Products.Values.Where(p => p.IsActive && p.StockQuantity > 0).ToList();
+    public IReadOnlyList<Product> GetAvailableProducts() => Products.Values.Where(p => p.IsActive && p.StockQuantity - p.ReservedQuantity > 0).ToList();
     public Product? FindProduct(int id) => Products.GetValueOrDefault(id);
     public Product? FindProductByBarcode(string barcode) => Products.Values.SingleOrDefault(p => p.Barcode == barcode);
     public Customer? FindCustomerByPhone(string phone) => Customers.Values.SingleOrDefault(c => c.PhoneNumber == phone);
     public Customer? FindCustomer(int id) => Customers.GetValueOrDefault(id);
-    public Sale? FindSale(string receipt) => Sales.SingleOrDefault(s => s.ReceiptNumber == receipt);
+    public Sale? FindSale(string key) => Sales.SingleOrDefault(s => (s.OperationKey ?? s.ReceiptNumber) == key);
+    public List<AuditEvent> Audits { get; } = new();
+    public List<CustomerDuePayment> DuePayments { get; } = new();
+    private int receiptCounter;
+    public string NextReceiptNumber(DateTime day) => $"SCP-{day:yyyyMMdd}-{++receiptCounter:D4}";
+    public void AddDuePayment(CustomerDuePayment payment) => DuePayments.Add(payment);
+    public void AddAudit(AuditEvent audit) => Audits.Add(audit);
+    public int? OpenShiftId() => 1; // BP-19: a shift is open in these BLL checks
     public Sale? FindSale(int id) => Sales.SingleOrDefault(s => s.SaleId == id);
     public IReadOnlyList<Sale> GetRecoverableOrders() => Sales.Where(s => s.OrderStatus is "Held" or "Resumed").ToList();
     public void AddSale(Sale sale) { sale.SaleId = Sales.Select(s => s.SaleId).DefaultIfEmpty().Max() + 1; Sales.Add(sale); }
     public void ReplaceItems(Sale sale, IReadOnlyList<SaleItem> items) => sale.SaleItems = items.ToList();
     public void AddLedgerEntry(LedgerEntry entry) => Ledger.Add(entry);
+    public IReadOnlyList<Sale> HeldBefore(DateTime cutoff) => Sales.Where(s => s.OrderStatus == "Held" && (s.HeldAt ?? s.SaleDate) < cutoff).ToList();
 
     public T Execute<T>(Func<ICheckoutDataSession, T> operation)
     {

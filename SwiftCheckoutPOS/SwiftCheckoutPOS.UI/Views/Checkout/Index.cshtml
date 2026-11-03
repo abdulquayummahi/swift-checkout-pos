@@ -1,4 +1,4 @@
-﻿<!-- Project: SwiftCheckoutPOS.UI -->
+<!-- Project: SwiftCheckoutPOS.UI -->
 <!-- File: Views/Checkout/Index.cshtml -->
 @model SwiftCheckoutPOS.UI.Models.CheckoutViewModel
 
@@ -469,6 +469,11 @@
                 <div class="fw-bold" style="font-size: 0.95rem;">@User.Identity?.Name</div>
                 <div class="text-muted" style="font-size: 0.8rem;">Terminal 01</div>
             </div>
+            <form asp-action="Reprint" method="post" class="d-flex gap-1 me-2 m-0">
+                <input name="receiptNumber" class="form-control form-control-sm" style="width: 170px;" placeholder="Reprint (blank = last)" autocomplete="off" />
+                <button class="btn btn-sm btn-outline-light fw-bold">Reprint</button>
+            </form>
+            <a asp-controller="Shift" asp-action="Index" class="btn btn-sm btn-outline-light fw-bold me-2">Shift</a>
             <form asp-controller="Account" asp-action="Logout" method="post" class="m-0">
                 <button type="submit" class="btn btn-sm btn-danger fw-bold rounded-2 px-3 shadow-sm">Logout</button>
             </form>
@@ -531,6 +536,9 @@
                         <form asp-action="HoldOrder" method="post" class="m-0">
                             <button type="submit" class="btn btn-sm btn-warning fw-bold text-dark" @(Model.Cart.Items.Any() ? "" : "disabled")>Hold</button>
                         </form>
+                        <button type="button" class="btn btn-sm btn-outline-dark fw-bold" data-bs-toggle="modal" data-bs-target="#dueModal" title="Collect money against a customer's Due">
+                            Collect Due
+                        </button>
                         <button type="button" class="btn btn-sm btn-dark fw-bold" data-bs-toggle="modal" data-bs-target="#heldOrdersModal">
                             Held (@Model.HeldOrders.Count)
                         </button>
@@ -551,12 +559,22 @@
                 @if (Model.Cart.CustomerType == "Loyalty")
                 {
                     <div class="mt-2">
+                        <details class="mb-1">
+                            <summary class="small fw-bold">New customer</summary>
+                            <form asp-action="AddCustomer" method="post" class="d-flex flex-column gap-1 mt-1">
+                                <input name="fullName" maxlength="150" class="form-control form-control-sm" placeholder="Full name" required />
+                                <input name="phoneNumber" maxlength="30" class="form-control form-control-sm" placeholder="Phone" required />
+                                <input name="address" maxlength="500" class="form-control form-control-sm" placeholder="Address (optional)" />
+                                <button class="btn btn-sm btn-outline-dark fw-bold">Add &amp; link</button>
+                            </form>
+                        </details>
                         <input type="text" id="loyaltyPhoneInput" class="form-control form-control-sm border-secondary"
                                placeholder="Enter phone (e.g. 555-0199)..." autocomplete="off" />
                         <div id="loyaltyResult" class="mt-1 fw-bold" style="font-size: 0.85rem;">
                             @if (!string.IsNullOrEmpty(Model.Cart.CustomerName))
                             {
                                 <span class="text-success">✔ Linked: @Model.Cart.CustomerName</span>
+                                @if (Model.CustomerDue > 0) { <span class="text-danger ms-2">Due: BDT @Model.CustomerDue.ToString("N2")</span> }
                             }
                             else
                             {
@@ -649,6 +667,13 @@
                     <input type="hidden" name="paymentMethod" id="hiddenPaymentMethod" value="" />
                     <input type="hidden" name="invoiceNumber" id="currentReceiptNum" value="@Model.Cart.InvoiceNumber" />
                     <input type="hidden" name="cartVersion" value="@Model.Cart.Revision" />
+                    <input type="hidden" name="cashTendered" id="hCashTendered" />
+                    <input type="hidden" name="reference" id="hReference" />
+                    <input type="hidden" name="secondTender" id="hSecondTender" />
+                    <input type="hidden" name="secondAmount" id="hSecondAmount" />
+                    <input type="hidden" name="secondReference" id="hSecondReference" />
+                    <input type="hidden" name="approverUsername" id="hApproverUsername" />
+                    <input type="hidden" name="approverPassword" id="hApproverPassword" />
                 </form>
 
                 <div class="d-flex justify-content-end align-items-center mt-3 mb-1">
@@ -671,10 +696,15 @@
                         <span>CARD</span>
                         <small>[F7]</small>
                     </button>
-                    <button type="button" id="btnPayMfs" class="btn-pay btn-mfs" onclick="initiatePayment('Mobile Wallet')" @(canPay ? "" : "disabled")>
+                    <button type="button" id="btnPayMfs" class="btn-pay btn-mfs" onclick="initiatePayment('bKash')" @(canPay ? "" : "disabled")>
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="5" y="2" width="14" height="20" rx="2"></rect><line x1="12" y1="18" x2="12.01" y2="18"></line></svg>
-                        <span>M-FS</span>
+                        <span>BKASH</span>
                         <small>[F8]</small>
+                    </button>
+                    <button type="button" id="btnPayNagad" class="btn-pay btn-mfs" onclick="initiatePayment('Nagad')" @(canPay ? "" : "disabled")>
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="5" y="2" width="14" height="20" rx="2"></rect><line x1="12" y1="18" x2="12.01" y2="18"></line></svg>
+                        <span>NAGAD</span>
+                        <small>[F10]</small>
                     </button>
                 </div>
             </div>
@@ -690,9 +720,47 @@
                     <p class="text-muted mb-4 fs-5">
                         Process <strong id="modalPaymentType" class="text-dark">Cash</strong> payment for <br />
                     </p>
-                    <div id="modalAmountContainer" class="d-flex justify-content-center align-items-baseline gap-2 mb-4">
+                    <div id="modalAmountContainer" class="d-flex justify-content-center align-items-baseline gap-2 mb-2">
                         <span class="currency-bdt">BDT</span>
                         <span id="modalAmount">@Model.Cart.TotalAmount.ToString("N2")</span>
+                    </div>
+                    <div class="text-muted small mb-3" id="cashRoundingNote"></div>
+                    <div class="text-start">
+                        <div class="mb-2" id="cashTenderedGroup">
+                            <label class="form-label small fw-bold text-muted mb-1">Cash received (optional, for change)</label>
+                            <input type="number" step="0.01" min="0" class="form-control" id="cashTenderedInput" autocomplete="off" />
+                            <div class="small fw-bold text-success mt-1" id="changeDisplay"></div>
+                        </div>
+                        <div class="mb-2" id="referenceGroup">
+                            <label class="form-label small fw-bold text-muted mb-1">Reference (card last 4 / bKash-Nagad TrxID, optional)</label>
+                            <input type="text" maxlength="50" class="form-control" id="referenceInput" autocomplete="off" />
+                        </div>
+                        <details class="mb-2" id="splitDetails">
+                            <summary class="small fw-bold">Split payment / Due (second method)</summary>
+                            <div class="row g-2 mt-1">
+                                <div class="col-5">
+                                    <select class="form-select" id="secondTenderInput">
+                                        <option value="">— none —</option>
+                                        <option>Cash</option><option>Card</option><option>bKash</option><option>Nagad</option><option>Due</option>
+                                    </select>
+                                </div>
+                                <div class="col-7">
+                                    <input type="number" step="0.01" min="0.01" class="form-control" id="secondAmountInput" placeholder="Amount (cash takes the rest)" />
+                                </div>
+                                <div class="col-12">
+                                    <input type="text" maxlength="50" class="form-control" id="secondReferenceInput" placeholder="Reference for the second method (optional)" />
+                                </div>
+                                <div class="col-12 small text-muted">Due needs a linked customer, a Manager/Admin, and the customer's total due must stay within BDT 2,500.</div>
+                            </div>
+                        </details>
+                        @{ var approvalNeeded = (TempData.Peek("Error") as string)?.StartsWith("APPROVAL REQUIRED") == true; }
+                        <details class="mb-2" id="approvalDetails" @(approvalNeeded ? "open" : "")>
+                            <summary class="small fw-bold @(approvalNeeded ? "text-danger" : "")">Manager / Admin approval</summary>
+                            <div class="row g-2 mt-1">
+                                <div class="col-6"><input type="text" class="form-control" id="approverUsernameInput" placeholder="Approver username" autocomplete="off" /></div>
+                                <div class="col-6"><input type="password" class="form-control" id="approverPasswordInput" placeholder="Password" autocomplete="new-password" /></div>
+                            </div>
+                        </details>
                     </div>
                     <div class="d-flex gap-3 mt-4">
                         <button type="button" class="btn btn-light w-50 fw-bold py-2 border" data-bs-dismiss="modal">Cancel (ESC)</button>
@@ -752,6 +820,38 @@
                         }
                     </ul>
                 </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal fade" id="dueModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content rounded-4 border-0 shadow-lg">
+                <div class="modal-header bg-dark text-white rounded-top-4 border-0">
+                    <h6 class="modal-title fw-bold">Collect Due</h6>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <form asp-action="CollectDue" method="post">
+                    <div class="modal-body">
+                        <label class="form-label small fw-bold text-muted">Customer phone</label>
+                        <input type="text" name="phone" maxlength="30" class="form-control mb-2" required autocomplete="off" />
+                        <div class="row g-2">
+                            <div class="col-6">
+                                <label class="form-label small fw-bold text-muted">Amount (BDT)</label>
+                                <input type="number" name="amount" step="0.01" min="0.01" class="form-control" required />
+                            </div>
+                            <div class="col-6">
+                                <label class="form-label small fw-bold text-muted">Received by</label>
+                                <select name="tender" class="form-select"><option>Cash</option><option>Card</option><option>bKash</option><option>Nagad</option></select>
+                            </div>
+                        </div>
+                        <input type="text" name="reference" maxlength="50" class="form-control mt-2" placeholder="Reference (optional)" />
+                    </div>
+                    <div class="modal-footer border-0">
+                        <button type="button" class="btn btn-light border fw-bold" data-bs-dismiss="modal">Cancel</button>
+                        <button type="submit" class="btn btn-dark fw-bold">Record payment</button>
+                    </div>
+                </form>
             </div>
         </div>
     </div>
@@ -884,9 +984,36 @@
 
         if (method === 'Cash') { btnEl.classList.add('btn-success'); amountContainerEl.classList.add('text-success'); }
         else if (method === 'Card') { btnEl.classList.add('btn-primary'); amountContainerEl.classList.add('text-primary'); }
-        else if (method === 'Mobile Wallet') { btnEl.classList.add('btn-warning', 'text-dark'); amountContainerEl.classList.add('text-warning'); }
+        else { btnEl.classList.add('btn-warning', 'text-dark'); amountContainerEl.classList.add('text-warning'); }
 
+        const total = parseFloat('@Model.Cart.TotalAmount.ToString("0.00", System.Globalization.CultureInfo.InvariantCulture)');
+        const isCash = method === 'Cash';
+        document.getElementById('cashTenderedGroup').style.display = isCash ? '' : 'none';
+        document.getElementById('referenceGroup').style.display = isCash ? 'none' : '';
+        const rounded = Math.round(total);
+        document.getElementById('cashRoundingNote').innerText = (isCash && rounded !== total)
+            ? 'Cash payable after rounding: BDT ' + rounded.toFixed(2) : '';
         paymentModalInstance.show();
+        }
+
+        document.getElementById('cashTenderedInput').addEventListener('input', function () {
+            const total = parseFloat('@Model.Cart.TotalAmount.ToString("0.00", System.Globalization.CultureInfo.InvariantCulture)');
+            const second = document.getElementById('secondTenderInput').value ? (parseFloat(document.getElementById('secondAmountInput').value) || 0) : 0;
+            const cashDue = Math.round(total - second);
+            const given = parseFloat(this.value);
+            document.getElementById('changeDisplay').innerText = (given >= cashDue) ? 'Change: BDT ' + (given - cashDue).toFixed(2) : '';
+        });
+
+        function copyPaymentFields() {
+            const v = id => document.getElementById(id).value;
+            const method = document.getElementById('hiddenPaymentMethod').value;
+            document.getElementById('hCashTendered').value = v('cashTenderedInput');
+            document.getElementById('hReference').value = method === 'Cash' ? '' : v('referenceInput');
+            document.getElementById('hSecondTender').value = v('secondTenderInput');
+            document.getElementById('hSecondAmount').value = v('secondTenderInput') ? v('secondAmountInput') : '';
+            document.getElementById('hSecondReference').value = v('secondTenderInput') ? v('secondReferenceInput') : '';
+            document.getElementById('hApproverUsername').value = v('approverUsernameInput');
+            document.getElementById('hApproverPassword').value = v('approverPasswordInput');
         }
 
         document.getElementById('confirmPaymentBtn').addEventListener('click', function() {
@@ -913,6 +1040,7 @@
         } else {
         this.disabled = true;
         this.innerText = 'Saving sale...';
+        copyPaymentFields();
         document.getElementById('finalizeForm').submit();
         }
         });
@@ -920,6 +1048,7 @@
         document.getElementById('printFromPreviewBtn').addEventListener('click', function() {
         this.disabled = true;
         this.innerText = 'Saving sale...';
+        copyPaymentFields();
         document.getElementById('finalizeForm').submit();
         });
 
@@ -945,13 +1074,14 @@
         }
 
         if (document.getElementById('paymentModal').classList.contains('show')) {
-        if (e.key === 'Enter') { e.preventDefault(); document.getElementById('confirmPaymentBtn').click(); }
+        if (e.key === 'Enter' && document.activeElement.tagName !== 'SELECT') { e.preventDefault(); document.getElementById('confirmPaymentBtn').click(); }
         return;
         }
 
         if (e.key === 'F4') { e.preventDefault(); const btn = document.getElementById('btnPayCash'); if(btn && !btn.disabled) btn.click(); return; }
         if (e.key === 'F7') { e.preventDefault(); const btn = document.getElementById('btnPayCard'); if(btn && !btn.disabled) btn.click(); return; }
         if (e.key === 'F8') { e.preventDefault(); const btn = document.getElementById('btnPayMfs'); if(btn && !btn.disabled) btn.click(); return; }
+        if (e.key === 'F10') { e.preventDefault(); const btn = document.getElementById('btnPayNagad'); if(btn && !btn.disabled) btn.click(); return; }
 
         if (e.key === 'F2') { e.preventDefault(); const sb = document.getElementById('searchInput'); sb.focus(); sb.select(); return; }
 
@@ -1032,5 +1162,6 @@
         });
         }
     </script>
+    <partial name="_IdleLock" />
 </body>
 </html>

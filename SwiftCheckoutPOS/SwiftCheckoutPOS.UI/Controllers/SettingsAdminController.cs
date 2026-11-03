@@ -1,5 +1,6 @@
-﻿// Project: SwiftCheckoutPOS.UI
+// Project: SwiftCheckoutPOS.UI
 // File: Controllers/SettingsAdminController.cs
+using SwiftCheckoutPOS.UI.Infrastructure;
 using System;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -22,7 +23,41 @@ namespace SwiftCheckoutPOS.UI.Controllers
         {
             // Fetch the current dynamic setting from the Tier 2 BLL
             ViewBag.RetentionHours = _settingsService.GetHeldOrderRetentionHours();
+            ViewBag.IsAdmin = User.IsInRole("Admin");
+            ViewBag.ManagerFinancialView = _settingsService.GetAllowManagerFinancialView();
+            ViewBag.Header = _settingsService.GetReceiptHeader();
             return View();
+        }
+
+        /// <summary>PR-Q48: receipt header (Admin only, audited).</summary>
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        [Microsoft.AspNetCore.Authorization.Authorize(Roles = "Admin")]
+        public IActionResult SetReceiptHeader(string shopName, string? address, string? phone, string? bin, string? footer)
+        {
+            try
+            {
+                _settingsService.SetReceiptHeader(new SwiftCheckoutPOS.BLL.Hardware.ReceiptHeaderDTO(shopName ?? "", address ?? "", phone ?? "", bin ?? "", footer ?? ""),
+                    SwiftCheckoutPOS.UI.Infrastructure.ActorExtensions.Actor(User), "Admin");
+                TempData["Success"] = "Receipt header saved.";
+            }
+            catch (Exception ex) when (ex is ArgumentException or InvalidOperationException) { TempData["Error"] = this.SafeError(ex); }
+            return RedirectToAction(nameof(Index));
+        }
+
+        /// <summary>PR-Q92: Admin-only, audited.</summary>
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        [Microsoft.AspNetCore.Authorization.Authorize(Roles = "Admin")]
+        public IActionResult SetManagerFinancialView(bool allow)
+        {
+            try
+            {
+                _settingsService.SetAllowManagerFinancialView(allow, SwiftCheckoutPOS.UI.Infrastructure.ActorExtensions.Actor(User), "Admin");
+                TempData["Success"] = allow ? "Managers can now view financial reports." : "Financial reports are now Admin-only.";
+            }
+            catch (InvalidOperationException ex) { TempData["Error"] = this.SafeError(ex); }
+            return RedirectToAction(nameof(Index));
         }
 
         [HttpPost]
@@ -38,7 +73,7 @@ namespace SwiftCheckoutPOS.UI.Controllers
             }
             catch (Exception ex)
             {
-                TempData["Error"] = $"Configuration Fault: {ex.Message}";
+                TempData["Error"] = $"Configuration Fault: {this.SafeError(ex)}";
             }
 
             return RedirectToAction(nameof(Index));

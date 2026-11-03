@@ -1,4 +1,4 @@
-﻿// Project: SwiftCheckoutPOS.DAL
+// Project: SwiftCheckoutPOS.DAL
 // File: Repositories/InventoryRepository.cs
 using System.Collections.Generic;
 using System.Linq;
@@ -46,6 +46,10 @@ namespace SwiftCheckoutPOS.DAL.Repositories
             _context.Products.Add(product);
             _context.SaveChanges();
         }
+
+        /// <summary>IMM-06: the update succeeds only if the row still has the version the user saw.</summary>
+        public void ExpectRowVersion(Product product, byte[] rowVersion) =>
+            _context.Entry(product).Property(p => p.RowVersion).OriginalValue = rowVersion;
 
         public void UpdateProduct(Product product)
         {

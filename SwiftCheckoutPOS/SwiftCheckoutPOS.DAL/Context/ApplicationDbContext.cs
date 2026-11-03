@@ -1,4 +1,4 @@
-﻿// Project: SwiftCheckoutPOS.DAL
+// Project: SwiftCheckoutPOS.DAL
 // File: Context/ApplicationDbContext.cs
 using System;
 using System.Collections.Generic;
@@ -28,6 +28,15 @@ public partial class ApplicationDbContext : DbContext
     public virtual DbSet<TillReconciliation> TillReconciliations { get; set; }
     public virtual DbSet<LedgerEntry> LedgerEntries { get; set; }
     public virtual DbSet<SystemSetting> SystemSettings { get; set; }
+    public virtual DbSet<AuditEvent> AuditEvents { get; set; } = null!;
+    public virtual DbSet<SalePayment> SalePayments { get; set; } = null!;
+    public virtual DbSet<ReceiptSequence> ReceiptSequences { get; set; } = null!;
+    public virtual DbSet<CustomerDuePayment> CustomerDuePayments { get; set; } = null!;
+    public virtual DbSet<Refund> Refunds { get; set; } = null!;
+    public virtual DbSet<Shift> Shifts { get; set; } = null!;
+    public virtual DbSet<CashMovement> CashMovements { get; set; } = null!;
+    public virtual DbSet<RefundItem> RefundItems { get; set; } = null!;
+    public virtual DbSet<RefundPayout> RefundPayouts { get; set; } = null!;
 
     protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
     {
@@ -63,6 +72,7 @@ public partial class ApplicationDbContext : DbContext
             entity.Property(e => e.TaxRate).HasColumnType("decimal(5, 2)");
             entity.Property(e => e.RowVersion).IsRowVersion();
             entity.HasIndex(e => new { e.IsActive, e.StockQuantity });
+            entity.ToTable(t => t.HasCheckConstraint("CK_Products_Reserved", "[ReservedQuantity] >= 0 AND [ReservedQuantity] <= [StockQuantity]"));
             entity.HasOne(d => d.Category).WithMany(p => p.Products)
                 .HasForeignKey(d => d.CategoryId)
                 .OnDelete(DeleteBehavior.ClientSetNull)
@@ -85,10 +95,14 @@ public partial class ApplicationDbContext : DbContext
             entity.Property(e => e.SubTotal).HasColumnType("decimal(18, 2)");
             entity.Property(e => e.TaxAmount).HasColumnType("decimal(18, 2)");
             entity.Property(e => e.TotalAmount).HasColumnType("decimal(18, 2)");
+            entity.Property(e => e.RoundingAmount).HasColumnType("decimal(18, 2)").HasDefaultValue(0m);
             entity.Property(e => e.OrderStatus).HasMaxLength(20);
             entity.Property(e => e.CashierName).HasMaxLength(100);
             entity.Property(e => e.RowVersion).IsRowVersion();
             entity.HasIndex(e => new { e.SaleDate, e.OrderStatus });
+            entity.Property(e => e.HeldAt).HasColumnType("datetime2");
+            entity.HasIndex(e => new { e.OrderStatus, e.HeldAt });
+            entity.HasIndex(e => e.OperationKey).IsUnique().HasFilter("[OperationKey] IS NOT NULL");
         });
 
         modelBuilder.Entity<SaleItem>(entity =>
@@ -114,6 +128,7 @@ public partial class ApplicationDbContext : DbContext
             entity.Property(e => e.IsActive).HasDefaultValue(true);
             entity.Property(e => e.PasswordHash).HasMaxLength(255);
             entity.Property(e => e.Username).HasMaxLength(50);
+            entity.Property(e => e.SecurityStamp).HasDefaultValueSql("CONVERT(nvarchar(40), NEWID())");
         });
 
         modelBuilder.Entity<Customer>(entity =>
@@ -146,6 +161,58 @@ public partial class ApplicationDbContext : DbContext
             entity.Property(e => e.ExpectedCash).HasColumnType("decimal(18, 2)");
             entity.Property(e => e.CountedCash).HasColumnType("decimal(18, 2)");
             entity.HasIndex(e => e.CloseTime);
+        });
+
+        modelBuilder.Entity<SalePayment>(entity =>
+        {
+            entity.HasOne(e => e.Sale).WithMany(s => s.Payments).HasForeignKey(e => e.SaleId).OnDelete(DeleteBehavior.Restrict);
+            entity.ToTable(t => t.HasCheckConstraint("CK_SalePayments_Amount", "[Amount] > 0"));
+        });
+
+        modelBuilder.Entity<Refund>(entity =>
+        {
+            entity.Property(e => e.RefundedAt).HasColumnType("datetime2");
+            entity.HasOne(e => e.Sale).WithMany(s => s.Refunds).HasForeignKey(e => e.SaleId).OnDelete(DeleteBehavior.Restrict);
+            entity.HasMany(e => e.Items).WithOne().HasForeignKey(i => i.RefundId).OnDelete(DeleteBehavior.Restrict);
+            entity.HasMany(e => e.Payouts).WithOne().HasForeignKey(i => i.RefundId).OnDelete(DeleteBehavior.Restrict);
+            entity.HasIndex(e => e.RefundedAt);
+        });
+        modelBuilder.Entity<RefundItem>(entity =>
+        {
+            entity.HasOne<SaleItem>().WithMany().HasForeignKey(e => e.SaleItemId).OnDelete(DeleteBehavior.Restrict);
+            entity.ToTable(t => t.HasCheckConstraint("CK_RefundItems_Quantity", "[Quantity] > 0"));
+        });
+
+        modelBuilder.Entity<Shift>(entity =>
+        {
+            entity.Property(e => e.OpenedAt).HasColumnType("datetime2");
+            entity.Property(e => e.ClosedAt).HasColumnType("datetime2");
+            // PR-Q42: only one shift open at a time.
+            entity.HasIndex(e => e.Status).IsUnique().HasFilter("[Status] = N'Open'").HasDatabaseName("UX_Shifts_OneOpen");
+            entity.HasMany(e => e.CashMovements).WithOne().HasForeignKey(m => m.ShiftId).OnDelete(DeleteBehavior.Restrict);
+        });
+        modelBuilder.Entity<CashMovement>(entity => entity.Property(e => e.At).HasColumnType("datetime2"));
+        modelBuilder.Entity<Sale>().HasOne<Shift>().WithMany().HasForeignKey(s => s.ShiftId).OnDelete(DeleteBehavior.Restrict);
+        modelBuilder.Entity<Refund>().HasOne<Shift>().WithMany().HasForeignKey(s => s.ShiftId).OnDelete(DeleteBehavior.Restrict);
+        modelBuilder.Entity<CustomerDuePayment>().HasOne<Shift>().WithMany().HasForeignKey(s => s.ShiftId).OnDelete(DeleteBehavior.Restrict);
+
+        modelBuilder.Entity<ReceiptSequence>(entity => entity.Property(e => e.BusinessDate).HasColumnType("date"));
+
+        modelBuilder.Entity<CustomerDuePayment>(entity =>
+        {
+            entity.Property(e => e.ReceivedAt).HasColumnType("datetime2");
+            entity.HasOne(e => e.Customer).WithMany().HasForeignKey(e => e.CustomerId).OnDelete(DeleteBehavior.Restrict);
+            entity.HasIndex(e => new { e.CustomerId, e.ReceivedAt });
+        });
+
+        modelBuilder.Entity<Customer>(entity =>
+            entity.ToTable(t => t.HasCheckConstraint("CK_Customers_DueBalance", "[DueBalance] >= 0")));
+
+        modelBuilder.Entity<AuditEvent>(entity =>
+        {
+            entity.Property(e => e.OccurredAt).HasColumnType("datetime2");
+            entity.HasIndex(e => e.OccurredAt);
+            entity.HasIndex(e => new { e.EntityType, e.EntityKey });
         });
 
         OnModelCreatingPartial(modelBuilder);

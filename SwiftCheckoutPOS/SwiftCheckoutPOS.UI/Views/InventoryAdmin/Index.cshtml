@@ -1,4 +1,4 @@
-﻿<!-- Project: SwiftCheckoutPOS.UI -->
+<!-- Project: SwiftCheckoutPOS.UI -->
 <!-- File: Views/InventoryAdmin/Index.cshtml -->
 @model IEnumerable<SwiftCheckoutPOS.BLL.DTOs.ProductDTO>
 
@@ -92,6 +92,9 @@
             <button class="btn btn-danger fw-bold px-4 shadow-sm d-flex align-items-center" style="height: 50px;" data-bs-toggle="modal" data-bs-target="#rtvModal" id="btnRtv">
                 Return RTV (F4)
             </button>
+            <button class="btn btn-outline-dark fw-bold px-4 shadow-sm d-flex align-items-center" style="height: 50px;" data-bs-toggle="modal" data-bs-target="#adjustModal" id="btnAdjust">
+                Correct Stock (F6)
+            </button>
             <a asp-action="Create" class="btn btn-success fw-bold px-4 shadow-sm" style="height: 50px; display: flex; align-items: center;">
                 + Add New Product
             </a>
@@ -124,12 +127,14 @@
                     <option value="name_desc" selected="@(ViewBag.SortOrder == "name_desc")">Alphabetical (Z-A)</option>
                     <option value="stock_desc" selected="@(ViewBag.SortOrder == "stock_desc")">Stock (High to Low)</option>
                     <option value="stock_asc" selected="@(ViewBag.SortOrder == "stock_asc")">Stock (Low to High)</option>
+                    @if ((bool)ViewBag.CanViewFinancials) {
                     <option value="margin_desc" selected="@(ViewBag.SortOrder == "margin_desc")">Margin (High to Low)</option>
                     <option value="margin_asc" selected="@(ViewBag.SortOrder == "margin_asc")">Margin (Low to High)</option>
                     <option value="retail_desc" selected="@(ViewBag.SortOrder == "retail_desc")">Retail Price (High to Low)</option>
                     <option value="retail_asc" selected="@(ViewBag.SortOrder == "retail_asc")">Retail Price (Low to High)</option>
                     <option value="cost_desc" selected="@(ViewBag.SortOrder == "cost_desc")">Cost Price (High to Low)</option>
                     <option value="cost_asc" selected="@(ViewBag.SortOrder == "cost_asc")">Cost Price (Low to High)</option>
+                    }
                     <option value="status_asc" selected="@(ViewBag.SortOrder == "status_asc")">Status (Active First)</option>
                     <option value="status_desc" selected="@(ViewBag.SortOrder == "status_desc")">Status (Inactive First)</option>
                 </select>
@@ -150,9 +155,9 @@
                         <th>Barcode</th>
                         <th>Product Name</th>
                         <th class="text-center">Category</th>
-                        <th class="text-end">Cost</th>
+                        @if ((bool)ViewBag.CanViewFinancials) { <th class="text-end">Cost</th> }
                         <th class="text-end">Retail Price</th>
-                        <th class="text-end">Margin</th>
+                        @if ((bool)ViewBag.CanViewFinancials) { <th class="text-end">Margin</th> }
                         <th class="text-center">Stock</th>
                         <th class="text-center">Status</th>
                         <th class="text-center pe-4">Actions</th>
@@ -176,12 +181,14 @@
                                 <td class="font-monospace fw-bold text-muted">@product.Barcode</td>
                                 <td class="fw-bold text-dark">@product.ProductName</td>
                                 <td class="text-center"><span class="badge bg-secondary rounded-pill px-3 py-2 text-white">@product.CategoryName</span></td>
-                                <td class="text-end text-muted">BDT @product.CostPrice.ToString("N0")</td>
-                                <td class="text-end fw-bold text-dark fs-6">BDT @product.SellingPrice.ToString("N0")</td>
+                                @if ((bool)ViewBag.CanViewFinancials) { <td class="text-end text-muted">BDT @product.CostPrice.ToString("N2")</td> }
+                                <td class="text-end fw-bold text-dark fs-6">BDT @product.SellingPrice.ToString("N2")</td>
 
+                                @if ((bool)ViewBag.CanViewFinancials) {
                                 <td class="text-end fw-bold @(product.MarginPercentage >= 0 ? "text-success" : "text-danger")">
                                     @product.MarginPercentage.ToString("0.0")%
                                 </td>
+                                }
 
                                 <td class="text-center fw-bold fs-6">
                                     @if (product.StockQuantity <= product.ReorderLevel)
@@ -191,6 +198,10 @@
                                     else
                                     {
                                         @product.StockQuantity
+                                    }
+                                    @if (product.ReservedQuantity > 0)
+                                    {
+                                        <div class="small text-muted fw-normal" title="Reserved by held orders">@product.ReservedQuantity held</div>
                                     }
                                 </td>
 
@@ -245,10 +256,59 @@
                         <input type="number" name="newRetailPrice" step="0.01" class="form-control" autocomplete="off" placeholder="Leave blank to maintain current shelf price" />
                         <small class="text-muted" style="font-size: 0.75rem;">System will automatically calculate moving average cost upon submission.</small>
                     </div>
+                    <div class="mt-2">
+                        <label class="form-label fw-bold text-muted small text-uppercase">Reason if batch cost is 0 (free / bonus stock)</label>
+                        <input type="text" name="zeroCostReason" maxlength="150" class="form-control" autocomplete="off" placeholder="Only needed for zero-cost stock" />
+                    </div>
                 </div>
                 <div class="modal-footer border-0 p-4 pt-0 d-flex gap-2">
                     <button type="button" class="btn btn-light border fw-bold flex-grow-1 py-2" data-bs-dismiss="modal">Cancel (ESC)</button>
                     <button type="submit" class="btn btn-warning fw-bold flex-grow-1 py-2 text-dark">Commit Restock (ENTER)</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+
+<!-- IMM-06: Stock correction with reason (PR-Q23/24/82) -->
+<div class="modal fade" id="adjustModal" tabindex="-1" data-bs-backdrop="static">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content rounded-4 border-0 shadow-lg">
+            <div class="modal-header border-0 bg-dark text-white rounded-top-4">
+                <h5 class="modal-title fw-bold">Correct Stock Count</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <form asp-action="AdjustStock" method="post">
+                <div class="modal-body p-4">
+                    <div class="mb-3">
+                        <label class="form-label fw-bold text-muted small text-uppercase">Scan Barcode</label>
+                        <input type="text" name="barcode" id="adjustBarcode" class="form-control form-control-lg bg-light font-monospace" required autocomplete="off" />
+                    </div>
+                    <div class="row g-3 mb-3">
+                        <div class="col-md-6">
+                            <label class="form-label fw-bold text-muted small text-uppercase">Counted Quantity</label>
+                            <input type="number" name="countedQuantity" class="form-control form-control-lg bg-light fw-bold" required min="0" autocomplete="off" />
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-bold text-muted small text-uppercase">Reason</label>
+                            <select name="reason" class="form-select form-select-lg" required>
+                                <option value="">Choose…</option>
+                                @foreach (var r in SwiftCheckoutPOS.BLL.Services.InventoryService.StockAdjustmentReasons)
+                                {
+                                    <option value="@r">@r</option>
+                                }
+                            </select>
+                        </div>
+                    </div>
+                    <div>
+                        <label class="form-label fw-bold text-muted small text-uppercase">Note (required for Other)</label>
+                        <input type="text" name="note" maxlength="150" class="form-control" autocomplete="off" />
+                    </div>
+                </div>
+                <div class="modal-footer border-0 p-4 pt-0 d-flex gap-2">
+                    <button type="button" class="btn btn-light border fw-bold flex-grow-1 py-2" data-bs-dismiss="modal">Cancel (ESC)</button>
+                    <button type="submit" class="btn btn-dark fw-bold flex-grow-1 py-2">Save Correction (ENTER)</button>
                 </div>
             </form>
         </div>
@@ -326,6 +386,10 @@
             e.preventDefault();
             document.getElementById('btnRtv').click();
         }
+        if (e.key === 'F6') {
+            e.preventDefault();
+            document.getElementById('btnAdjust').click();
+        }
         if (e.key === 'Escape') {
             var anyModalOpen = document.querySelector('.modal.show');
             if (!anyModalOpen) {
@@ -339,6 +403,10 @@
     var restockModal = document.getElementById('restockModal');
     restockModal.addEventListener('shown.bs.modal', function () {
         document.getElementById('restockBarcode').focus();
+    });
+
+    document.getElementById('adjustModal').addEventListener('shown.bs.modal', function () {
+        document.getElementById('adjustBarcode').focus();
     });
 
     var rtvModal = document.getElementById('rtvModal');

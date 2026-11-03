@@ -1,1 +1,44 @@
-﻿<h1>Manager</h1>
+@{
+    ViewData["Title"] = "Shop Dashboard";
+    var low = (List<SwiftCheckoutPOS.BLL.DTOs.ProductDTO>)ViewBag.LowStock;
+    var held = (List<SwiftCheckoutPOS.BLL.DTOs.HeldOrderDTO>)ViewBag.Held;
+    var shift = (SwiftCheckoutPOS.BLL.Services.ShiftSummaryDTO?)ViewBag.Shift;
+}
+<div class="container py-4">
+    <h2 class="fw-bold mb-3">Shop Dashboard</h2>
+    <div class="row g-3 mb-4">
+        <div class="col-md-4"><div class="card card-body shadow-sm border-0">
+            <div class="text-muted small fw-bold">Till shift</div>
+            <div class="fs-5 fw-bold">@(shift == null ? "No shift open" : $"Open since {shift.OpenedAt:HH:mm} ({shift.OpenedBy})")</div>
+            <a asp-controller="Shift" asp-action="Index" class="small">Go to shift</a>
+        </div></div>
+        <div class="col-md-4"><div class="card card-body shadow-sm border-0">
+            <div class="text-muted small fw-bold">Held orders</div><div class="fs-3 fw-bold">@held.Count</div>
+        </div></div>
+        <div class="col-md-4"><div class="card card-body shadow-sm border-0">
+            <div class="text-muted small fw-bold">Low stock items</div><div class="fs-3 fw-bold @(low.Count > 0 ? "text-danger" : "")">@low.Count</div>
+        </div></div>
+    </div>
+    <h5 class="fw-bold">Low stock (available at or below reorder level)</h5>
+    <table class="table table-sm bg-white shadow-sm">
+        <thead><tr><th>Barcode</th><th>Product</th><th class="text-end">Available</th><th class="text-end">Held</th><th class="text-end">Reorder at</th></tr></thead>
+        <tbody>
+        @foreach (var p in low)
+        {
+            <tr><td class="font-monospace">@p.Barcode</td><td>@p.ProductName</td><td class="text-end fw-bold">@(p.StockQuantity - p.ReservedQuantity)</td><td class="text-end">@p.ReservedQuantity</td><td class="text-end">@p.ReorderLevel</td></tr>
+        }
+        @if (low.Count == 0) { <tr><td colspan="5" class="text-muted">Nothing is low.</td></tr> }
+        </tbody>
+    </table>
+    <h5 class="fw-bold mt-4">Held orders</h5>
+    <table class="table table-sm bg-white shadow-sm">
+        <thead><tr><th>Since</th><th>Customer</th><th class="text-end">Items</th><th>Status</th></tr></thead>
+        <tbody>
+        @foreach (var h in held)
+        {
+            <tr><td>@h.SaleDate.ToString("dd-MM HH:mm")</td><td>@(h.CustomerName ?? "Walk-in")</td><td class="text-end">@h.TotalQuantity</td><td>@h.Status</td></tr>
+        }
+        @if (held.Count == 0) { <tr><td colspan="4" class="text-muted">No held orders.</td></tr> }
+        </tbody>
+    </table>
+</div>

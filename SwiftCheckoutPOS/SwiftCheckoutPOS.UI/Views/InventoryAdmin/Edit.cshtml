@@ -1,4 +1,4 @@
-﻿<!-- Project: SwiftCheckoutPOS.UI -->
+<!-- Project: SwiftCheckoutPOS.UI -->
 <!-- File: Views/InventoryAdmin/Edit.cshtml -->
 @model SwiftCheckoutPOS.UI.Models.EditProductViewModel
 
@@ -24,6 +24,7 @@
                 <div class="card-body p-4 bg-light">
 
                     <form asp-action="Edit" method="post" enctype="multipart/form-data">
+                        <input type="hidden" asp-for="RowVersion" />
                         <div asp-validation-summary="ModelOnly" class="text-danger mb-3 fw-bold"></div>
                         <input type="hidden" asp-for="ProductId" />
                         <input type="hidden" asp-for="ExistingImagePath" />
@@ -69,8 +70,8 @@
                                 <label asp-for="CostPrice" class="form-label fw-bold text-muted"></label>
                                 <div class="input-group shadow-sm">
                                     <span class="input-group-text bg-white">BDT</span>
-                                    <!-- ARCHITECT FIX: asp-format="{0:F0}" strictly parses the value attribute as an integer -->
-                                    <input asp-for="CostPrice" class="form-control" type="number" step="1" asp-format="{0:F0}" />
+                                    <input asp-for="CostPrice" class="form-control" type="number" step="0.01" asp-format="{0:0.00}"
+                                           placeholder="@(Model.CostPrice == null ? "Hidden — leave empty to keep" : "")" />
                                 </div>
                                 <span asp-validation-for="CostPrice" class="text-danger small fw-bold"></span>
                             </div>
@@ -78,16 +79,14 @@
                                 <label asp-for="SellingPrice" class="form-label fw-bold text-primary"></label>
                                 <div class="input-group shadow-sm">
                                     <span class="input-group-text bg-white text-primary">BDT</span>
-                                    <!-- ARCHITECT FIX: asp-format="{0:F0}" strictly parses the value attribute as an integer -->
-                                    <input asp-for="SellingPrice" class="form-control border-primary" type="number" step="1" asp-format="{0:F0}" />
+                                    <input asp-for="SellingPrice" class="form-control border-primary" type="number" step="0.01" asp-format="{0:0.00}" />
                                 </div>
                                 <span asp-validation-for="SellingPrice" class="text-danger small fw-bold"></span>
                             </div>
                             <div class="col-md-4">
                                 <label asp-for="TaxRate" class="form-label fw-bold text-danger"></label>
                                 <div class="input-group shadow-sm">
-                                    <!-- ARCHITECT FIX: asp-format="{0:F0}" strictly parses the value attribute as an integer -->
-                                    <input asp-for="TaxRate" class="form-control border-danger" type="number" step="1" asp-format="{0:F0}" />
+                                    <input asp-for="TaxRate" class="form-control border-danger" type="number" step="0.01" asp-format="{0:0.00}" />
                                     <span class="input-group-text bg-white text-danger">%</span>
                                 </div>
                                 <span asp-validation-for="TaxRate" class="text-danger small fw-bold"></span>
@@ -97,7 +96,8 @@
                         <div class="row g-3 mb-4 border-top pt-3">
                             <div class="col-md-4">
                                 <label asp-for="StockQuantity" class="form-label fw-bold"></label>
-                                <input asp-for="StockQuantity" class="form-control shadow-sm" type="number" />
+                                <input asp-for="StockQuantity" class="form-control shadow-sm bg-light" type="number" readonly tabindex="-1" />
+                                <small class="text-muted">Change stock with <strong>Correct Stock</strong> on the inventory page (reason required).</small>
                                 <span asp-validation-for="StockQuantity" class="text-danger small fw-bold"></span>
                             </div>
                             <div class="col-md-4">
@@ -169,6 +169,9 @@
 
             let formData = new FormData();
             formData.append(type === 'Category' ? 'categoryName' : 'vendorName', input.trim());
+            // IMM-02: every POST carries the antiforgery token (global AutoValidateAntiforgeryToken).
+            const token = document.querySelector('input[name="__RequestVerificationToken"]');
+            if (token) formData.append('__RequestVerificationToken', token.value);
 
             try {
                 let response = await fetch(`/InventoryAdmin/QuickAdd${type}`, { method: 'POST', body: formData });

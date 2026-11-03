@@ -22,6 +22,93 @@ namespace SwiftCheckoutPOS.DAL.Migrations
 
             SqlServerModelBuilderExtensions.UseIdentityColumns(modelBuilder);
 
+            modelBuilder.Entity("SwiftCheckoutPOS.DAL.Entities.AuditEvent", b =>
+                {
+                    b.Property<long>("AuditEventId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("AuditEventId"));
+
+                    b.Property<string>("Action")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<string>("Actor")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<string>("Details")
+                        .HasMaxLength(2000)
+                        .HasColumnType("nvarchar(2000)");
+
+                    b.Property<string>("EntityKey")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<string>("EntityType")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<DateTime>("OccurredAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Reason")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.HasKey("AuditEventId");
+
+                    b.HasIndex("OccurredAt");
+
+                    b.HasIndex("EntityType", "EntityKey");
+
+                    b.ToTable("AuditEvents");
+                });
+
+            modelBuilder.Entity("SwiftCheckoutPOS.DAL.Entities.CashMovement", b =>
+                {
+                    b.Property<int>("CashMovementId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("CashMovementId"));
+
+                    b.Property<string>("Actor")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<decimal>("Amount")
+                        .HasColumnType("decimal(18, 2)");
+
+                    b.Property<DateTime>("At")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Reason")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<int>("ShiftId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Type")
+                        .IsRequired()
+                        .HasMaxLength(10)
+                        .HasColumnType("nvarchar(10)");
+
+                    b.HasKey("CashMovementId");
+
+                    b.HasIndex("ShiftId");
+
+                    b.ToTable("CashMovements");
+                });
+
             modelBuilder.Entity("SwiftCheckoutPOS.DAL.Entities.Category", b =>
                 {
                     b.Property<int>("CategoryId")
@@ -59,6 +146,9 @@ namespace SwiftCheckoutPOS.DAL.Migrations
                         .HasMaxLength(500)
                         .HasColumnType("nvarchar(500)");
 
+                    b.Property<decimal>("DueBalance")
+                        .HasColumnType("decimal(18, 2)");
+
                     b.Property<string>("FullName")
                         .IsRequired()
                         .HasMaxLength(150)
@@ -79,7 +169,53 @@ namespace SwiftCheckoutPOS.DAL.Migrations
 
                     b.HasIndex("PhoneNumber");
 
-                    b.ToTable("Customers");
+                    b.ToTable("Customers", t =>
+                        {
+                            t.HasCheckConstraint("CK_Customers_DueBalance", "[DueBalance] >= 0");
+                        });
+                });
+
+            modelBuilder.Entity("SwiftCheckoutPOS.DAL.Entities.CustomerDuePayment", b =>
+                {
+                    b.Property<int>("CustomerDuePaymentId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("CustomerDuePaymentId"));
+
+                    b.Property<string>("Actor")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<decimal>("Amount")
+                        .HasColumnType("decimal(18, 2)");
+
+                    b.Property<int>("CustomerId")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("ReceivedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Reference")
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<int?>("ShiftId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Tender")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.HasKey("CustomerDuePaymentId");
+
+                    b.HasIndex("ShiftId");
+
+                    b.HasIndex("CustomerId", "ReceivedAt");
+
+                    b.ToTable("CustomerDuePayments");
                 });
 
             modelBuilder.Entity("SwiftCheckoutPOS.DAL.Entities.LedgerEntry", b =>
@@ -161,6 +297,9 @@ namespace SwiftCheckoutPOS.DAL.Migrations
                     b.Property<int>("ReorderLevel")
                         .HasColumnType("int");
 
+                    b.Property<int>("ReservedQuantity")
+                        .HasColumnType("int");
+
                     b.Property<byte[]>("RowVersion")
                         .IsConcurrencyToken()
                         .IsRequired()
@@ -196,7 +335,149 @@ namespace SwiftCheckoutPOS.DAL.Migrations
                     b.HasIndex(new[] { "Barcode" }, "UQ__Products__177800D302B1BAD5")
                         .IsUnique();
 
-                    b.ToTable("Products");
+                    b.ToTable("Products", t =>
+                        {
+                            t.HasCheckConstraint("CK_Products_Reserved", "[ReservedQuantity] >= 0 AND [ReservedQuantity] <= [StockQuantity]");
+                        });
+                });
+
+            modelBuilder.Entity("SwiftCheckoutPOS.DAL.Entities.ReceiptSequence", b =>
+                {
+                    b.Property<DateTime>("BusinessDate")
+                        .HasColumnType("date");
+
+                    b.Property<int>("LastNumber")
+                        .HasColumnType("int");
+
+                    b.HasKey("BusinessDate");
+
+                    b.ToTable("ReceiptSequences");
+                });
+
+            modelBuilder.Entity("SwiftCheckoutPOS.DAL.Entities.Refund", b =>
+                {
+                    b.Property<int>("RefundId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("RefundId"));
+
+                    b.Property<string>("Actor")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<decimal>("Amount")
+                        .HasColumnType("decimal(18, 2)");
+
+                    b.Property<decimal>("CostReversed")
+                        .HasColumnType("decimal(18, 2)");
+
+                    b.Property<decimal>("DueCancelled")
+                        .HasColumnType("decimal(18, 2)");
+
+                    b.Property<string>("Kind")
+                        .IsRequired()
+                        .HasMaxLength(10)
+                        .HasColumnType("nvarchar(10)");
+
+                    b.Property<decimal>("PayoutRounding")
+                        .HasColumnType("decimal(18, 2)");
+
+                    b.Property<string>("Reason")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<DateTime>("RefundedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("SaleId")
+                        .HasColumnType("int");
+
+                    b.Property<int?>("ShiftId")
+                        .HasColumnType("int");
+
+                    b.Property<decimal>("VatReversed")
+                        .HasColumnType("decimal(18, 2)");
+
+                    b.HasKey("RefundId");
+
+                    b.HasIndex("RefundedAt");
+
+                    b.HasIndex("SaleId");
+
+                    b.HasIndex("ShiftId");
+
+                    b.ToTable("Refunds");
+                });
+
+            modelBuilder.Entity("SwiftCheckoutPOS.DAL.Entities.RefundItem", b =>
+                {
+                    b.Property<int>("RefundItemId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("RefundItemId"));
+
+                    b.Property<decimal>("Amount")
+                        .HasColumnType("decimal(18, 2)");
+
+                    b.Property<decimal>("CostAtSale")
+                        .HasColumnType("decimal(18, 2)");
+
+                    b.Property<string>("Disposition")
+                        .IsRequired()
+                        .HasMaxLength(10)
+                        .HasColumnType("nvarchar(10)");
+
+                    b.Property<int>("ProductId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("Quantity")
+                        .HasColumnType("int");
+
+                    b.Property<int>("RefundId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("SaleItemId")
+                        .HasColumnType("int");
+
+                    b.HasKey("RefundItemId");
+
+                    b.HasIndex("RefundId");
+
+                    b.HasIndex("SaleItemId");
+
+                    b.ToTable("RefundItems", t =>
+                        {
+                            t.HasCheckConstraint("CK_RefundItems_Quantity", "[Quantity] > 0");
+                        });
+                });
+
+            modelBuilder.Entity("SwiftCheckoutPOS.DAL.Entities.RefundPayout", b =>
+                {
+                    b.Property<int>("RefundPayoutId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("RefundPayoutId"));
+
+                    b.Property<decimal>("Amount")
+                        .HasColumnType("decimal(18, 2)");
+
+                    b.Property<int>("RefundId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Tender")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.HasKey("RefundPayoutId");
+
+                    b.HasIndex("RefundId");
+
+                    b.ToTable("RefundPayouts");
                 });
 
             modelBuilder.Entity("SwiftCheckoutPOS.DAL.Entities.Sale", b =>
@@ -207,12 +488,23 @@ namespace SwiftCheckoutPOS.DAL.Migrations
 
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("SaleId"));
 
+                    b.Property<string>("ApprovedBy")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
                     b.Property<string>("CashierName")
                         .HasMaxLength(100)
                         .HasColumnType("nvarchar(100)");
 
                     b.Property<int?>("CustomerId")
                         .HasColumnType("int");
+
+                    b.Property<DateTime?>("HeldAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("OperationKey")
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
 
                     b.Property<string>("OrderStatus")
                         .IsRequired()
@@ -229,6 +521,14 @@ namespace SwiftCheckoutPOS.DAL.Migrations
                         .HasMaxLength(50)
                         .HasColumnType("nvarchar(50)");
 
+                    b.Property<decimal>("RefundedAmount")
+                        .HasColumnType("decimal(18, 2)");
+
+                    b.Property<decimal>("RoundingAmount")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("decimal(18, 2)")
+                        .HasDefaultValue(0m);
+
                     b.Property<byte[]>("RowVersion")
                         .IsConcurrencyToken()
                         .IsRequired()
@@ -239,6 +539,9 @@ namespace SwiftCheckoutPOS.DAL.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("datetime")
                         .HasDefaultValueSql("(getdate())");
+
+                    b.Property<int?>("ShiftId")
+                        .HasColumnType("int");
 
                     b.Property<decimal>("SubTotal")
                         .HasColumnType("decimal(18, 2)");
@@ -253,6 +556,14 @@ namespace SwiftCheckoutPOS.DAL.Migrations
                         .HasName("PK__Sales__1EE3C3FFEB3A7B6D");
 
                     b.HasIndex("CustomerId");
+
+                    b.HasIndex("OperationKey")
+                        .IsUnique()
+                        .HasFilter("[OperationKey] IS NOT NULL");
+
+                    b.HasIndex("ShiftId");
+
+                    b.HasIndex("OrderStatus", "HeldAt");
 
                     b.HasIndex("SaleDate", "OrderStatus");
 
@@ -271,6 +582,9 @@ namespace SwiftCheckoutPOS.DAL.Migrations
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("SaleItemId"));
 
                     b.Property<decimal>("CostAtSale")
+                        .HasColumnType("decimal(18, 2)");
+
+                    b.Property<decimal>("DiscountAmount")
                         .HasColumnType("decimal(18, 2)");
 
                     b.Property<decimal>("LineTotal")
@@ -296,6 +610,100 @@ namespace SwiftCheckoutPOS.DAL.Migrations
                     b.HasIndex("SaleId");
 
                     b.ToTable("SaleItems");
+                });
+
+            modelBuilder.Entity("SwiftCheckoutPOS.DAL.Entities.SalePayment", b =>
+                {
+                    b.Property<int>("SalePaymentId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("SalePaymentId"));
+
+                    b.Property<decimal>("Amount")
+                        .HasColumnType("decimal(18, 2)");
+
+                    b.Property<string>("Reference")
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<int>("SaleId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Tender")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<decimal?>("Tendered")
+                        .HasColumnType("decimal(18, 2)");
+
+                    b.HasKey("SalePaymentId");
+
+                    b.HasIndex("SaleId");
+
+                    b.ToTable("SalePayments", t =>
+                        {
+                            t.HasCheckConstraint("CK_SalePayments_Amount", "[Amount] > 0");
+                        });
+                });
+
+            modelBuilder.Entity("SwiftCheckoutPOS.DAL.Entities.Shift", b =>
+                {
+                    b.Property<int>("ShiftId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("ShiftId"));
+
+                    b.Property<DateTime?>("ClosedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("ClosedBy")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<decimal?>("CountedCash")
+                        .HasColumnType("decimal(18, 2)");
+
+                    b.Property<decimal?>("Difference")
+                        .HasColumnType("decimal(18, 2)");
+
+                    b.Property<string>("DifferenceApprovedBy")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<decimal?>("ExpectedCash")
+                        .HasColumnType("decimal(18, 2)");
+
+                    b.Property<string>("Notes")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<DateTime>("OpenedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("OpenedBy")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<decimal>("OpeningFloat")
+                        .HasColumnType("decimal(18, 2)");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(10)
+                        .HasColumnType("nvarchar(10)");
+
+                    b.HasKey("ShiftId");
+
+                    b.HasIndex("Status")
+                        .IsUnique()
+                        .HasDatabaseName("UX_Shifts_OneOpen")
+                        .HasFilter("[Status] = N'Open'");
+
+                    b.ToTable("Shifts");
                 });
 
             modelBuilder.Entity("SwiftCheckoutPOS.DAL.Entities.SystemSetting", b =>
@@ -388,6 +796,13 @@ namespace SwiftCheckoutPOS.DAL.Migrations
                         .HasMaxLength(20)
                         .HasColumnType("nvarchar(20)");
 
+                    b.Property<string>("SecurityStamp")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(40)
+                        .HasColumnType("nvarchar(40)")
+                        .HasDefaultValueSql("CONVERT(nvarchar(40), NEWID())");
+
                     b.Property<string>("Username")
                         .IsRequired()
                         .HasMaxLength(50)
@@ -434,6 +849,31 @@ namespace SwiftCheckoutPOS.DAL.Migrations
                     b.ToTable("Vendors");
                 });
 
+            modelBuilder.Entity("SwiftCheckoutPOS.DAL.Entities.CashMovement", b =>
+                {
+                    b.HasOne("SwiftCheckoutPOS.DAL.Entities.Shift", null)
+                        .WithMany("CashMovements")
+                        .HasForeignKey("ShiftId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("SwiftCheckoutPOS.DAL.Entities.CustomerDuePayment", b =>
+                {
+                    b.HasOne("SwiftCheckoutPOS.DAL.Entities.Customer", "Customer")
+                        .WithMany()
+                        .HasForeignKey("CustomerId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("SwiftCheckoutPOS.DAL.Entities.Shift", null)
+                        .WithMany()
+                        .HasForeignKey("ShiftId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.Navigation("Customer");
+                });
+
             modelBuilder.Entity("SwiftCheckoutPOS.DAL.Entities.Product", b =>
                 {
                     b.HasOne("SwiftCheckoutPOS.DAL.Entities.Category", "Category")
@@ -454,11 +894,56 @@ namespace SwiftCheckoutPOS.DAL.Migrations
                     b.Navigation("Vendor");
                 });
 
+            modelBuilder.Entity("SwiftCheckoutPOS.DAL.Entities.Refund", b =>
+                {
+                    b.HasOne("SwiftCheckoutPOS.DAL.Entities.Sale", "Sale")
+                        .WithMany("Refunds")
+                        .HasForeignKey("SaleId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("SwiftCheckoutPOS.DAL.Entities.Shift", null)
+                        .WithMany()
+                        .HasForeignKey("ShiftId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.Navigation("Sale");
+                });
+
+            modelBuilder.Entity("SwiftCheckoutPOS.DAL.Entities.RefundItem", b =>
+                {
+                    b.HasOne("SwiftCheckoutPOS.DAL.Entities.Refund", null)
+                        .WithMany("Items")
+                        .HasForeignKey("RefundId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("SwiftCheckoutPOS.DAL.Entities.SaleItem", null)
+                        .WithMany()
+                        .HasForeignKey("SaleItemId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("SwiftCheckoutPOS.DAL.Entities.RefundPayout", b =>
+                {
+                    b.HasOne("SwiftCheckoutPOS.DAL.Entities.Refund", null)
+                        .WithMany("Payouts")
+                        .HasForeignKey("RefundId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("SwiftCheckoutPOS.DAL.Entities.Sale", b =>
                 {
                     b.HasOne("SwiftCheckoutPOS.DAL.Entities.Customer", "Customer")
                         .WithMany("Sales")
                         .HasForeignKey("CustomerId");
+
+                    b.HasOne("SwiftCheckoutPOS.DAL.Entities.Shift", null)
+                        .WithMany()
+                        .HasForeignKey("ShiftId")
+                        .OnDelete(DeleteBehavior.Restrict);
 
                     b.Navigation("Customer");
                 });
@@ -482,6 +967,17 @@ namespace SwiftCheckoutPOS.DAL.Migrations
                     b.Navigation("Sale");
                 });
 
+            modelBuilder.Entity("SwiftCheckoutPOS.DAL.Entities.SalePayment", b =>
+                {
+                    b.HasOne("SwiftCheckoutPOS.DAL.Entities.Sale", "Sale")
+                        .WithMany("Payments")
+                        .HasForeignKey("SaleId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Sale");
+                });
+
             modelBuilder.Entity("SwiftCheckoutPOS.DAL.Entities.Category", b =>
                 {
                     b.Navigation("Products");
@@ -497,9 +993,25 @@ namespace SwiftCheckoutPOS.DAL.Migrations
                     b.Navigation("SaleItems");
                 });
 
+            modelBuilder.Entity("SwiftCheckoutPOS.DAL.Entities.Refund", b =>
+                {
+                    b.Navigation("Items");
+
+                    b.Navigation("Payouts");
+                });
+
             modelBuilder.Entity("SwiftCheckoutPOS.DAL.Entities.Sale", b =>
                 {
+                    b.Navigation("Payments");
+
+                    b.Navigation("Refunds");
+
                     b.Navigation("SaleItems");
+                });
+
+            modelBuilder.Entity("SwiftCheckoutPOS.DAL.Entities.Shift", b =>
+                {
+                    b.Navigation("CashMovements");
                 });
 
             modelBuilder.Entity("SwiftCheckoutPOS.DAL.Entities.Vendor", b =>

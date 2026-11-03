@@ -1,4 +1,4 @@
-﻿// Project: SwiftCheckoutPOS.BLL
+// Project: SwiftCheckoutPOS.BLL
 // File: Services/AutoBackupWorker.cs
 using System;
 using System.Threading;
@@ -9,11 +9,15 @@ using Microsoft.Extensions.Logging;
 
 namespace SwiftCheckoutPOS.BLL.Services
 {
+    /// <summary>
+    /// PR-Q53/Q89: daily automatic backup at the configured time (23:00) with catch-up. Every minute it asks
+    /// BackupService whether a verified backup exists since the last scheduled time; if not, it makes one.
+    /// After a failure it waits 15 minutes before trying again, so a full disk does not loop.
+    /// </summary>
     public class AutoBackupWorker : BackgroundService
     {
         private readonly IServiceScopeFactory _scopeFactory;
         private readonly ILogger<AutoBackupWorker> _logger;
-        private DateTime _lastBackupDate = DateTime.MinValue;
 
         public AutoBackupWorker(IServiceScopeFactory scopeFactory, ILogger<AutoBackupWorker> logger)
         {
@@ -23,40 +27,32 @@ namespace SwiftCheckoutPOS.BLL.Services
 
         protected override async Task ExecuteAsync(CancellationToken stoppingToken)
         {
+            try { await Task.Delay(TimeSpan.FromMinutes(2), stoppingToken); } // let SQL Server finish starting
+            catch (OperationCanceledException) { return; }
+            var retryAfter = DateTime.MinValue;
             while (!stoppingToken.IsCancellationRequested)
             {
-                try
+                if (DateTime.Now >= retryAfter)
                 {
-                    using (var scope = _scopeFactory.CreateScope())
+                    try
                     {
-                        var backupService = scope.ServiceProvider.GetRequiredService<BackupService>();
-                        var config = backupService.GetConfiguration();
-
-                        if (config.IsAutoBackupEnabled)
+                        using var scope = _scopeFactory.CreateScope();
+                        var backups = scope.ServiceProvider.GetRequiredService<BackupService>();
+                        if (backups.IsScheduledBackupDue())
                         {
-                            var now = DateTime.Now;
-
-                            // Check if current time matches the target time (Hours and Minutes) 
-                            // and ensure we only backup once per calendar day.
-                            if (now.Hour == config.AutoBackupTime.Hours &&
-                                now.Minute == config.AutoBackupTime.Minutes &&
-                                _lastBackupDate.Date != now.Date)
-                            {
-                                _logger.LogInformation("Autonomous scheduled backup initiated.");
-                                backupService.ExecuteManualBackup();
-                                _lastBackupDate = now;
-                                _logger.LogInformation("Autonomous scheduled backup completed successfully.");
-                            }
+                            _logger.LogInformation("Scheduled backup started.");
+                            var set = backups.RunBackup("Daily", "SYSTEM (scheduled)");
+                            _logger.LogInformation("Scheduled backup {Set} verified ({Size} MB).", set.SetName, set.SizeMB);
                         }
                     }
+                    catch (Exception ex)
+                    {
+                        retryAfter = DateTime.Now.AddMinutes(15);
+                        _logger.LogError("Scheduled backup failed; retrying after {Retry:HH:mm}. {Message}", retryAfter, ex.Message);
+                    }
                 }
-                catch (Exception ex)
-                {
-                    _logger.LogError($"Autonomous Backup Worker Fault: {ex.Message}");
-                }
-
-                // Sleep the thread for 30 seconds to optimize CPU cycles before checking the clock again
-                await Task.Delay(TimeSpan.FromSeconds(30), stoppingToken);
+                try { await Task.Delay(TimeSpan.FromMinutes(1), stoppingToken); }
+                catch (OperationCanceledException) { return; }
             }
         }
     }

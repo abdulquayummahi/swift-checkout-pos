@@ -1,4 +1,4 @@
-﻿// Project: SwiftCheckoutPOS.UI
+// Project: SwiftCheckoutPOS.UI
 // File: Controllers/InventoryAdminController.cs
 using System;
 using System.IO;
@@ -10,6 +10,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Rendering;
 using SwiftCheckoutPOS.BLL.DTOs;
 using SwiftCheckoutPOS.BLL.Services;
+using SwiftCheckoutPOS.UI.Infrastructure;
 using SwiftCheckoutPOS.UI.Models;
 
 namespace SwiftCheckoutPOS.UI.Controllers
@@ -18,46 +19,38 @@ namespace SwiftCheckoutPOS.UI.Controllers
     public class InventoryAdminController : Controller
     {
         private readonly InventoryService _inventoryService;
-        private readonly IWebHostEnvironment _webHostEnvironment;
+        private readonly SwiftCheckoutPOS.BLL.Media.ProductImageStore _images;
 
-        public InventoryAdminController(InventoryService inventoryService, IWebHostEnvironment webHostEnvironment)
+        private readonly SettingsService _settings;
+
+        public InventoryAdminController(InventoryService inventoryService, SwiftCheckoutPOS.BLL.Media.ProductImageStore images, SettingsService settings)
         {
+            _settings = settings;
             _inventoryService = inventoryService;
-            _webHostEnvironment = webHostEnvironment;
+            _images = images;
         }
 
         [HttpGet]
         public IActionResult Index(string searchQuery, string sortOrder)
         {
             ViewBag.SearchQuery = searchQuery;
+            var canFin = User.CanViewFinancials(_settings);
+            ViewBag.CanViewFinancials = canFin;
+            // PR-Q92: cost/margin values and sort keys never reach a Manager without financial view.
+            if (!canFin && sortOrder is not null && (sortOrder.StartsWith("cost") || sortOrder.StartsWith("margin"))) sortOrder = null;
             ViewBag.SortOrder = sortOrder;
-
-            var products = _inventoryService.GetAllSystemProducts(searchQuery, sortOrder);
+            var products = _inventoryService.GetAllSystemProducts(searchQuery, sortOrder).ToList();
+            if (!canFin) foreach (var p in products) { p.CostPrice = 0; p.MarginPercentage = 0; }
             return View(products);
         }
 
-        private async Task<string> ProcessUploadedImage(IFormFile imageFile, string barcode)
+        // IMM-10: validated store with generated names (no barcode paths or wildcards). Returns null when no file was sent.
+        private string? ProcessUploadedImage(IFormFile? imageFile, string barcode)
         {
             if (imageFile == null || imageFile.Length == 0) return null;
-
-            var ext = Path.GetExtension(imageFile.FileName).ToLowerInvariant();
-            if (ext != ".jpg" && ext != ".jpeg" && ext != ".png" && ext != ".webp") { ext = ".jpg"; }
-
-            string standardizedFileName = $"{barcode}{ext}";
-            string uploadsFolder = Path.Combine(_webHostEnvironment.WebRootPath, "images", "products");
-
-            if (!Directory.Exists(uploadsFolder)) Directory.CreateDirectory(uploadsFolder);
-
-            var existingFiles = Directory.GetFiles(uploadsFolder, $"{barcode}.*");
-            foreach (var file in existingFiles) System.IO.File.Delete(file);
-
-            string filePath = Path.Combine(uploadsFolder, standardizedFileName);
-            using (var fileStream = new FileStream(filePath, FileMode.Create))
-            {
-                await imageFile.CopyToAsync(fileStream);
-            }
-
-            return standardizedFileName;
+            if (imageFile.Length > SwiftCheckoutPOS.BLL.Media.ProductImageStore.MaxBytes) throw new InvalidOperationException("The image is larger than 2 MB.");
+            using var stream = imageFile.OpenReadStream();
+            return _images.Save(stream, imageFile.FileName, barcode);
         }
 
         [HttpGet]
@@ -69,7 +62,7 @@ namespace SwiftCheckoutPOS.UI.Controllers
 
         [HttpPost]
         [ValidateAntiForgeryToken]
-        public async Task<IActionResult> Create(CreateProductViewModel model)
+        public IActionResult Create(CreateProductViewModel model)
         {
             if (!ModelState.IsValid)
             {
@@ -78,9 +71,10 @@ namespace SwiftCheckoutPOS.UI.Controllers
                 return View(model);
             }
 
+            string? imagePath = null;
             try
             {
-                string? imagePath = await ProcessUploadedImage(model.ImageFile, model.Barcode);
+                imagePath = ProcessUploadedImage(model.ImageFile, model.Barcode);
 
                 var dto = new ProductDTO
                 {
@@ -97,13 +91,14 @@ namespace SwiftCheckoutPOS.UI.Controllers
                     ImagePath = imagePath
                 };
 
-                _inventoryService.AddNewProduct(dto, model.CategoryId);
+                _inventoryService.AddNewProduct(dto, model.CategoryId, User.Actor());
                 TempData["Success"] = "Product successfully added to master inventory.";
                 return RedirectToAction(nameof(Index));
             }
             catch (Exception ex)
             {
-                ModelState.AddModelError(string.Empty, ex.Message);
+                _images.Remove(imagePath); // the product was not saved: do not leave an orphan file
+                ModelState.AddModelError(string.Empty, this.SafeError(ex));
                 model.AvailableCategories = GetCategorySelectList();
                 model.AvailableVendors = GetVendorSelectList();
                 return View(model);
@@ -123,9 +118,10 @@ namespace SwiftCheckoutPOS.UI.Controllers
                     ProductName = dto.ProductName,
                     CategoryId = dto.CategoryId,
                     VendorId = dto.VendorId,
-                    CostPrice = dto.CostPrice,
+                    CostPrice = User.CanViewFinancials(_settings) ? dto.CostPrice : null, // CQ-03: never shown to Manager without view
                     SellingPrice = dto.SellingPrice,
                     StockQuantity = dto.StockQuantity,
+                    RowVersion = dto.RowVersion,
                     TaxRate = dto.TaxRate,
                     UnitOfMeasure = dto.UnitOfMeasure,
                     ReorderLevel = dto.ReorderLevel,
@@ -139,14 +135,14 @@ namespace SwiftCheckoutPOS.UI.Controllers
             }
             catch (Exception ex)
             {
-                TempData["Error"] = ex.Message;
+                TempData["Error"] = this.SafeError(ex);
                 return RedirectToAction(nameof(Index));
             }
         }
 
         [HttpPost]
         [ValidateAntiForgeryToken]
-        public async Task<IActionResult> Edit(EditProductViewModel model)
+        public IActionResult Edit(EditProductViewModel model)
         {
             if (!ModelState.IsValid)
             {
@@ -155,9 +151,12 @@ namespace SwiftCheckoutPOS.UI.Controllers
                 return View(model);
             }
 
+            string? newImagePath = null;
             try
             {
-                string? newImagePath = await ProcessUploadedImage(model.ImageFile, model.Barcode);
+                // The old file name comes from the database, never from the posted hidden field.
+                var previousImage = _inventoryService.GetProductForEdit(model.ProductId).ImagePath;
+                newImagePath = ProcessUploadedImage(model.ImageFile, model.Barcode);
 
                 var dto = new ProductDTO
                 {
@@ -165,9 +164,10 @@ namespace SwiftCheckoutPOS.UI.Controllers
                     Barcode = model.Barcode,
                     ProductName = model.ProductName,
                     VendorId = model.VendorId,
-                    CostPrice = model.CostPrice,
+                    CostPrice = model.CostPrice ?? 0,
+                    KeepCost = model.CostPrice is null, // write-only cost: empty keeps the current cost
                     SellingPrice = model.SellingPrice,
-                    StockQuantity = model.StockQuantity,
+                    RowVersion = model.RowVersion,
                     TaxRate = model.TaxRate,
                     UnitOfMeasure = model.UnitOfMeasure,
                     ReorderLevel = model.ReorderLevel,
@@ -176,13 +176,15 @@ namespace SwiftCheckoutPOS.UI.Controllers
                     IsActive = model.IsActive
                 };
 
-                _inventoryService.UpdateProduct(dto, model.CategoryId);
+                _inventoryService.UpdateProduct(dto, model.CategoryId, User.Actor());
+                if (newImagePath is not null && newImagePath != previousImage) _images.Remove(previousImage);
                 TempData["Success"] = "Product details successfully updated.";
                 return RedirectToAction(nameof(Index));
             }
             catch (Exception ex)
             {
-                ModelState.AddModelError(string.Empty, ex.Message);
+                _images.Remove(newImagePath); // save failed: keep the old picture, drop the new upload
+                ModelState.AddModelError(string.Empty, this.SafeError(ex));
                 model.AvailableCategories = GetCategorySelectList();
                 model.AvailableVendors = GetVendorSelectList();
                 return View(model);
@@ -192,16 +194,16 @@ namespace SwiftCheckoutPOS.UI.Controllers
         // --- ARCHITECT NEW: High-Speed Operations ---
         [HttpPost]
         [ValidateAntiForgeryToken]
-        public IActionResult ProcessRestock(string barcode, int addedQty, decimal totalBatchCost, decimal? newRetailPrice)
+        public IActionResult ProcessRestock(string barcode, int addedQty, decimal totalBatchCost, decimal? newRetailPrice, string? zeroCostReason)
         {
             try
             {
-                _inventoryService.RestockProduct(barcode, addedQty, totalBatchCost, newRetailPrice);
+                _inventoryService.RestockProduct(barcode, addedQty, totalBatchCost, newRetailPrice, User.Actor(), zeroCostReason);
                 TempData["Success"] = $"Restock successful. Moving Average Cost calculated and Ledger updated.";
             }
             catch (Exception ex)
             {
-                TempData["Error"] = $"Restock Failed: {ex.Message}";
+                TempData["Error"] = $"Restock Failed: {this.SafeError(ex)}";
             }
             return RedirectToAction(nameof(Index));
         }
@@ -212,12 +214,12 @@ namespace SwiftCheckoutPOS.UI.Controllers
         {
             try
             {
-                _inventoryService.ReturnToVendor(barcode, returnQty, refundAmount);
+                _inventoryService.ReturnToVendor(barcode, returnQty, refundAmount, User.Actor());
                 TempData["Success"] = $"RTV successful. Inventory deducted and Ledger credited.";
             }
             catch (Exception ex)
             {
-                TempData["Error"] = $"Return Failed: {ex.Message}";
+                TempData["Error"] = $"Return Failed: {this.SafeError(ex)}";
             }
             return RedirectToAction(nameof(Index));
         }
@@ -226,14 +228,31 @@ namespace SwiftCheckoutPOS.UI.Controllers
         public IActionResult QuickAddCategory([FromForm] string categoryName)
         {
             try { _inventoryService.AddCategory(categoryName); return Json(new { success = true }); }
-            catch (Exception ex) { return Json(new { success = false, message = ex.Message }); }
+            catch (Exception ex) { return Json(new { success = false, message = this.SafeError(ex) }); }
         }
 
         [HttpPost]
         public IActionResult QuickAddVendor([FromForm] string vendorName)
         {
             try { _inventoryService.AddVendor(vendorName); return Json(new { success = true }); }
-            catch (Exception ex) { return Json(new { success = false, message = ex.Message }); }
+            catch (Exception ex) { return Json(new { success = false, message = this.SafeError(ex) }); }
+        }
+
+        /// <summary>PR-Q23/82: stock correction to a counted quantity, with reason (Manager/Admin via class role gate).</summary>
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public IActionResult AdjustStock(string barcode, int countedQuantity, string reason, string? note)
+        {
+            try
+            {
+                _inventoryService.AdjustStock(barcode ?? "", countedQuantity, reason ?? "", note, User.Actor());
+                TempData["Success"] = "Stock corrected and recorded.";
+            }
+            catch (Exception ex) when (ex is ArgumentException or InvalidOperationException)
+            {
+                TempData["Error"] = this.SafeError(ex);
+            }
+            return RedirectToAction(nameof(Index));
         }
 
         private SelectList GetCategorySelectList() => new SelectList(_inventoryService.GetAllCategories(), "CategoryId", "CategoryName");

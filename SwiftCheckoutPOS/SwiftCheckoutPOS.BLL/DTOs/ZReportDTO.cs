@@ -1,4 +1,4 @@
-﻿// Project: SwiftCheckoutPOS.BLL
+// Project: SwiftCheckoutPOS.BLL
 // File: DTOs/ZReportDTO.cs
 using System;
 
@@ -25,5 +25,9 @@ namespace SwiftCheckoutPOS.BLL.DTOs
         public decimal CashTotal { get; set; }
         public decimal CardTotal { get; set; }
         public decimal MobileWalletTotal { get; set; }
+        public decimal BkashTotal { get; set; }
+        public decimal NagadTotal { get; set; }
+        public decimal DueTotal { get; set; }
+        public decimal RefundsTotal { get; set; }
     }
 }

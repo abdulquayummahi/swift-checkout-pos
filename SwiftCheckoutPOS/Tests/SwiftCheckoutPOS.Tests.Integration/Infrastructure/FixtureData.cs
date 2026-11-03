@@ -14,6 +14,7 @@ public static class FixtureData
     public static Product Product(ApplicationDbContext context, decimal price = 10m,
         decimal cost = 5m, decimal tax = 0m, int stock = 10, string barcode = "BP10-ITEM")
     {
+        EnsureShift(context);
         var category = new Category { CategoryName = "BP10 Category" };
         var vendor = new Vendor { VendorName = "BP10 Vendor" };
         context.AddRange(category, vendor);
@@ -29,6 +30,14 @@ public static class FixtureData
         return product;
     }
 
+    /// <summary>BP-19: payments, refunds and due collections need an open shift.</summary>
+    public static void EnsureShift(ApplicationDbContext context)
+    {
+        if (context.Shifts.Any(s => s.Status == "Open")) return;
+        context.Shifts.Add(new Shift { Status = "Open", OpenedAt = DateTime.Now.AddHours(-1), OpenedBy = Actor, OpeningFloat = 0m });
+        context.SaveChanges();
+    }
+
     public static CheckoutService Checkout(SqlServerFixture fixture, params Microsoft.EntityFrameworkCore.Diagnostics.IInterceptor[] interceptors) =>
         new(new CheckoutRepository(fixture.Options(interceptors)));
 
@@ -41,7 +50,7 @@ public static class FixtureData
 
     public static InventoryService Inventory(ApplicationDbContext context) =>
         new(new InventoryRepository(context),
-            new FinanceService(new FinanceRepository(context), new SalesRepository(context)));
+            new FinanceService(new FinanceRepository(context), new SalesRepository(context)), new AtomicUnit(context));
 
     public static Sale CompletedSale(ApplicationDbContext context, int productId,
         string status = "Completed", int quantity = 2, int ageDays = 0)

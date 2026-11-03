@@ -1,4 +1,4 @@
-﻿// Project: SwiftCheckoutPOS.DAL
+// Project: SwiftCheckoutPOS.DAL
 // File: Entities/User.cs
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
@@ -34,5 +34,9 @@ namespace SwiftCheckoutPOS.DAL.Entities
         public string Role { get; set; } = null!;
 
         public bool IsActive { get; set; }
+
+        /// <summary>IMM-09/PC-01: changes when role, status or password changes; old logins stop working at once.</summary>
+        [MaxLength(40)]
+        public string SecurityStamp { get; set; } = Guid.NewGuid().ToString("N");
     }
 }

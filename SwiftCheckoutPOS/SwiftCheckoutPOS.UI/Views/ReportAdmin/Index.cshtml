@@ -1,4 +1,4 @@
-﻿@model SwiftCheckoutPOS.BLL.DTOs.ReportDashboardDTO
+@model SwiftCheckoutPOS.BLL.DTOs.ReportDashboardDTO
 
 @{
     ViewData["Title"] = "Advanced Financial Report";
@@ -230,12 +230,12 @@
     </div>
 
     <div class="row g-4 mb-4">
-        <div class="col-md-3"><div class="metric-card card-blue"><div class="metric-icon">💰</div><div><div class="metric-value">@Model.GrossRevenue.ToString("N0")</div><div class="metric-label">Gross Revenue</div></div></div></div>
-        <div class="col-md-3"><div class="metric-card card-green"><div class="metric-icon">📈</div><div><div class="metric-value">@Model.EstimatedProfit.ToString("N0")</div><div class="metric-label">Est. Profit</div></div></div></div>
-        <div class="col-md-3"><div class="metric-card card-purple"><div class="metric-icon">🏷️</div><div><div class="metric-value">@Model.TotalDiscounts.ToString("N0")</div><div class="metric-label">Discounts</div></div></div></div>
+        <div class="col-md-3"><div class="metric-card card-blue"><div class="metric-icon">💰</div><div><div class="metric-value">@Model.GrossRevenue.ToString("N2")</div><div class="metric-label">Gross Revenue</div></div></div></div>
+        <div class="col-md-3"><div class="metric-card card-green"><div class="metric-icon">📈</div><div><div class="metric-value">@Model.EstimatedProfit.ToString("N2")</div><div class="metric-label">Est. Profit</div></div></div></div>
+        <div class="col-md-3"><div class="metric-card card-purple"><div class="metric-icon">🏷️</div><div><div class="metric-value">@Model.TotalDiscounts.ToString("N2")</div><div class="metric-label">Discounts</div></div></div></div>
         <div class="col-md-3"><div class="metric-card card-orange"><div class="metric-icon">📄</div><div><div class="metric-value">@Model.CompletedOrders</div><div class="metric-label">Completed Orders</div></div></div></div>
         <div class="col-md-3"><div class="metric-card card-teal"><div class="metric-icon">📦</div><div><div class="metric-value">@Model.ItemsSold</div><div class="metric-label">Items Sold</div></div></div></div>
-        <div class="col-md-3"><div class="metric-card card-red"><div class="metric-icon">🏛️</div><div><div class="metric-value">@Model.TaxLiabilities.ToString("N0")</div><div class="metric-label">Tax Liabilities</div></div></div></div>
+        <div class="col-md-3"><div class="metric-card card-red"><div class="metric-icon">🏛️</div><div><div class="metric-value">@Model.TaxLiabilities.ToString("N2")</div><div class="metric-label">Tax Liabilities</div></div></div></div>
         <div class="col-md-3"><div class="metric-card card-yellow"><div class="metric-icon">⏳</div><div><div class="metric-value">@Model.HeldTransactions</div><div class="metric-label">Held Transactions</div></div></div></div>
         <div class="col-md-3"><div class="metric-card card-darkblue"><div class="metric-icon">↩️</div><div><div class="metric-value">@Model.RefundedTransactions</div><div class="metric-label">Refunded Transactions</div></div></div></div>
     </div>

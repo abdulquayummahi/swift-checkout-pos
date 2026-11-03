@@ -1,4 +1,4 @@
-﻿// Project: SwiftCheckoutPOS.BLL
+// Project: SwiftCheckoutPOS.BLL
 // File: Services/UserAdminService.cs
 using System;
 using System.Collections.Generic;
@@ -63,7 +63,8 @@ namespace SwiftCheckoutPOS.BLL.Services
                 PasswordHash = hash,
                 PasswordSalt = salt,
                 Role = dto.Role,
-                IsActive = true
+                IsActive = true,
+                SecurityStamp = Guid.NewGuid().ToString("N")
             };
 
             _userRepo.AddUser(user);
@@ -91,6 +92,9 @@ namespace SwiftCheckoutPOS.BLL.Services
 
             user.Username = dto.Username;
             user.FullName = dto.FullName;
+            // IMM-09: any change to role, status or password ends existing logins of this user.
+            if (user.Role != dto.Role || user.IsActive != dto.IsActive || !string.IsNullOrWhiteSpace(dto.PlainTextPassword))
+                user.SecurityStamp = Guid.NewGuid().ToString("N");
             user.Role = dto.Role;
             user.IsActive = dto.IsActive;
 

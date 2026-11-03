@@ -1,4 +1,4 @@
-﻿// Project: SwiftCheckoutPOS.UI
+// Project: SwiftCheckoutPOS.UI
 // File: Models/CheckoutViewModel.cs
 using System.Collections.Generic;
 using SwiftCheckoutPOS.BLL.DTOs;
@@ -14,5 +14,7 @@ namespace SwiftCheckoutPOS.UI.Models
         public IEnumerable<ProductDTO> AvailableProducts { get; set; } = new List<ProductDTO>();
 
         public List<HeldOrderDTO> HeldOrders { get; set; } = new();
-    }
+        /// <summary>Due balance of the linked customer (shown at the till, CQ-10).</summary>
+        public decimal CustomerDue { get; set; }
+}
 }

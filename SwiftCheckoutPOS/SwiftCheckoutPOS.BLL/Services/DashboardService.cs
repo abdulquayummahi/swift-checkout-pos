@@ -1,4 +1,4 @@
-﻿// Project: SwiftCheckoutPOS.BLL
+// Project: SwiftCheckoutPOS.BLL
 // File: Services/DashboardService.cs
 using System;
 using System.Linq;
@@ -13,12 +13,15 @@ namespace SwiftCheckoutPOS.BLL.Services
         private readonly CustomerRepository _customerRepo;
         private readonly InventoryRepository _inventoryRepo;
 
-        public DashboardService(SalesRepository salesRepo, CustomerRepository customerRepo, InventoryRepository inventoryRepo)
+        public DashboardService(SalesRepository salesRepo, CustomerRepository customerRepo, InventoryRepository inventoryRepo, MetricsService metrics)
         {
+            _metrics = metrics;
             _salesRepo = salesRepo;
             _customerRepo = customerRepo;
             _inventoryRepo = inventoryRepo;
         }
+
+        private readonly MetricsService _metrics;
 
         public DashboardMetricsDTO GetMetrics(string filter)
         {
@@ -38,20 +41,21 @@ namespace SwiftCheckoutPOS.BLL.Services
             var allSales = _salesRepo.GetSalesByDateRange(startDate, endDate).ToList();
 
             // ARCHITECT FIX: Only completed sales map to global financial health
-            var completedSales = allSales.Where(s => s.OrderStatus == "Completed").ToList();
+            var completedSales = allSales.Where(s => (s.OrderStatus == "Completed" || s.OrderStatus == "PartiallyRefunded")).ToList();
 
             var newCustomerCount = _customerRepo.GetNewCustomerCount(startDate, endDate);
 
-            decimal totalDiscount = completedSales.Sum(s => s.SubTotal + s.TaxAmount - s.TotalAmount);
-            decimal totalCost = completedSales.SelectMany(s => s.SaleItems).Sum(si => (si.Product?.CostPrice ?? 0) * si.Quantity);
+            decimal totalDiscount = completedSales.Sum(s => s.SubTotal - s.TotalAmount);
+            decimal totalCost = completedSales.SelectMany(s => s.SaleItems).Sum(si => si.CostAtSale * si.Quantity);
 
+            var m = _metrics.Period(startDate, DateTime.Today.AddDays(1)); // approved definitions
             var dto = new DashboardMetricsDTO
             {
-                TotalRevenue = completedSales.Sum(s => s.TotalAmount),
-                EstimatedProfit = completedSales.Sum(s => s.SubTotal) - totalCost - totalDiscount,
-                TotalDiscounts = totalDiscount,
-                TotalOrders = completedSales.Count,
-                ProductsSold = completedSales.SelectMany(s => s.SaleItems).Sum(si => si.Quantity),
+                TotalRevenue = m.NetSales,
+                EstimatedProfit = m.GrossProfit,
+                TotalDiscounts = m.Discounts,
+                TotalOrders = m.SalesCount,
+                ProductsSold = m.ItemsSold,
                 NewCustomers = newCustomerCount
             };
 
@@ -72,8 +76,8 @@ namespace SwiftCheckoutPOS.BLL.Services
 
             // Render all sales (including refunded) for the transaction list to maintain an accurate audit log
             dto.RecentTransactions = allSales.OrderByDescending(s => s.SaleDate).Take(6).Select(s => {
-                decimal discount = s.SubTotal + s.TaxAmount - s.TotalAmount;
-                decimal cost = s.SaleItems.Sum(si => (si.Product?.CostPrice ?? 0) * si.Quantity);
+                decimal discount = s.SubTotal - s.TotalAmount;
+                decimal cost = s.SaleItems.Sum(si => si.CostAtSale * si.Quantity);
                 return new SaleDTO
                 {
                     SaleId = s.SaleId,
@@ -85,7 +89,7 @@ namespace SwiftCheckoutPOS.BLL.Services
                     CustomerName = s.Customer?.FullName ?? "Walk-in",
                     CustomerPhone = s.Customer?.PhoneNumber,
                     DiscountAmount = discount,
-                    EstimatedProfit = s.SubTotal - cost - discount,
+                    EstimatedProfit = s.TotalAmount - s.TaxAmount - cost,
                     SaleItems = s.SaleItems.Select(si => new SaleItemDTO { ProductId = si.ProductId, ProductName = si.Product?.ProductName ?? "Unknown Item", Quantity = si.Quantity, UnitPrice = si.UnitPrice, LineTotal = si.LineTotal }).ToList()
                 };
             }).ToList();
