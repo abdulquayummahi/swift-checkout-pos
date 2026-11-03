@@ -6,25 +6,16 @@ using SwiftCheckoutPOS.Tests.Integration.Infrastructure;
 
 namespace SwiftCheckoutPOS.Tests.Integration.Schema;
 
-public sealed class SchemaDriftCharacterizationTests
+public sealed class MigrationModelTests
 {
     [Fact]
-    [Trait("Audit", "AUD-03")]
-    public void Current_MigrationsOmitRequiredModelFields_DiffersFromAUD03()
+    [Trait("Fixes", "AUD-03")]
+    public void Migrations_MatchCurrentModel()
     {
         using var context = new ApplicationDbContext(SchemaScript.Options(TestConnectionGuard.FromEnvironment()));
-        var snapshotType = typeof(ApplicationDbContext).Assembly.GetType("SwiftCheckoutPOS.DAL.Migrations.ApplicationDbContextModelSnapshot")!;
-        var snapshot = ((ModelSnapshot)Activator.CreateInstance(snapshotType, nonPublic: true)!).Model;
-        Assert.Null(snapshot.FindEntityType(typeof(LedgerEntry)));
-        Assert.Null(snapshot.FindEntityType(typeof(SystemSetting)));
-        Assert.Null(snapshot.FindEntityType(typeof(Product))!.FindProperty(nameof(Product.RowVersion)));
-        Assert.Null(snapshot.FindEntityType(typeof(Sale))!.FindProperty(nameof(Sale.RowVersion)));
-        Assert.Null(snapshot.FindEntityType(typeof(Sale))!.FindProperty(nameof(Sale.CashierName)));
-        Assert.Null(snapshot.FindEntityType(typeof(SaleItem))!.FindProperty(nameof(SaleItem.CostAtSale)));
-        Assert.Null(snapshot.FindEntityType(typeof(Customer))!.FindProperty(nameof(Customer.Address)));
-        Assert.NotNull(context.Model.FindEntityType(typeof(LedgerEntry)));
-        Assert.True(context.Model.FindEntityType(typeof(Product))!.FindProperty(nameof(Product.RowVersion))!.IsConcurrencyToken);
-        Assert.NotNull(context.Model.FindEntityType(typeof(SaleItem))!.FindProperty(nameof(SaleItem.CostAtSale)));
+        Assert.False(context.Database.HasPendingModelChanges(),
+            "The EF model has changes without a migration. Add a migration (see TESTING.md).");
+        Assert.NotEmpty(context.Database.GetMigrations());
     }
 }
 
@@ -50,6 +41,14 @@ public sealed class SchemaDatabaseTests(SqlServerFixture fixture)
             context.Database.ExecuteSqlRaw("UPDATE dbo.BP10_TestFixture SET Owner=@owner WHERE Id=1;",
                 new Microsoft.Data.SqlClient.SqlParameter("@owner", SqlServerFixture.Owner));
         }
+    }
+
+    [Fact]
+    [Trait("Category", "DatabaseSafety")]
+    public void TestDatabaseHasAllMigrationsApplied()
+    {
+        using var context = fixture.Context();
+        Assert.Empty(context.Database.GetPendingMigrations());
     }
 
     [Fact]

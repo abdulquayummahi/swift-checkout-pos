@@ -1,5 +1,4 @@
 using System.Data;
-using System.Text.RegularExpressions;
 using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
@@ -7,6 +6,11 @@ using SwiftCheckoutPOS.DAL.Context;
 
 namespace SwiftCheckoutPOS.Tests.Integration.Infrastructure;
 
+/// <summary>
+/// Guarded SwiftCheckoutPOS_Test fixture. The connection is validated before any SQL. A catalog is only
+/// ever created, migrated, reset or rebuilt when it carries this fixture's marker; an unmarked database stops.
+/// When the migration set changes, the marked test catalog is dropped and rebuilt (owner-approved, test DB only).
+/// </summary>
 public sealed class SqlServerFixture : IAsyncLifetime
 {
     public const string Owner = "SwiftCheckoutPOS.Tests.Integration.BP10.v1";
@@ -16,28 +20,15 @@ public sealed class SqlServerFixture : IAsyncLifetime
         SchemaScript.Options(Guard, interceptors);
     public ApplicationDbContext Context(params IInterceptor[] interceptors) => new(Options(interceptors));
 
-    public async ValueTask InitializeAsync()
+    public async Task InitializeAsync()
     {
         Guard = TestConnectionGuard.FromEnvironment(); // before any connection
-        var script = SchemaScript.ReadReviewed(Guard); // before any SQL, compare reviewed/current model
-        var hash = SchemaScript.Hash(script);
+        var hash = SchemaScript.MigrationsHash(Guard);
         try
         {
-            var created = false;
-            await using (var master = new SqlConnection(Guard.ForProvisioning()))
-            {
-                await master.OpenAsync();
-                await using var exists = master.CreateCommand();
-                exists.CommandText = "SELECT DB_ID(@catalog);";
-                exists.Parameters.Add("@catalog", SqlDbType.NVarChar, 128).Value = TestConnectionGuard.Catalog;
-                if (await exists.ExecuteScalarAsync() is DBNull)
-                {
-                    await using var create = master.CreateCommand();
-                    create.CommandText = "CREATE DATABASE [SwiftCheckoutPOS_Test];";
-                    await create.ExecuteNonQueryAsync();
-                    created = true;
-                }
-            }
+            var state = await InspectAsync(hash);
+            if (state == CatalogState.MarkedOutdated) await DropMarkedCatalogAsync();
+            if (state is CatalogState.Absent or CatalogState.MarkedOutdated) await CreateAndMigrateAsync(hash);
 
             lease = new SqlConnection(Guard.ForTestDatabase());
             await lease.OpenAsync();
@@ -51,35 +42,7 @@ public sealed class SqlServerFixture : IAsyncLifetime
                     SELECT @result;
                     """;
                 if (Convert.ToInt32(await acquire.ExecuteScalarAsync()) < 0)
-                    throw new InvalidOperationException("Another BP-10 test run owns the fixture. Stop; do not reset concurrently.");
-            }
-
-            if (created)
-            {
-                // Never executed for an existing catalog, even if empty.
-                await using var marker = lease.CreateCommand();
-                marker.CommandText = """
-                    CREATE TABLE dbo.BP10_TestFixture (
-                        Id int NOT NULL CONSTRAINT PK_BP10_TestFixture PRIMARY KEY CHECK (Id=1),
-                        Owner nvarchar(100) NOT NULL,
-                        SchemaHash char(64) NOT NULL,
-                        Ready bit NOT NULL
-                    );
-                    INSERT dbo.BP10_TestFixture (Id,Owner,SchemaHash,Ready) VALUES (1,@owner,@hash,0);
-                    """;
-                marker.Parameters.Add("@owner", SqlDbType.NVarChar, 100).Value = Owner;
-                marker.Parameters.Add("@hash", SqlDbType.Char, 64).Value = hash;
-                await marker.ExecuteNonQueryAsync();
-                foreach (var batch in Regex.Split(script, @"^GO\s*$", RegexOptions.Multiline | RegexOptions.IgnoreCase))
-                {
-                    if (string.IsNullOrWhiteSpace(batch)) continue;
-                    await using var apply = lease.CreateCommand();
-                    apply.CommandText = batch; // reviewed EF-generated DDL; no user interpolation
-                    await apply.ExecuteNonQueryAsync();
-                }
-                await using var ready = lease.CreateCommand();
-                ready.CommandText = "UPDATE dbo.BP10_TestFixture SET Ready=1 WHERE Id=1;";
-                await ready.ExecuteNonQueryAsync();
+                    throw new InvalidOperationException("Another test run owns the fixture. Stop; do not reset concurrently.");
             }
             await RequireMarkerAsync(lease, hash);
         }
@@ -97,26 +60,102 @@ public sealed class SqlServerFixture : IAsyncLifetime
         }
     }
 
+    private enum CatalogState { Absent, MarkedCurrent, MarkedOutdated }
+
+    private async Task<CatalogState> InspectAsync(string hash)
+    {
+        await using (var master = new SqlConnection(Guard.ForProvisioning()))
+        {
+            await master.OpenAsync();
+            await using var exists = master.CreateCommand();
+            exists.CommandText = "SELECT DB_ID(@catalog);";
+            exists.Parameters.Add("@catalog", SqlDbType.NVarChar, 128).Value = TestConnectionGuard.Catalog;
+            if (await exists.ExecuteScalarAsync() is DBNull) return CatalogState.Absent;
+        }
+        await using var db = new SqlConnection(Guard.ForTestDatabase());
+        await db.OpenAsync();
+        await VerifyCatalogAsync(db);
+        var (tableExists, owner, storedHash, ready) = await ReadMarkerAsync(db);
+        // Never adopt or drop a database this fixture did not create.
+        if (!tableExists || owner != Owner)
+            RequireOwnership(false, null, null, false, hash);
+        return storedHash == hash && ready ? CatalogState.MarkedCurrent : CatalogState.MarkedOutdated;
+    }
+
+    private async Task DropMarkedCatalogAsync()
+    {
+        SqlConnection.ClearAllPools();
+        await using var master = new SqlConnection(Guard.ForProvisioning());
+        await master.OpenAsync();
+        await using var drop = master.CreateCommand();
+        // Fixed catalog name only; reached only after the fixture marker was verified above.
+        drop.CommandText = """
+            ALTER DATABASE [SwiftCheckoutPOS_Test] SET SINGLE_USER WITH ROLLBACK IMMEDIATE;
+            DROP DATABASE [SwiftCheckoutPOS_Test];
+            """;
+        await drop.ExecuteNonQueryAsync();
+    }
+
+    private async Task CreateAndMigrateAsync(string hash)
+    {
+        await using (var master = new SqlConnection(Guard.ForProvisioning()))
+        {
+            await master.OpenAsync();
+            await using var create = master.CreateCommand();
+            create.CommandText = "CREATE DATABASE [SwiftCheckoutPOS_Test];";
+            await create.ExecuteNonQueryAsync();
+        }
+        await using (var db = new SqlConnection(Guard.ForTestDatabase()))
+        {
+            await db.OpenAsync();
+            await VerifyCatalogAsync(db);
+            await using var marker = db.CreateCommand();
+            marker.CommandText = """
+                CREATE TABLE dbo.BP10_TestFixture (
+                    Id int NOT NULL CONSTRAINT PK_BP10_TestFixture PRIMARY KEY CHECK (Id=1),
+                    Owner nvarchar(100) NOT NULL,
+                    SchemaHash char(64) NOT NULL,
+                    Ready bit NOT NULL
+                );
+                INSERT dbo.BP10_TestFixture (Id,Owner,SchemaHash,Ready) VALUES (1,@owner,@hash,0);
+                """;
+            marker.Parameters.Add("@owner", SqlDbType.NVarChar, 100).Value = Owner;
+            marker.Parameters.Add("@hash", SqlDbType.Char, 64).Value = hash;
+            await marker.ExecuteNonQueryAsync();
+        }
+        await using (var context = Context()) await context.Database.MigrateAsync();
+        await using (var db = new SqlConnection(Guard.ForTestDatabase()))
+        {
+            await db.OpenAsync();
+            await using var ready = db.CreateCommand();
+            ready.CommandText = "UPDATE dbo.BP10_TestFixture SET Ready=1 WHERE Id=1;";
+            await ready.ExecuteNonQueryAsync();
+        }
+    }
+
+    /// <summary>Deletes all synthetic rows from every model table (future tables included) in one transaction.</summary>
     public void Reset()
     {
         if (lease is null) throw new InvalidOperationException("Fixture is not initialized.");
         VerifyCatalogAsync(lease).GetAwaiter().GetResult();
-        // Marker ownership and schema must match before every reset; no auto-adoption.
-        RequireMarkerAsync(lease, SchemaScript.Hash(SchemaScript.ReadReviewed(Guard))).GetAwaiter().GetResult();
+        RequireMarkerAsync(lease, SchemaScript.MigrationsHash(Guard)).GetAwaiter().GetResult();
         using var transaction = lease.BeginTransaction();
         using var command = lease.CreateCommand();
         command.Transaction = transaction;
         command.CommandText = """
-            DELETE FROM dbo.SaleItems;
-            DELETE FROM dbo.Sales;
-            DELETE FROM dbo.LedgerEntries;
-            DELETE FROM dbo.SystemSettings;
-            DELETE FROM dbo.Products;
-            DELETE FROM dbo.Customers;
-            DELETE FROM dbo.TillReconciliations;
-            DELETE FROM dbo.Users;
-            DELETE FROM dbo.Vendors;
-            DELETE FROM dbo.Categories;
+            DECLARE @sql nvarchar(max) = N'';
+            SELECT @sql += N'ALTER TABLE ' + QUOTENAME(s.name) + N'.' + QUOTENAME(t.name) + N' NOCHECK CONSTRAINT ALL;'
+              FROM sys.tables t JOIN sys.schemas s ON s.schema_id = t.schema_id
+              WHERE t.name NOT IN (N'BP10_TestFixture', N'__EFMigrationsHistory');
+            EXEC (@sql); SET @sql = N'';
+            SELECT @sql += N'DELETE FROM ' + QUOTENAME(s.name) + N'.' + QUOTENAME(t.name) + N';'
+              FROM sys.tables t JOIN sys.schemas s ON s.schema_id = t.schema_id
+              WHERE t.name NOT IN (N'BP10_TestFixture', N'__EFMigrationsHistory');
+            EXEC (@sql); SET @sql = N'';
+            SELECT @sql += N'ALTER TABLE ' + QUOTENAME(s.name) + N'.' + QUOTENAME(t.name) + N' WITH CHECK CHECK CONSTRAINT ALL;'
+              FROM sys.tables t JOIN sys.schemas s ON s.schema_id = t.schema_id
+              WHERE t.name NOT IN (N'BP10_TestFixture', N'__EFMigrationsHistory');
+            EXEC (@sql);
             """;
         command.ExecuteNonQuery();
         transaction.Commit();
@@ -136,24 +175,26 @@ public sealed class SqlServerFixture : IAsyncLifetime
             throw new InvalidOperationException("Unexpected database identity; stopped before writes.");
     }
 
-    private static async Task RequireMarkerAsync(SqlConnection connection, string hash)
+    private static async Task<(bool, string?, string?, bool)> ReadMarkerAsync(SqlConnection connection)
     {
-        await VerifyCatalogAsync(connection);
         await using var exists = connection.CreateCommand();
         exists.CommandText = "SELECT OBJECT_ID(N'dbo.BP10_TestFixture', N'U');";
-        if (await exists.ExecuteScalarAsync() is DBNull)
-        {
-            RequireOwnership(false, null, null, false, hash);
-            return;
-        }
+        if (await exists.ExecuteScalarAsync() is DBNull) return (false, null, null, false);
         await using var command = connection.CreateCommand();
         command.CommandText = "SELECT Owner,SchemaHash,Ready FROM dbo.BP10_TestFixture WHERE Id=1;";
         await using var reader = await command.ExecuteReaderAsync();
-        if (!await reader.ReadAsync()) RequireOwnership(true, null, null, false, hash);
-        RequireOwnership(true, reader.GetString(0), reader.GetString(1), reader.GetBoolean(2), hash);
+        if (!await reader.ReadAsync()) return (true, null, null, false);
+        return (true, reader.GetString(0), reader.GetString(1), reader.GetBoolean(2));
     }
 
-    public async ValueTask DisposeAsync()
+    private static async Task RequireMarkerAsync(SqlConnection connection, string hash)
+    {
+        await VerifyCatalogAsync(connection);
+        var (tableExists, owner, storedHash, ready) = await ReadMarkerAsync(connection);
+        RequireOwnership(tableExists, owner, storedHash, ready, hash);
+    }
+
+    public async Task DisposeAsync()
     {
         if (lease is not null) await lease.DisposeAsync(); // session lock released, marked DB retained
     }

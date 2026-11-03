@@ -54,7 +54,7 @@ Do not replace the runner or add packages as an incidental cleanup.
 
 Integration (implemented by BP-10 / T01; the absence statement in section9 is historical):
 SwiftCheckoutPOS/Tests/SwiftCheckoutPOS.Tests.Integration/SwiftCheckoutPOS.Tests.Integration.csproj.
-xUnit v3 mtp-off4.0.2 / VSTest adapter4.0.1 / Test SDK18.11.0; retain the separate Unit runner.
+xUnit v2.9.3 / VSTest adapter3.1.4 / Test SDK17.14.1 (in-process; v3 apphost .exe is blocked by Smart App Control); retain the separate Unit runner.
 Restore development test packages normally from nuget.org; no offline staging is required.
 The owner-approved LocalDB guard uses pre-connection validation and a DB marker, with no file manifest
 or separate DB user. See SwiftCheckoutPOS/docs/TESTING.md and ARCHITECTURE.md §12 for that test-only exception.
@@ -70,7 +70,7 @@ EF command templates: run only in an explicitly authorized schema task, after ta
 Supply nonempty approved $posMigrationName/$posFromMigration/$posToMigration/$posReviewedSqlPath.
 The SQL output path is task-owned; never overwrite source, secrets or business recovery files.
 Use a current build and verify CLI/provider compatibility; last local EF CLI was 10.0.8.
-No design-time factory exists; the Integration fixture guard does not protect EF CLI host commands.
+DAL DesignTimeDbContextFactory serves `migrations add/script` (startup project = DAL); it never opens a connection. Never run `database update` against a shop database.
 Until verified isolation exists, do not execute design-time host/migration commands.
 ```powershell
 $posDalProject = 'SwiftCheckoutPOS/SwiftCheckoutPOS.DAL/SwiftCheckoutPOS.DAL.csproj'

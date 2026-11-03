@@ -17,17 +17,17 @@ dotnet test SwiftCheckoutPOS/Tests/SwiftCheckoutPOS.Tests.Integration/SwiftCheck
 
 The existing Unit project remains an executable with **35 checks**, no test framework and unchanged source/project. dotnet test does not discover it. Keeping it avoids mixing migration of a working harness into T01. Any later conversion must preserve the check-name inventory and one-for-one coverage.
 
-Integration targets net10.0, references BLL/DAL and runs under xUnit v3 + VSTest. It never starts the MVC host, Program.cs, AutoBackupWorker or real devices. Controller/middleware authorization is not exercised by these SQL tests.
+Integration targets net10.0, references BLL/DAL and runs under **xUnit v2 + VSTest**, in-process under dotnet.exe. It never starts the MVC host, Program.cs, AutoBackupWorker or real devices.
 
 | Integration-only direct package | Version |
 | --- | --- |
-| xunit.v3.mtp-off | 4.0.2 |
-| xunit.runner.visualstudio | 4.0.1 |
-| Microsoft.NET.Test.Sdk | 18.11.0 |
+| xunit | 2.9.3 |
+| xunit.runner.visualstudio | 3.1.4 |
+| Microsoft.NET.Test.Sdk | 17.14.1 |
 | Microsoft.EntityFrameworkCore.SqlServer | 10.0.14 |
 | Microsoft.Data.SqlClient | 6.1.7 |
 
-The first candidate xunit.v3.mtp-v2 4.0.2 restored/built but dotnet test failed **before execution**: its MTP2.5.1 targets reject the VSTest target on .NET10. It was replaced with the official **mtp-off** variant, preserving VSTest and avoiding repository-wide runner configuration. That final combination actually discovered and ran the suite. Production package references were not changed.
+IMM-03 (2026-11-04) moved from xUnit v3 to v2: xUnit v3 requires a freshly built apphost `.exe` for every build, and Windows Smart App Control on the development PC blocked it ("An Application Control policy has blocked this file"). xUnit v2 needs no new executable.
 
 ## Guarded developer database
 
@@ -44,35 +44,17 @@ The owner-approved simplified fixture reads **SWIFTCHECKOUTPOS_TEST_CONNECTION**
 
 The configured LocalDB connection was parsed without disclosure; integrated authentication, exact test catalog and absence of attach/failover were verified. SQL execution then succeeded only through this fixture. The standalone raw connection is never logged.
 
-## Test schema and SQL review
+## Test schema (IMM-03)
 
-Source: [CurrentModelBaseline.sql](../Tests/SwiftCheckoutPOS.Tests.Integration/Schema/CurrentModelBaseline.sql). SHA256:
-`0C13442F28C715EFD0079F0C0B2490A9D7319D6D397496D6DF8B224C38CAA7B5`.
+The test catalog is built by **applying the real EF migrations** (`Database.MigrateAsync`) to a newly created, marked SwiftCheckoutPOS_Test. The marker stores a hash of the migration ID list.
 
-It was generated through EF10.0.14 **without opening SQL**, then read/reviewed before the first SQL fixture run:
-- Creates10 current-model application tables and15 indexes, including unique barcode/receipt/username indexes.
-- Preserves decimal(18,2) money, decimal(5,2) rate, product/sale SQL rowversions, required FKs and current NO ACTION delete behavior.
-- Includes LedgerEntries/SystemSettings, Customer.Address, Sale.CashierName and SaleItem.CostAtSale missing from the migration chain.
-- Contains no DROP/ALTER DATABASE/USE/BACKUP/RESTORE, real data, default credentials, production migration or migration-history stamping.
-- The fixed-name test CREATE DATABASE and marker DDL are separate fixture operations. The SQL baseline is applied only to a newly created guarded test catalog.
-- Before SQL access, the fixture compares reviewed deployed SQL to current EF generation. A changed model/baseline/marker hash stops; it is not auto-applied as an upgrade.
+- Migrations changed (new migration added): the marker hash no longer matches, so the fixture **drops and rebuilds the marked test catalog** (owner-approved 2026-11-04; test DB only). An unmarked or foreign-owned catalog still stops untouched.
+- `Migrations_MatchCurrentModel` fails if the EF model changed without a migration. Fix by adding one:
+  `dotnet ef migrations add <Name> --project SwiftCheckoutPOS/SwiftCheckoutPOS.DAL/SwiftCheckoutPOS.DAL.csproj --startup-project SwiftCheckoutPOS/SwiftCheckoutPOS.DAL/SwiftCheckoutPOS.DAL.csproj --context ApplicationDbContext --output-dir Migrations`
+  (design-time factory `DesignTimeDbContextFactory` never opens a connection).
+- Reset clears every table except the marker and `__EFMigrationsHistory`, so new tables need no fixture change.
 
-**AUD-03 remains unresolved.** The schema-drift characterization explicitly proves that the committed snapshot omits current fields/tables. The test-only baseline allows current service/repository tests; it does not qualify production initialization or upgrades. Production migration repair remains IMM-03.
-
-To regenerate after an authorized model change, build first, then explicitly run only the metadata test:
-
-```powershell
-$env:SWIFTCHECKOUTPOS_GENERATE_TEST_SCHEMA = '1'
-try {
-    dotnet test SwiftCheckoutPOS/Tests/SwiftCheckoutPOS.Tests.Integration/SwiftCheckoutPOS.Tests.Integration.csproj --configuration Debug --no-build --no-restore --filter "FullyQualifiedName~SchemaScriptTests"
-} finally {
-    Remove-Item Env:SWIFTCHECKOUTPOS_GENERATE_TEST_SCHEMA
-}
-git diff -- SwiftCheckoutPOS/Tests/SwiftCheckoutPOS.Tests.Integration/Schema/CurrentModelBaseline.sql
-dotnet build SwiftCheckoutPOS/SwiftCheckoutPOS.slnx --configuration Debug --no-restore
-```
-
-Generation mode is **not** a SQL-review result. Review the generated changes before any SQL run. An existing catalog with an obsolete marker/hash requires separate, explicitly approved test-database maintenance; do not bypass the guard. No dotnet ef migration command was run in BP-10; installed EF CLI10.0.8 was left unchanged.
+**AUD-03 resolved (IMM-03):** the broken 2026-07 migration chain was replaced by one `InitialBaseline` migration generated from the current model. This was possible because no production shop database exists yet (owner confirmed all existing data is test data). Every future schema change is a normal additive migration with reviewed SQL (`dotnet ef migrations script`).
 
 ## Characterization policy — mandatory retirement
 
@@ -100,7 +82,7 @@ The direct BLL DTO test with simultaneous discounts does not claim the UI setter
 | [Current_LedgerFailureLeavesRoundedProductCommitted_DiffersFromAtomicInventory](../Tests/SwiftCheckoutPOS.Tests.Integration/Inventory/InventoryMappingCharacterizationTests.cs), line139 | DR-02, PB-03 | Rounded product/stock remains committed after ledger failure; PB-03 is the atomicity finding. |
 | [Current_RefundAcceptsThirtyDayOldSale_DiffersFromPRQ27](../Tests/SwiftCheckoutPOS.Tests.Integration/Refund/LegacyRefundCharacterizationTests.cs) | DR-14 | Production refund path accepts a 30-day-old receipt; PR-Q27 7-day window not yet enforced (BP-04). |
 | [Current_RefundRestocksEverythingWithoutCostOrPayoutEvent_DiffersFromPRQ65_PRQ66](../Tests/SwiftCheckoutPOS.Tests.Integration/Refund/LegacyRefundCharacterizationTests.cs) | DR-15, DR-34 | Refund restores all stock, changes status only; no refund record, COGS reversal or payout event (IMM-07/BP-04). |
-| [Current_MigrationsOmitRequiredModelFields_DiffersFromAUD03](../Tests/SwiftCheckoutPOS.Tests.Integration/Schema/SchemaDriftCharacterizationTests.cs), line13 | AUD-03 | Snapshot still lacks fields/tables required by current model. |
+| ~~Current_MigrationsOmitRequiredModelFields_DiffersFromAUD03~~ (retired by IMM-03, replaced by Migrations_MatchCurrentModel) (../Tests/SwiftCheckoutPOS.Tests.Integration/Schema/SchemaDriftCharacterizationTests.cs), line13 | AUD-03 | Snapshot still lacks fields/tables required by current model. |
 
 Correct baseline tests have no fabricated DR mismatch. They cover real sale/items/stock/COGS commits, cost capture stability, validation failures, loyalty without point changes, sequential replay, payload conflicts and real-SQL rollback.
 
