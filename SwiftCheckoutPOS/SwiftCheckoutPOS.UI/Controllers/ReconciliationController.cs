@@ -1,4 +1,4 @@
-﻿// Project: SwiftCheckoutPOS.UI
+// Project: SwiftCheckoutPOS.UI
 // File: Controllers/ReconciliationController.cs
 using System;
 using System.Security.Claims;
@@ -19,11 +19,7 @@ namespace SwiftCheckoutPOS.UI.Controllers
         }
 
         [HttpGet]
-        public IActionResult Index()
-        {
-            var shiftData = _reconciliationService.GenerateCurrentShiftPreview();
-            return View(shiftData);
-        }
+        public IActionResult Index() => RedirectToAction("Index", "Shift"); // BP-19 replaces the old till pages
 
         [HttpPost]
         [ValidateAntiForgeryToken]

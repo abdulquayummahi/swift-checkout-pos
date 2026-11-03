@@ -26,6 +26,8 @@ public interface ICheckoutDataSession
     string NextReceiptNumber(DateTime businessDay);
     void AddDuePayment(CustomerDuePayment payment);
     void AddAudit(AuditEvent audit);
+    /// <summary>BP-19: the currently open till shift, if any.</summary>
+    int? OpenShiftId();
     void AddSale(Sale sale);
     void ReplaceItems(Sale sale, IReadOnlyList<SaleItem> items);
     void AddLedgerEntry(LedgerEntry entry);

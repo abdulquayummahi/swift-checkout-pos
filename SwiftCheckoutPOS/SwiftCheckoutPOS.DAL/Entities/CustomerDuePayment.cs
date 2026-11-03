@@ -10,6 +10,7 @@ public class CustomerDuePayment
     public int CustomerId { get; set; }
     public Customer Customer { get; set; } = null!;
     public DateTime ReceivedAt { get; set; }
+    public int? ShiftId { get; set; }
     [Column(TypeName = "decimal(18, 2)")] public decimal Amount { get; set; }
     [MaxLength(20)] public string Tender { get; set; } = null!;
     [MaxLength(50)] public string? Reference { get; set; }

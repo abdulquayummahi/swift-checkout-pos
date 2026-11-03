@@ -1,0 +1,112 @@
+@model SwiftCheckoutPOS.BLL.Services.ShiftSummaryDTO?
+@{
+    ViewData["Title"] = "Till Shift";
+    var canSee = (bool)ViewBag.CanSeeFigures;
+    var recent = (IReadOnlyList<SwiftCheckoutPOS.BLL.Services.ShiftSummaryDTO>)ViewBag.Recent;
+}
+<div class="container py-4" style="max-width: 900px;">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <h2 class="fw-bold m-0">Till Shift</h2>
+        <a asp-controller="Checkout" asp-action="Index" class="btn btn-outline-dark fw-bold">Back to Checkout</a>
+    </div>
+    @if (TempData["Error"] != null) { <div class="alert alert-danger fw-bold">@TempData["Error"]</div> }
+    @if (TempData["Warning"] != null) { <div class="alert alert-warning fw-bold">@TempData["Warning"]</div> }
+    @if (TempData["Success"] != null) { <div class="alert alert-success fw-bold">@TempData["Success"]</div> }
+
+    @if (Model == null)
+    {
+        <div class="card shadow-sm border-0">
+            <div class="card-body p-4">
+                <h5 class="fw-bold">No shift is open</h5>
+                <p class="text-muted">Count the cash in the drawer and enter it as the opening float.</p>
+                <form asp-action="Open" method="post" class="d-flex gap-2" style="max-width: 420px;">
+                    <input type="number" name="openingFloat" step="0.01" min="0" class="form-control form-control-lg" placeholder="Opening float (BDT)" required autofocus />
+                    <button class="btn btn-success btn-lg fw-bold text-nowrap">Open shift</button>
+                </form>
+            </div>
+        </div>
+    }
+    else
+    {
+        <div class="card shadow-sm border-0 mb-3">
+            <div class="card-body">
+                <div class="d-flex justify-content-between">
+                    <div><span class="badge bg-success">OPEN</span> Shift #@Model.ShiftId opened @Model.OpenedAt.ToString("dd-MM-yyyy HH:mm") by @Model.OpenedBy</div>
+                    <div class="fw-bold">Float: BDT @Model.OpeningFloat.ToString("N2")</div>
+                </div>
+                @if (canSee)
+                {
+                    <table class="table table-sm mt-3 mb-0">
+                        <tr><td>Cash sales</td><td class="text-end">@Model.CashSales.ToString("N2")</td></tr>
+                        <tr><td>Cash due collections</td><td class="text-end">@Model.CashDueCollections.ToString("N2")</td></tr>
+                        <tr><td>Cash refunds</td><td class="text-end">-@Model.CashRefunds.ToString("N2")</td></tr>
+                        <tr><td>Paid in / out</td><td class="text-end">@Model.PaidIn.ToString("N2") / -@Model.PaidOut.ToString("N2")</td></tr>
+                        <tr class="fw-bold"><td>Expected cash in drawer</td><td class="text-end">BDT @Model.ExpectedCash.ToString("N2")</td></tr>
+                    </table>
+                }
+            </div>
+        </div>
+
+        <div class="row g-3">
+            <div class="col-md-6">
+                <div class="card shadow-sm border-0 h-100"><div class="card-body">
+                    <h6 class="fw-bold">Cash paid in / out</h6>
+                    <form asp-action="Cash" method="post">
+                        <div class="d-flex gap-2 mb-2">
+                            <select name="type" class="form-select" style="max-width: 140px;"><option value="PaidOut">Paid out</option><option value="PaidIn">Paid in</option></select>
+                            <input type="number" name="amount" step="0.01" min="0.01" class="form-control" placeholder="Amount" required />
+                        </div>
+                        <input type="text" name="reason" maxlength="200" class="form-control mb-2" placeholder="Reason (required)" required />
+                        <button class="btn btn-outline-dark fw-bold w-100">Record</button>
+                    </form>
+                    @if (canSee)
+                    {
+                        <hr />
+                        <form asp-action="NoSale" method="post" class="d-flex gap-2">
+                            <input type="text" name="reason" maxlength="200" class="form-control" placeholder="Reason to open drawer" required />
+                            <button class="btn btn-outline-secondary fw-bold text-nowrap">No sale</button>
+                        </form>
+                    }
+                </div></div>
+            </div>
+            <div class="col-md-6">
+                <div class="card shadow-sm border-0 h-100"><div class="card-body">
+                    <h6 class="fw-bold">Close shift (blind count)</h6>
+                    <form asp-action="Close" method="post" onsubmit="return confirm('Close this shift with the counted amount?');">
+                        <input type="number" name="countedCash" step="0.01" min="0" class="form-control form-control-lg mb-2" placeholder="Cash counted in drawer (BDT)" required />
+                        <input type="text" name="notes" maxlength="200" class="form-control mb-2" placeholder="Note (optional)" />
+                        <details class="mb-2">
+                            <summary class="small fw-bold">Manager / Admin approval (needed if over/short by more than BDT 1,000)</summary>
+                            <div class="d-flex gap-2 mt-2">
+                                <input type="text" name="approverUsername" class="form-control" placeholder="Approver username" autocomplete="off" />
+                                <input type="password" name="approverPassword" class="form-control" placeholder="Password" autocomplete="new-password" />
+                            </div>
+                        </details>
+                        <button class="btn btn-danger fw-bold w-100">Close shift</button>
+                    </form>
+                </div></div>
+            </div>
+        </div>
+    }
+
+    @if (canSee && recent.Count > 0)
+    {
+        <h5 class="fw-bold mt-4">Recent shifts</h5>
+        <table class="table table-sm bg-white shadow-sm">
+            <thead><tr><th>#</th><th>Opened</th><th>Closed</th><th class="text-end">Expected</th><th class="text-end">Counted</th><th class="text-end">Over/short</th><th>Approved by</th></tr></thead>
+            <tbody>
+            @foreach (var s in recent)
+            {
+                <tr>
+                    <td>@s.ShiftId</td><td>@s.OpenedAt.ToString("dd-MM HH:mm") @s.OpenedBy</td>
+                    <td>@(s.ClosedAt?.ToString("dd-MM HH:mm") ?? "open") @s.ClosedBy</td>
+                    <td class="text-end">@s.ExpectedCash.ToString("N2")</td>
+                    <td class="text-end">@(s.CountedCash?.ToString("N2") ?? "")</td>
+                    <td class="text-end @(s.Difference < 0 ? "text-danger" : "")">@(s.Difference?.ToString("N2") ?? "")</td>
+                    <td>@s.DifferenceApprovedBy</td>
+                </tr>
+            }
+            </tbody>
+        </table>
+    }
+</div>

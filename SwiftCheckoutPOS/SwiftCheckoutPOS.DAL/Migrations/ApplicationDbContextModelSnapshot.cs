@@ -70,6 +70,45 @@ namespace SwiftCheckoutPOS.DAL.Migrations
                     b.ToTable("AuditEvents");
                 });
 
+            modelBuilder.Entity("SwiftCheckoutPOS.DAL.Entities.CashMovement", b =>
+                {
+                    b.Property<int>("CashMovementId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("CashMovementId"));
+
+                    b.Property<string>("Actor")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<decimal>("Amount")
+                        .HasColumnType("decimal(18, 2)");
+
+                    b.Property<DateTime>("At")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Reason")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<int>("ShiftId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Type")
+                        .IsRequired()
+                        .HasMaxLength(10)
+                        .HasColumnType("nvarchar(10)");
+
+                    b.HasKey("CashMovementId");
+
+                    b.HasIndex("ShiftId");
+
+                    b.ToTable("CashMovements");
+                });
+
             modelBuilder.Entity("SwiftCheckoutPOS.DAL.Entities.Category", b =>
                 {
                     b.Property<int>("CategoryId")
@@ -162,12 +201,17 @@ namespace SwiftCheckoutPOS.DAL.Migrations
                         .HasMaxLength(50)
                         .HasColumnType("nvarchar(50)");
 
+                    b.Property<int?>("ShiftId")
+                        .HasColumnType("int");
+
                     b.Property<string>("Tender")
                         .IsRequired()
                         .HasMaxLength(20)
                         .HasColumnType("nvarchar(20)");
 
                     b.HasKey("CustomerDuePaymentId");
+
+                    b.HasIndex("ShiftId");
 
                     b.HasIndex("CustomerId", "ReceivedAt");
 
@@ -350,6 +394,9 @@ namespace SwiftCheckoutPOS.DAL.Migrations
                     b.Property<int>("SaleId")
                         .HasColumnType("int");
 
+                    b.Property<int?>("ShiftId")
+                        .HasColumnType("int");
+
                     b.Property<decimal>("VatReversed")
                         .HasColumnType("decimal(18, 2)");
 
@@ -358,6 +405,8 @@ namespace SwiftCheckoutPOS.DAL.Migrations
                     b.HasIndex("RefundedAt");
 
                     b.HasIndex("SaleId");
+
+                    b.HasIndex("ShiftId");
 
                     b.ToTable("Refunds");
                 });
@@ -491,6 +540,9 @@ namespace SwiftCheckoutPOS.DAL.Migrations
                         .HasColumnType("datetime")
                         .HasDefaultValueSql("(getdate())");
 
+                    b.Property<int?>("ShiftId")
+                        .HasColumnType("int");
+
                     b.Property<decimal>("SubTotal")
                         .HasColumnType("decimal(18, 2)");
 
@@ -508,6 +560,8 @@ namespace SwiftCheckoutPOS.DAL.Migrations
                     b.HasIndex("OperationKey")
                         .IsUnique()
                         .HasFilter("[OperationKey] IS NOT NULL");
+
+                    b.HasIndex("ShiftId");
 
                     b.HasIndex("OrderStatus", "HeldAt");
 
@@ -592,6 +646,64 @@ namespace SwiftCheckoutPOS.DAL.Migrations
                         {
                             t.HasCheckConstraint("CK_SalePayments_Amount", "[Amount] > 0");
                         });
+                });
+
+            modelBuilder.Entity("SwiftCheckoutPOS.DAL.Entities.Shift", b =>
+                {
+                    b.Property<int>("ShiftId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("ShiftId"));
+
+                    b.Property<DateTime?>("ClosedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("ClosedBy")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<decimal?>("CountedCash")
+                        .HasColumnType("decimal(18, 2)");
+
+                    b.Property<decimal?>("Difference")
+                        .HasColumnType("decimal(18, 2)");
+
+                    b.Property<string>("DifferenceApprovedBy")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<decimal?>("ExpectedCash")
+                        .HasColumnType("decimal(18, 2)");
+
+                    b.Property<string>("Notes")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<DateTime>("OpenedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("OpenedBy")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<decimal>("OpeningFloat")
+                        .HasColumnType("decimal(18, 2)");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(10)
+                        .HasColumnType("nvarchar(10)");
+
+                    b.HasKey("ShiftId");
+
+                    b.HasIndex("Status")
+                        .IsUnique()
+                        .HasDatabaseName("UX_Shifts_OneOpen")
+                        .HasFilter("[Status] = N'Open'");
+
+                    b.ToTable("Shifts");
                 });
 
             modelBuilder.Entity("SwiftCheckoutPOS.DAL.Entities.SystemSetting", b =>
@@ -730,6 +842,15 @@ namespace SwiftCheckoutPOS.DAL.Migrations
                     b.ToTable("Vendors");
                 });
 
+            modelBuilder.Entity("SwiftCheckoutPOS.DAL.Entities.CashMovement", b =>
+                {
+                    b.HasOne("SwiftCheckoutPOS.DAL.Entities.Shift", null)
+                        .WithMany("CashMovements")
+                        .HasForeignKey("ShiftId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("SwiftCheckoutPOS.DAL.Entities.CustomerDuePayment", b =>
                 {
                     b.HasOne("SwiftCheckoutPOS.DAL.Entities.Customer", "Customer")
@@ -737,6 +858,11 @@ namespace SwiftCheckoutPOS.DAL.Migrations
                         .HasForeignKey("CustomerId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
+
+                    b.HasOne("SwiftCheckoutPOS.DAL.Entities.Shift", null)
+                        .WithMany()
+                        .HasForeignKey("ShiftId")
+                        .OnDelete(DeleteBehavior.Restrict);
 
                     b.Navigation("Customer");
                 });
@@ -768,6 +894,11 @@ namespace SwiftCheckoutPOS.DAL.Migrations
                         .HasForeignKey("SaleId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
+
+                    b.HasOne("SwiftCheckoutPOS.DAL.Entities.Shift", null)
+                        .WithMany()
+                        .HasForeignKey("ShiftId")
+                        .OnDelete(DeleteBehavior.Restrict);
 
                     b.Navigation("Sale");
                 });
@@ -801,6 +932,11 @@ namespace SwiftCheckoutPOS.DAL.Migrations
                     b.HasOne("SwiftCheckoutPOS.DAL.Entities.Customer", "Customer")
                         .WithMany("Sales")
                         .HasForeignKey("CustomerId");
+
+                    b.HasOne("SwiftCheckoutPOS.DAL.Entities.Shift", null)
+                        .WithMany()
+                        .HasForeignKey("ShiftId")
+                        .OnDelete(DeleteBehavior.Restrict);
 
                     b.Navigation("Customer");
                 });
@@ -864,6 +1000,11 @@ namespace SwiftCheckoutPOS.DAL.Migrations
                     b.Navigation("Refunds");
 
                     b.Navigation("SaleItems");
+                });
+
+            modelBuilder.Entity("SwiftCheckoutPOS.DAL.Entities.Shift", b =>
+                {
+                    b.Navigation("CashMovements");
                 });
 
             modelBuilder.Entity("SwiftCheckoutPOS.DAL.Entities.Vendor", b =>

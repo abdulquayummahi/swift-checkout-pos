@@ -14,6 +14,7 @@ public class Refund
     public Sale Sale { get; set; } = null!;
     [MaxLength(10)] public string Kind { get; set; } = "Refund"; // Refund | Void
     public DateTime RefundedAt { get; set; }
+    public int? ShiftId { get; set; }
     [MaxLength(100)] public string Actor { get; set; } = null!;
     [MaxLength(200)] public string? Reason { get; set; }
     [Column(TypeName = "decimal(18, 2)")] public decimal Amount { get; set; }

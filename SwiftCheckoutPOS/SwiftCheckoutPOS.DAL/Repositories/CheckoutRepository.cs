@@ -93,6 +93,7 @@ public sealed class CheckoutRepository(DbContextOptions<ApplicationDbContext> op
         private IQueryable<Sale> Sales() => context.Sales.Include(s => s.SaleItems).Include(s => s.Customer).Include(s => s.Payments);
         public void AddDuePayment(CustomerDuePayment payment) => context.CustomerDuePayments.Add(payment);
         public void AddAudit(AuditEvent audit) => context.AuditEvents.Add(audit);
+        public int? OpenShiftId() => context.Shifts.Where(s => s.Status == "Open").Select(s => (int?)s.ShiftId).SingleOrDefault();
 
         public string NextReceiptNumber(DateTime businessDay)
         {

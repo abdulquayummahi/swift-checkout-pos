@@ -58,6 +58,8 @@ builder.Services.AddDbContext<ApplicationDbContext>(options =>
     options.UseSqlServer(connectionString, sqlOptions => sqlOptions.EnableRetryOnFailure()));
 
 builder.Services.AddScoped<AtomicUnit>();
+builder.Services.AddScoped<ShiftRepository>();
+builder.Services.AddScoped<ShiftService>();
 builder.Services.AddScoped<UserRepository>();
 builder.Services.AddScoped<InventoryRepository>();
 builder.Services.AddScoped<SalesRepository>();

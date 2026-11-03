@@ -290,6 +290,7 @@ public sealed class CheckoutService(ICheckoutRepository repository, IApprover? a
 
             var sale = existing ?? new Sale { OperationKey = command.InvoiceNumber };
             SetSale(sale, command, summary, cashierName, Completed, rounding);
+            sale.ShiftId = data.OpenShiftId() ?? Fail<int>("Open a shift first (Shift page) before taking payments.");
             sale.ReceiptNumber = data.NextReceiptNumber(sale.SaleDate); // DR-26: assigned only at completion
             sale.ApprovedBy = approvedBy;
             for (var k = 0; k < items.Count; k++)
@@ -357,9 +358,10 @@ public sealed class CheckoutService(ICheckoutRepository repository, IApprover? a
             var customer = data.FindCustomer(customerId);
             if (customer is null) Fail("Customer not found.");
             if (amount > customer!.DueBalance) Fail($"The customer owes only {Pricing.Money.Bdt(customer.DueBalance)}.");
+            var shiftId = data.OpenShiftId() ?? Fail<int>("Open a shift first (Shift page) before collecting money.");
             customer.DueBalance -= amount;
             var now = DateTime.Now;
-            data.AddDuePayment(new CustomerDuePayment { CustomerId = customerId, Amount = amount, Tender = tender, Reference = reference, ReceivedAt = now, Actor = actor });
+            data.AddDuePayment(new CustomerDuePayment { CustomerId = customerId, Amount = amount, Tender = tender, Reference = reference, ReceivedAt = now, Actor = actor, ShiftId = shiftId });
             data.AddAudit(new AuditEvent { OccurredAt = now, Actor = actor, Action = "DueCollected", EntityType = "Customer", EntityKey = customerId.ToString(), Details = $"{amount:0.00} by {tender}" });
             return customer.DueBalance;
         });
@@ -581,6 +583,8 @@ public sealed class CheckoutService(ICheckoutRepository repository, IApprover? a
     private static string Version(Sale sale) => Convert.ToBase64String(sale.RowVersion ?? []);
     [DoesNotReturn]
     private static void Fail(string message) => throw new CheckoutValidationException(message);
+    [DoesNotReturn]
+    private static T Fail<T>(string message) => throw new CheckoutValidationException(message);
 
     private static CheckoutSessionDTO Copy(CheckoutSessionDTO cart)
     {

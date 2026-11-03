@@ -55,6 +55,9 @@ namespace SwiftCheckoutPOS.DAL.Entities
         /// <summary>BP-03/CQ-20: when the order was last put on hold; the 72h expiry clock runs only while Held.</summary>
         public DateTime? HeldAt { get; set; }
 
+        /// <summary>BP-19: the till shift the sale was completed in.</summary>
+        public int? ShiftId { get; set; }
+
         [Timestamp]
         public byte[] RowVersion { get; set; } = null!;
 

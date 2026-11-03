@@ -33,6 +33,8 @@ public partial class ApplicationDbContext : DbContext
     public virtual DbSet<ReceiptSequence> ReceiptSequences { get; set; } = null!;
     public virtual DbSet<CustomerDuePayment> CustomerDuePayments { get; set; } = null!;
     public virtual DbSet<Refund> Refunds { get; set; } = null!;
+    public virtual DbSet<Shift> Shifts { get; set; } = null!;
+    public virtual DbSet<CashMovement> CashMovements { get; set; } = null!;
     public virtual DbSet<RefundItem> RefundItems { get; set; } = null!;
     public virtual DbSet<RefundPayout> RefundPayouts { get; set; } = null!;
 
@@ -179,6 +181,19 @@ public partial class ApplicationDbContext : DbContext
             entity.HasOne<SaleItem>().WithMany().HasForeignKey(e => e.SaleItemId).OnDelete(DeleteBehavior.Restrict);
             entity.ToTable(t => t.HasCheckConstraint("CK_RefundItems_Quantity", "[Quantity] > 0"));
         });
+
+        modelBuilder.Entity<Shift>(entity =>
+        {
+            entity.Property(e => e.OpenedAt).HasColumnType("datetime2");
+            entity.Property(e => e.ClosedAt).HasColumnType("datetime2");
+            // PR-Q42: only one shift open at a time.
+            entity.HasIndex(e => e.Status).IsUnique().HasFilter("[Status] = N'Open'").HasDatabaseName("UX_Shifts_OneOpen");
+            entity.HasMany(e => e.CashMovements).WithOne().HasForeignKey(m => m.ShiftId).OnDelete(DeleteBehavior.Restrict);
+        });
+        modelBuilder.Entity<CashMovement>(entity => entity.Property(e => e.At).HasColumnType("datetime2"));
+        modelBuilder.Entity<Sale>().HasOne<Shift>().WithMany().HasForeignKey(s => s.ShiftId).OnDelete(DeleteBehavior.Restrict);
+        modelBuilder.Entity<Refund>().HasOne<Shift>().WithMany().HasForeignKey(s => s.ShiftId).OnDelete(DeleteBehavior.Restrict);
+        modelBuilder.Entity<CustomerDuePayment>().HasOne<Shift>().WithMany().HasForeignKey(s => s.ShiftId).OnDelete(DeleteBehavior.Restrict);
 
         modelBuilder.Entity<ReceiptSequence>(entity => entity.Property(e => e.BusinessDate).HasColumnType("date"));
 

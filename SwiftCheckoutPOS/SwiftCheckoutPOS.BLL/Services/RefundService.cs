@@ -64,7 +64,7 @@ public sealed class RefundService(SalesRepository salesRepo, AtomicUnit unit)
             var sale = salesRepo.LoadForRefund(receiptNumber.Trim()) ?? throw new InvalidOperationException("Transaction not found.");
             var blocked = Eligibility(sale, at);
             if (blocked is not null) throw new InvalidOperationException(blocked);
-            var refund = new Refund { Kind = "Refund", RefundedAt = at, Actor = Clip(actor), Reason = reason?.Trim() };
+            var refund = new Refund { Kind = "Refund", RefundedAt = at, Actor = Clip(actor), Reason = reason?.Trim(), ShiftId = RequireShift() };
             foreach (var request in lines.Where(l => l.Quantity > 0))
             {
                 var item = sale.SaleItems.SingleOrDefault(i => i.SaleItemId == request.SaleItemId)
@@ -101,7 +101,7 @@ public sealed class RefundService(SalesRepository salesRepo, AtomicUnit unit)
             var sale = salesRepo.LoadForRefund(receiptNumber.Trim()) ?? throw new InvalidOperationException("Transaction not found.");
             if (sale.OrderStatus != "Completed" || sale.Refunds.Count > 0) throw new InvalidOperationException("Only an untouched completed sale can be voided. Use a refund.");
             if (at - sale.SaleDate > TimeSpan.FromMinutes(VoidWindowMinutes)) throw new InvalidOperationException($"The {VoidWindowMinutes}-minute void window has passed. Use a refund.");
-            var refund = new Refund { Kind = "Void", RefundedAt = at, Actor = Clip(actor), Reason = reason.Trim() };
+            var refund = new Refund { Kind = "Void", RefundedAt = at, Actor = Clip(actor), Reason = reason.Trim(), ShiftId = RequireShift() };
             foreach (var item in sale.SaleItems)
                 refund.Items.Add(new RefundItem
                 {
@@ -225,6 +225,9 @@ public sealed class RefundService(SalesRepository salesRepo, AtomicUnit unit)
         TransactionDate = at, Category = category, TransactionType = type, Amount = amount,
         Description = description.Length <= 500 ? description : description[..500], RecordedBy = actor
     };
+
+    private int RequireShift() => salesRepo.OpenShiftId()
+        ?? throw new InvalidOperationException("Open a shift first (Shift page) before refunding or voiding.");
 
     private static string Clip(string actor) => actor.Length <= 100 ? actor : actor[..100];
 }

@@ -469,6 +469,7 @@
                 <div class="fw-bold" style="font-size: 0.95rem;">@User.Identity?.Name</div>
                 <div class="text-muted" style="font-size: 0.8rem;">Terminal 01</div>
             </div>
+            <a asp-controller="Shift" asp-action="Index" class="btn btn-sm btn-outline-light fw-bold me-2">Shift</a>
             <form asp-controller="Account" asp-action="Logout" method="post" class="m-0">
                 <button type="submit" class="btn btn-sm btn-danger fw-bold rounded-2 px-3 shadow-sm">Logout</button>
             </form>

@@ -92,6 +92,7 @@ namespace SwiftCheckoutPOS.DAL.Repositories
 
         public Product? FindProduct(int productId) => _context.Products.Find(productId);
         public void AddRefund(Refund refund) => _context.Refunds.Add(refund);
+        public int? OpenShiftId() => _context.Shifts.Where(s => s.Status == "Open").Select(s => (int?)s.ShiftId).SingleOrDefault();
         public void AddLedger(LedgerEntry entry) => _context.LedgerEntries.Add(entry);
 
         public IEnumerable<Sale> GetSalesByCustomerId(int customerId)

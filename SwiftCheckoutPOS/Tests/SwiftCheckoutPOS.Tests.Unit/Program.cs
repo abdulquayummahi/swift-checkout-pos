@@ -477,6 +477,7 @@ internal sealed class FixtureRepository : ICheckoutRepository, ICheckoutDataSess
     public string NextReceiptNumber(DateTime day) => $"SCP-{day:yyyyMMdd}-{++receiptCounter:D4}";
     public void AddDuePayment(CustomerDuePayment payment) => DuePayments.Add(payment);
     public void AddAudit(AuditEvent audit) => Audits.Add(audit);
+    public int? OpenShiftId() => 1; // BP-19: a shift is open in these BLL checks
     public Sale? FindSale(int id) => Sales.SingleOrDefault(s => s.SaleId == id);
     public IReadOnlyList<Sale> GetRecoverableOrders() => Sales.Where(s => s.OrderStatus is "Held" or "Resumed").ToList();
     public void AddSale(Sale sale) { sale.SaleId = Sales.Select(s => s.SaleId).DefaultIfEmpty().Max() + 1; Sales.Add(sale); }
