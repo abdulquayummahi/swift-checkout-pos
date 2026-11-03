@@ -83,6 +83,20 @@
 
         @if ((bool)ViewBag.IsAdmin)
         {
+            var h = (SwiftCheckoutPOS.BLL.Hardware.ReceiptHeaderDTO)ViewBag.Header;
+            <div class="card border-0 shadow-sm mt-4">
+                <div class="card-body">
+                    <h6 class="fw-bold">Receipt header (Admin only)</h6>
+                    <form asp-action="SetReceiptHeader" method="post" class="row g-2">
+                        <div class="col-md-6"><input name="shopName" value="@h.ShopName" maxlength="48" class="form-control" placeholder="Shop name" required /></div>
+                        <div class="col-md-6"><input name="phone" value="@h.Phone" maxlength="48" class="form-control" placeholder="Phone" /></div>
+                        <div class="col-12"><input name="address" value="@h.Address" maxlength="48" class="form-control" placeholder="Address" /></div>
+                        <div class="col-md-6"><input name="bin" value="@h.Bin" maxlength="48" class="form-control" placeholder="BIN (only if VAT-registered)" /></div>
+                        <div class="col-md-6"><input name="footer" value="@h.Footer" maxlength="48" class="form-control" placeholder="Footer message" /></div>
+                        <div class="col-12"><button class="btn btn-sm btn-dark fw-bold">Save header</button></div>
+                    </form>
+                </div>
+            </div>
             <div class="card border-0 shadow-sm mt-4">
                 <div class="card-body">
                     <h6 class="fw-bold">Financial privacy (Admin only)</h6>

@@ -24,7 +24,24 @@ namespace SwiftCheckoutPOS.UI.Controllers
             ViewBag.RetentionHours = _settingsService.GetHeldOrderRetentionHours();
             ViewBag.IsAdmin = User.IsInRole("Admin");
             ViewBag.ManagerFinancialView = _settingsService.GetAllowManagerFinancialView();
+            ViewBag.Header = _settingsService.GetReceiptHeader();
             return View();
+        }
+
+        /// <summary>PR-Q48: receipt header (Admin only, audited).</summary>
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        [Microsoft.AspNetCore.Authorization.Authorize(Roles = "Admin")]
+        public IActionResult SetReceiptHeader(string shopName, string? address, string? phone, string? bin, string? footer)
+        {
+            try
+            {
+                _settingsService.SetReceiptHeader(new SwiftCheckoutPOS.BLL.Hardware.ReceiptHeaderDTO(shopName ?? "", address ?? "", phone ?? "", bin ?? "", footer ?? ""),
+                    SwiftCheckoutPOS.UI.Infrastructure.ActorExtensions.Actor(User), "Admin");
+                TempData["Success"] = "Receipt header saved.";
+            }
+            catch (Exception ex) when (ex is ArgumentException or InvalidOperationException) { TempData["Error"] = ex.Message; }
+            return RedirectToAction(nameof(Index));
         }
 
         /// <summary>PR-Q92: Admin-only, audited.</summary>

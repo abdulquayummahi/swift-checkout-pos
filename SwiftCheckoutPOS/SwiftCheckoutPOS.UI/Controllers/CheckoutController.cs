@@ -208,6 +208,7 @@ public class CheckoutController(
             TempData["Success"] = $"Transaction complete. Receipt: {result.ReceiptNumber} | Payment: {paymentMethod}"
                 + (change > 0 ? $" | Change: {SwiftCheckoutPOS.BLL.Pricing.Money.Bdt(change)}" : "");
             ClearSavedSession();
+            HttpContext.Session.SetString("LastReceipt", result.ReceiptNumber);
             if (!result.AlreadyCompleted) PrintCommittedSale(result.Receipt, plan.Lines.Any(l => l.Tender == "Cash"));
         }
         catch (Exception ex)
@@ -222,6 +223,23 @@ public class CheckoutController(
             }
             ReportFailure(ex);
         }
+        return RedirectToAction(nameof(Index));
+    }
+
+    /// <summary>PR-Q48/Q83: reprint any saved receipt (Cashier and Manager may); marked REPRINT and logged.</summary>
+    [HttpPost]
+    public IActionResult Reprint(string? receiptNumber, [FromServices] ReceiptService receipts)
+    {
+        try
+        {
+            var number = string.IsNullOrWhiteSpace(receiptNumber) ? HttpContext.Session.GetString("LastReceipt") : receiptNumber.Trim();
+            if (string.IsNullOrEmpty(number)) throw new CheckoutValidationException("Enter the receipt number to reprint.");
+            var copy = receipts.Reprint(number, Cashier());
+            printerFactory().PrintReceipt(copy);
+            TempData["Success"] = $"Receipt {copy.ReceiptNumber} reprinted (marked REPRINT / COPY).";
+        }
+        catch (Exception ex) when (ex is ArgumentException or InvalidOperationException) { TempData["Error"] = ex.Message; }
+        catch (Exception ex) { LogFailure(ex); TempData["Error"] = "The printer did not respond. The sale is unchanged."; }
         return RedirectToAction(nameof(Index));
     }
 

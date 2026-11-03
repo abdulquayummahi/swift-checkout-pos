@@ -109,7 +109,22 @@ builder.Services.AddScoped<SettingsService>();
 
 // Virtual printing is the safe operational default. A physical driver must be explicitly
 // enabled only after its port configuration and device health have been verified.
-builder.Services.AddScoped<IReceiptPrinter, VirtualPrinterService>();
+// BP-08: printer from machine configuration "Printer:Mode" = Virtual (default) | EscPosSerial | EscPosWindows.
+builder.Services.AddScoped<ReceiptService>();
+builder.Services.AddScoped<IReceiptPrinter>(services =>
+{
+    var config = services.GetRequiredService<IConfiguration>();
+    var settings = services.GetRequiredService<SettingsService>();
+    Func<SwiftCheckoutPOS.BLL.Hardware.ReceiptHeaderDTO> header = settings.GetReceiptHeader;
+    return config["Printer:Mode"] switch
+    {
+        "EscPosSerial" => new SwiftCheckoutPOS.BLL.Hardware.EscPosPrinter(new SwiftCheckoutPOS.BLL.Hardware.SerialTransport(
+            config["Printer:Port"] ?? "COM3", int.TryParse(config["Printer:BaudRate"], out var baud) ? baud : 9600), header),
+        "EscPosWindows" => new SwiftCheckoutPOS.BLL.Hardware.EscPosPrinter(new SwiftCheckoutPOS.BLL.Hardware.WindowsPrinterTransport(
+            config["Printer:Name"] ?? "POS-80"), header),
+        _ => new VirtualPrinterService(header, config["Paths:VirtualReceipts"])
+    };
+});
 builder.Services.AddScoped<Func<IReceiptPrinter>>(services => () => services.GetRequiredService<IReceiptPrinter>());
 
 builder.Services.AddHostedService<AutoBackupWorker>();

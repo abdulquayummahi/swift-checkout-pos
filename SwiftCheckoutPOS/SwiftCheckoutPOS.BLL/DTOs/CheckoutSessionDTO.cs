@@ -27,6 +27,8 @@ namespace SwiftCheckoutPOS.BLL.DTOs
         public string? ReceiptNumber { get; set; }
         public List<ResolvedTenderDTO>? ReceiptPayments { get; set; }
         public decimal? ReceiptRounding { get; set; }
+        /// <summary>PR-Q83: "printed dd-MM-yyyy HH:mm by NAME" on reprints; null on the original.</summary>
+        public string? ReprintNote { get; set; }
 
         public string CustomerType { get; set; } = "Walk-in";
         public string CustomerName { get; set; } = "";
