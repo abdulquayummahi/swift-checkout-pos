@@ -1,3 +1,4 @@
+@inject SwiftCheckoutPOS.BLL.Services.SettingsService Settings
 <!-- Project: SwiftCheckoutPOS.UI -->
 <!-- File: Views/Shared/_Layout.cshtml -->
 <!DOCTYPE html>
@@ -69,7 +70,29 @@
         <header>
             <nav class="navbar navbar-expand-lg admin-navbar py-2">
                 <div class="container-fluid px-4">
-                    <a class="navbar-brand me-4" asp-controller="AdminDashboard" asp-action="Index">SWIFTPOS ADMIN</a>
+                    @{
+                        var currentController = ViewContext.RouteData.Values["Controller"]?.ToString();
+                        var role = User.FindFirst(System.Security.Claims.ClaimTypes.Role)?.Value ?? "Cashier";
+                        var isAdmin = role == "Admin";
+                        var isManager = isAdmin || role == "Manager";
+                        var canFin = Settings.CanViewFinancials(role);
+                        var links = new List<(string Controller, string Text, bool Show)>
+                        {
+                            ("Checkout", "Checkout", true),
+                            ("Shift", "Shift", true),
+                            (isAdmin ? "AdminDashboard" : "ManagerDashboard", "Dashboard", isManager),
+                            ("InventoryAdmin", "Inventory", isManager),
+                            ("Customer", "Customers", isManager),
+                            ("Refund", "Refunds", isManager),
+                            ("FinanceAdmin", canFin ? "Finance" : "Expenses", isManager),
+                            ("ReportAdmin", "Reports", isManager && canFin),
+                            ("UserAdmin", "Users", isAdmin),
+                            ("BackupAdmin", "Backup", isAdmin),
+                            ("AuditLog", "Audit log", isAdmin),
+                            ("SettingsAdmin", "Settings", isManager)
+                        };
+                    }
+                    <a class="navbar-brand me-4" asp-controller="Checkout" asp-action="Index">SWIFTPOS</a>
 
                     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#adminNav">
                         <span class="navbar-toggler-icon"></span>
@@ -77,36 +100,18 @@
 
                     <div class="collapse navbar-collapse" id="adminNav">
                         <ul class="navbar-nav me-auto mb-2 mb-lg-0 gap-1">
-                            @{
-                                var currentController = ViewContext.RouteData.Values["Controller"]?.ToString();
+                            @foreach (var l in links.Where(l => l.Show))
+                            {
+                                <li class="nav-item">
+                                    <a class="nav-link @(currentController == l.Controller ? "active" : "")" asp-controller="@l.Controller" asp-action="Index">@l.Text</a>
+                                </li>
                             }
-                            <li class="nav-item">
-                                <a class="nav-link @(currentController == "AdminDashboard" ? "active" : "")" asp-controller="AdminDashboard" asp-action="Index">Dashboard</a>
-                            </li>
-                            <li class="nav-item">
-                                <a class="nav-link @(currentController == "InventoryAdmin" ? "active" : "")" asp-controller="InventoryAdmin" asp-action="Index">Inventory</a>
-                            </li>
-                            <li class="nav-item">
-                                <a class="nav-link @(currentController == "ReportAdmin" ? "active" : "")" asp-controller="ReportAdmin" asp-action="Index">Reports</a>
-                            </li>
-                            <li class="nav-item">
-                                <a class="nav-link @(currentController == "UserAdmin" ? "active" : "")" asp-controller="UserAdmin" asp-action="Index">Users</a>
-                            </li>
-                            <li class="nav-item">
-                                <a class="nav-link @(currentController == "Customer" ? "active" : "")" asp-controller="Customer" asp-action="Index">Customers</a>
-                            </li>
-                            <li class="nav-item">
-                                <a class="nav-link @(currentController == "FinanceAdmin" ? "active" : "")" asp-controller="FinanceAdmin" asp-action="Index">Finance</a>
-                            </li>
-                            <li class="nav-item">
-                                <a class="nav-link @(currentController == "SettingsAdmin" ? "active" : "")" asp-controller="SettingsAdmin" asp-action="Index">Settings</a>
-                            </li>
                         </ul>
 
                         <div class="d-flex align-items-center text-white">
                             <div class="me-3 text-end lh-sm">
                                 <div class="fw-bold fs-6">@User.Identity.Name</div>
-                                <div class="text-muted" style="font-size: 0.75rem;">+880 System Admin</div>
+                                <div class="text-muted" style="font-size: 0.75rem;">@(User.FindFirst(System.Security.Claims.ClaimTypes.Role)?.Value)</div>
                             </div>
                             <form asp-controller="Account" asp-action="Logout" method="post" class="m-0">
                                 <button type="submit" class="btn btn-sm btn-outline-light fw-bold">Logout</button>

@@ -1,4 +1,4 @@
-﻿// Project: SwiftCheckoutPOS.BLL
+// Project: SwiftCheckoutPOS.BLL
 // File: Services/ReportService.cs
 using System;
 using System.Linq;
@@ -12,10 +12,13 @@ namespace SwiftCheckoutPOS.BLL.Services
     {
         private readonly SalesRepository _salesRepo;
 
-        public ReportService(SalesRepository salesRepo)
+        public ReportService(SalesRepository salesRepo, MetricsService metrics)
         {
             _salesRepo = salesRepo;
+            _metrics = metrics;
         }
+
+        private readonly MetricsService _metrics;
 
         public ReportDashboardDTO GetAdvancedReport(DateTime? startDate, DateTime? endDate, string searchQuery)
         {
@@ -40,16 +43,16 @@ namespace SwiftCheckoutPOS.BLL.Services
                 allSales = allSales.Where(s => s.ReceiptNumber.ToLower().Contains(query)).ToList();
             }
 
-            var completedSales = allSales.Where(s => s.OrderStatus == "Completed").ToList();
+            var completedSales = allSales.Where(s => (s.OrderStatus == "Completed" || s.OrderStatus == "PartiallyRefunded")).ToList();
             var heldSales = allSales.Where(s => s.OrderStatus == "Held").ToList();
             var refundedSales = allSales.Where(s => s.OrderStatus == "Refunded").ToList();
 
-            decimal totalDiscount = completedSales.Sum(s => s.SubTotal + s.TaxAmount - s.TotalAmount);
-            decimal totalCost = completedSales.SelectMany(s => s.SaleItems).Sum(si => (si.Product?.CostPrice ?? 0) * si.Quantity);
+            decimal totalDiscount = completedSales.Sum(s => s.SubTotal - s.TotalAmount);
+            decimal totalCost = completedSales.SelectMany(s => s.SaleItems).Sum(si => si.CostAtSale * si.Quantity);
 
             var salesDtos = allSales.Select(s => {
-                decimal discount = s.SubTotal + s.TaxAmount - s.TotalAmount;
-                decimal cost = s.SaleItems.Sum(si => (si.Product?.CostPrice ?? 0) * si.Quantity);
+                decimal discount = s.SubTotal - s.TotalAmount;
+                decimal cost = s.SaleItems.Sum(si => si.CostAtSale * si.Quantity);
 
                 return new SaleDTO
                 {
@@ -65,7 +68,7 @@ namespace SwiftCheckoutPOS.BLL.Services
                     CustomerPhone = s.Customer?.PhoneNumber,
                     CashierName = s.CashierName,
                     DiscountAmount = discount,
-                    EstimatedProfit = s.SubTotal - cost - discount,
+                    EstimatedProfit = s.TotalAmount - s.TaxAmount - cost,
                     SaleItems = s.SaleItems.Select(si => new SaleItemDTO
                     {
                         ProductId = si.ProductId,
@@ -77,20 +80,24 @@ namespace SwiftCheckoutPOS.BLL.Services
                 };
             }).OrderByDescending(s => s.SaleDate).ToList();
 
+            // PR-Q59: KPI cards follow the date range only; the search filters the table only.
+            var (from, to) = MetricsService.Days(appliedStart, appliedEnd);
+            var m = _metrics.Period(from, to);
             return new ReportDashboardDTO
             {
                 AppliedStartDate = appliedStart,
                 AppliedEndDate = appliedEnd,
-                GrossRevenue = completedSales.Sum(s => s.TotalAmount),
-                EstimatedProfit = completedSales.Sum(s => s.SubTotal) - totalCost - totalDiscount,
-                TotalDiscounts = totalDiscount,
-                CompletedOrders = completedSales.Count,
-                ItemsSold = completedSales.SelectMany(s => s.SaleItems).Sum(si => si.Quantity),
-                TaxLiabilities = completedSales.Sum(s => s.TaxAmount),
-                HeldTransactions = heldSales.Count,
-                HeldOrdersAmount = heldSales.Sum(s => s.TotalAmount),
-                RefundedTransactions = refundedSales.Count,
-                RefundedOrdersAmount = refundedSales.Sum(s => s.TotalAmount),
+                GrossRevenue = m.NetSales,          // net sales excl. VAT, after refunds (PR-Q36)
+                EstimatedProfit = m.GrossProfit,    // at cost of sale (PR-Q37)
+                TotalDiscounts = m.Discounts,
+                CompletedOrders = m.SalesCount,
+                ItemsSold = m.ItemsSold,
+                TaxLiabilities = m.Vat,
+                HeldTransactions = _metrics.HeldCount(),
+                HeldOrdersAmount = _metrics.HeldAmount(),
+                RefundedTransactions = m.RefundCount,
+                RefundedOrdersAmount = m.RefundsExVat,
+                UnknownCostSales = m.UnknownCostSales,
                 Transactions = salesDtos
             };
         }
@@ -104,26 +111,25 @@ namespace SwiftCheckoutPOS.BLL.Services
         // ARCHITECT FIX: Dynamic Range Report Engine
         public ZReportDTO GenerateZReport(DateTime startDate, DateTime endDate)
         {
-            DateTime queryStart = startDate.Date;
-            DateTime queryEnd = endDate.Date.AddDays(1).AddTicks(-1);
-
-            var sales = _salesRepo.GetSalesByDateRange(queryStart, queryEnd)
-                                  .Where(s => s.OrderStatus == "Completed")
-                                  .ToList();
-
+            var (from, to) = MetricsService.Days(startDate, endDate);
+            var m = _metrics.Period(from, to);
             return new ZReportDTO
             {
                 ReportDate = endDate.Date,
-                StartDate = queryStart,
-                EndDate = queryEnd,
-                TotalTransactions = sales.Count,
-                NetRevenue = sales.Sum(s => s.SubTotal),
-                TotalDiscounts = sales.Sum(s => s.SubTotal + s.TaxAmount - s.TotalAmount),
-                TotalTaxCollected = sales.Sum(s => s.TaxAmount),
-                GrossRevenue = sales.Sum(s => s.TotalAmount),
-                CashTotal = sales.Where(s => s.PaymentMethod == "Cash").Sum(s => s.TotalAmount),
-                CardTotal = sales.Where(s => s.PaymentMethod == "Card").Sum(s => s.TotalAmount),
-                MobileWalletTotal = sales.Where(s => s.PaymentMethod == "Mobile Wallet").Sum(s => s.TotalAmount)
+                StartDate = from,
+                EndDate = to.AddTicks(-1),
+                TotalTransactions = m.SalesCount,
+                NetRevenue = m.NetSales,
+                TotalDiscounts = m.Discounts,
+                TotalTaxCollected = m.Vat,
+                GrossRevenue = m.GrossSalesInclVat,
+                RefundsTotal = m.RefundsExVat,
+                CashTotal = m.Tenders.GetValueOrDefault("Cash"),
+                CardTotal = m.Tenders.GetValueOrDefault("Card"),
+                BkashTotal = m.Tenders.GetValueOrDefault("bKash"),
+                NagadTotal = m.Tenders.GetValueOrDefault("Nagad"),
+                DueTotal = m.Tenders.GetValueOrDefault("Due"),
+                MobileWalletTotal = m.Tenders.GetValueOrDefault("Mobile Wallet") + m.Tenders.GetValueOrDefault("bKash") + m.Tenders.GetValueOrDefault("Nagad")
             };
         }
 
@@ -157,17 +163,20 @@ namespace SwiftCheckoutPOS.BLL.Services
             sb.AppendLine(new string('-', paperWidth));
 
             sb.AppendLine($"Total Transactions: {report.TotalTransactions}");
-            sb.AppendLine($"Subtotal (Gross): BDT {report.NetRevenue:N2}");
-            sb.AppendLine($"Discounts Appld: -BDT {report.TotalDiscounts:N2}");
-            sb.AppendLine($"Tax Collected:   +BDT {report.TotalTaxCollected:N2}");
+            sb.AppendLine($"Sales (incl. VAT): BDT {report.GrossRevenue:N2}");
+            sb.AppendLine($"Discounts given:   BDT {report.TotalDiscounts:N2}");
+            if (report.TotalTaxCollected != 0) sb.AppendLine($"VAT included:      BDT {report.TotalTaxCollected:N2}");
+            sb.AppendLine($"Refunds:          -BDT {report.RefundsTotal:N2}");
             sb.AppendLine(new string('-', paperWidth));
-            sb.AppendLine($"Net Collected:    BDT {report.GrossRevenue:N2}");
+            sb.AppendLine($"Net sales (ex VAT): BDT {report.NetRevenue:N2}");
             sb.AppendLine(new string('=', paperWidth));
 
             sb.AppendLine("TENDER BREAKDOWN:");
             sb.AppendLine($"Cash:             BDT {report.CashTotal:N2}");
             sb.AppendLine($"Card:             BDT {report.CardTotal:N2}");
-            sb.AppendLine($"Mobile Wallet:    BDT {report.MobileWalletTotal:N2}");
+            sb.AppendLine($"bKash:            BDT {report.BkashTotal:N2}");
+            sb.AppendLine($"Nagad:            BDT {report.NagadTotal:N2}");
+            sb.AppendLine($"Due (credit):     BDT {report.DueTotal:N2}");
             sb.AppendLine(new string('=', paperWidth));
 
             sb.AppendLine(CenterText("REPORT GENERATED SECURELY", paperWidth));

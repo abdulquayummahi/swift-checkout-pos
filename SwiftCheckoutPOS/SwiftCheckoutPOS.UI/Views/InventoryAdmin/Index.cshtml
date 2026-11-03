@@ -127,12 +127,14 @@
                     <option value="name_desc" selected="@(ViewBag.SortOrder == "name_desc")">Alphabetical (Z-A)</option>
                     <option value="stock_desc" selected="@(ViewBag.SortOrder == "stock_desc")">Stock (High to Low)</option>
                     <option value="stock_asc" selected="@(ViewBag.SortOrder == "stock_asc")">Stock (Low to High)</option>
+                    @if ((bool)ViewBag.CanViewFinancials) {
                     <option value="margin_desc" selected="@(ViewBag.SortOrder == "margin_desc")">Margin (High to Low)</option>
                     <option value="margin_asc" selected="@(ViewBag.SortOrder == "margin_asc")">Margin (Low to High)</option>
                     <option value="retail_desc" selected="@(ViewBag.SortOrder == "retail_desc")">Retail Price (High to Low)</option>
                     <option value="retail_asc" selected="@(ViewBag.SortOrder == "retail_asc")">Retail Price (Low to High)</option>
                     <option value="cost_desc" selected="@(ViewBag.SortOrder == "cost_desc")">Cost Price (High to Low)</option>
                     <option value="cost_asc" selected="@(ViewBag.SortOrder == "cost_asc")">Cost Price (Low to High)</option>
+                    }
                     <option value="status_asc" selected="@(ViewBag.SortOrder == "status_asc")">Status (Active First)</option>
                     <option value="status_desc" selected="@(ViewBag.SortOrder == "status_desc")">Status (Inactive First)</option>
                 </select>
@@ -153,9 +155,9 @@
                         <th>Barcode</th>
                         <th>Product Name</th>
                         <th class="text-center">Category</th>
-                        <th class="text-end">Cost</th>
+                        @if ((bool)ViewBag.CanViewFinancials) { <th class="text-end">Cost</th> }
                         <th class="text-end">Retail Price</th>
-                        <th class="text-end">Margin</th>
+                        @if ((bool)ViewBag.CanViewFinancials) { <th class="text-end">Margin</th> }
                         <th class="text-center">Stock</th>
                         <th class="text-center">Status</th>
                         <th class="text-center pe-4">Actions</th>
@@ -179,12 +181,14 @@
                                 <td class="font-monospace fw-bold text-muted">@product.Barcode</td>
                                 <td class="fw-bold text-dark">@product.ProductName</td>
                                 <td class="text-center"><span class="badge bg-secondary rounded-pill px-3 py-2 text-white">@product.CategoryName</span></td>
-                                <td class="text-end text-muted">BDT @product.CostPrice.ToString("N2")</td>
+                                @if ((bool)ViewBag.CanViewFinancials) { <td class="text-end text-muted">BDT @product.CostPrice.ToString("N2")</td> }
                                 <td class="text-end fw-bold text-dark fs-6">BDT @product.SellingPrice.ToString("N2")</td>
 
+                                @if ((bool)ViewBag.CanViewFinancials) {
                                 <td class="text-end fw-bold @(product.MarginPercentage >= 0 ? "text-success" : "text-danger")">
                                     @product.MarginPercentage.ToString("0.0")%
                                 </td>
+                                }
 
                                 <td class="text-center fw-bold fs-6">
                                     @if (product.StockQuantity <= product.ReorderLevel)

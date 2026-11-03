@@ -1,9 +1,10 @@
-﻿// Project: SwiftCheckoutPOS.UI
+// Project: SwiftCheckoutPOS.UI
 // File: Controllers/FinanceAdminController.cs
 using System;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using SwiftCheckoutPOS.BLL.Services;
+using SwiftCheckoutPOS.UI.Infrastructure;
 
 namespace SwiftCheckoutPOS.UI.Controllers
 {
@@ -11,10 +12,12 @@ namespace SwiftCheckoutPOS.UI.Controllers
     public class FinanceAdminController : Controller
     {
         private readonly FinanceService _financeService;
+        private readonly SettingsService _settings;
 
-        public FinanceAdminController(FinanceService financeService)
+        public FinanceAdminController(FinanceService financeService, SettingsService settings)
         {
             _financeService = financeService;
+            _settings = settings;
         }
 
         [HttpGet]
@@ -25,6 +28,9 @@ namespace SwiftCheckoutPOS.UI.Controllers
             ViewBag.EndDate = endDate?.ToString("yyyy-MM-dd") ?? DateTime.Today.ToString("yyyy-MM-dd");
             ViewBag.SearchQuery = searchQuery;
 
+            // PR-Q92: without financial view a Manager gets only the expense form and their own entries today.
+            if (!User.CanViewFinancials(_settings))
+                return View("Expenses", _financeService.GetOwnEntriesToday(User.Actor()));
             try
             {
                 var dashboard = _financeService.GetFinanceDashboard(startDate, endDate, searchQuery);
@@ -32,23 +38,24 @@ namespace SwiftCheckoutPOS.UI.Controllers
             }
             catch (Exception ex)
             {
-                TempData["Error"] = $"Ledger Fault: {ex.Message}";
+                TempData["Error"] = "The finance figures could not be loaded."; // never show raw exception text
                 return View(new BLL.DTOs.FinanceDashboardDTO());
             }
         }
 
         [HttpPost]
         [ValidateAntiForgeryToken]
-        public IActionResult AddEntry(string category, string transactionType, decimal amount, string description)
+        public IActionResult AddEntry(string category, string? transactionType, decimal amount, string? description)
         {
             try
             {
-                _financeService.RecordManualEntry(category, transactionType, amount, description, User.Identity?.Name ?? "Admin");
-                TempData["Success"] = "Ledger entry recorded successfully.";
+                _financeService.RecordManualEntry(category, transactionType, amount, description, User.Actor(),
+                    expensesOnly: !User.CanViewFinancials(_settings));
+                TempData["Success"] = "Entry recorded.";
             }
-            catch (Exception ex)
+            catch (Exception ex) when (ex is ArgumentException or InvalidOperationException)
             {
-                TempData["Error"] = $"Transaction Fault: {ex.Message}";
+                TempData["Error"] = ex.Message;
             }
             return RedirectToAction(nameof(Index));
         }

@@ -1,4 +1,4 @@
-﻿// Project: SwiftCheckoutPOS.BLL
+// Project: SwiftCheckoutPOS.BLL
 // File: DTOs/ReportDashboardDTO.cs
 using System;
 using System.Collections.Generic;
@@ -21,6 +21,8 @@ namespace SwiftCheckoutPOS.BLL.DTOs
         public decimal HeldOrdersAmount { get; set; }
         public int RefundedTransactions { get; set; }
         public decimal RefundedOrdersAmount { get; set; }
+        /// <summary>PR-Q38: sales with unknown cost, excluded from profit.</summary>
+        public int UnknownCostSales { get; set; }
 
         public List<SaleDTO> Transactions { get; set; } = new List<SaleDTO>();
     }

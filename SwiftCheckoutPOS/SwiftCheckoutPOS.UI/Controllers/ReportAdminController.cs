@@ -1,4 +1,4 @@
-﻿// Project: SwiftCheckoutPOS.UI
+// Project: SwiftCheckoutPOS.UI
 // File: Controllers/ReportAdminController.cs
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -9,6 +9,7 @@ using System;
 namespace SwiftCheckoutPOS.UI.Controllers
 {
     [Authorize(Roles = "Admin,Manager")]
+    [Authorize(Policy = SwiftCheckoutPOS.UI.Infrastructure.FinancialViewRequirement.Policy)] // PR-Q92
     public class ReportAdminController : Controller
     {
         private readonly ReportService _reportService;

@@ -1,4 +1,4 @@
-﻿// Project: SwiftCheckoutPOS.BLL
+// Project: SwiftCheckoutPOS.BLL
 // File: Services/CustomerService.cs
 using System;
 using System.Collections.Generic;
@@ -54,11 +54,11 @@ namespace SwiftCheckoutPOS.BLL.Services
 
             var aggregatedProfiles = customers.Select(c => {
                 var customerSales = allLoyaltySales.Where(s => s.CustomerId == c.CustomerId).ToList();
-                var completedSales = customerSales.Where(s => s.OrderStatus == "Completed").ToList();
+                var completedSales = customerSales.Where(s => (s.OrderStatus == "Completed" || s.OrderStatus == "PartiallyRefunded")).ToList();
                 var refundedSales = customerSales.Where(s => s.OrderStatus == "Refunded").ToList();
 
-                decimal totalDiscount = completedSales.Sum(s => s.SubTotal + s.TaxAmount - s.TotalAmount);
-                decimal totalCost = completedSales.SelectMany(s => s.SaleItems).Sum(si => (si.Product?.CostPrice ?? 0) * si.Quantity);
+                decimal totalDiscount = completedSales.Sum(s => s.SubTotal - s.TotalAmount);
+                decimal totalCost = completedSales.SelectMany(s => s.SaleItems).Sum(si => si.CostAtSale * si.Quantity);
 
                 return new CustomerProfileDTO
                 {
@@ -67,8 +67,8 @@ namespace SwiftCheckoutPOS.BLL.Services
                     PhoneNumber = c.PhoneNumber,
                     Address = c.Address,
                     LoyaltyPoints = c.LoyaltyPoints,
-                    TotalRevenue = completedSales.Sum(s => s.TotalAmount),
-                    EstimatedProfit = completedSales.Sum(s => s.SubTotal) - totalCost - totalDiscount,
+                    TotalRevenue = completedSales.Sum(s => s.TotalAmount - s.TaxAmount),
+                    EstimatedProfit = completedSales.Sum(s => s.TotalAmount - s.TaxAmount) - totalCost,
                     TotalDiscounts = totalDiscount,
                     TotalRefunded = refundedSales.Sum(s => s.TotalAmount),
                     TotalPurchases = completedSales.Count,
@@ -135,11 +135,11 @@ namespace SwiftCheckoutPOS.BLL.Services
             if (customer == null) throw new Exception("Customer not found in the database.");
 
             var allSales = _salesRepo.GetSalesByCustomerId(customerId);
-            var completedSales = allSales.Where(s => s.OrderStatus == "Completed").ToList();
+            var completedSales = allSales.Where(s => (s.OrderStatus == "Completed" || s.OrderStatus == "PartiallyRefunded")).ToList();
             var refundedSales = allSales.Where(s => s.OrderStatus == "Refunded").ToList();
 
-            decimal totalDiscount = completedSales.Sum(s => s.SubTotal + s.TaxAmount - s.TotalAmount);
-            decimal totalCost = completedSales.SelectMany(s => s.SaleItems).Sum(si => (si.Product?.CostPrice ?? 0) * si.Quantity);
+            decimal totalDiscount = completedSales.Sum(s => s.SubTotal - s.TotalAmount);
+            decimal totalCost = completedSales.SelectMany(s => s.SaleItems).Sum(si => si.CostAtSale * si.Quantity);
 
             return new CustomerProfileDTO
             {
@@ -149,16 +149,16 @@ namespace SwiftCheckoutPOS.BLL.Services
                 Address = customer.Address,
                 LoyaltyPoints = customer.LoyaltyPoints,
 
-                TotalRevenue = completedSales.Sum(s => s.TotalAmount),
-                EstimatedProfit = completedSales.Sum(s => s.SubTotal) - totalCost - totalDiscount,
+                TotalRevenue = completedSales.Sum(s => s.TotalAmount - s.TaxAmount),
+                EstimatedProfit = completedSales.Sum(s => s.TotalAmount - s.TaxAmount) - totalCost,
                 TotalDiscounts = totalDiscount,
                 TotalRefunded = refundedSales.Sum(s => s.TotalAmount),
                 TotalPurchases = completedSales.Count,
                 TotalItemsSold = completedSales.SelectMany(s => s.SaleItems).Sum(si => si.Quantity),
 
                 PurchaseHistory = allSales.Select(s => {
-                    decimal discount = s.SubTotal + s.TaxAmount - s.TotalAmount;
-                    decimal cost = s.SaleItems.Sum(si => (si.Product?.CostPrice ?? 0) * si.Quantity);
+                    decimal discount = s.SubTotal - s.TotalAmount;
+                    decimal cost = s.SaleItems.Sum(si => si.CostAtSale * si.Quantity);
                     return new SaleDTO
                     {
                         SaleId = s.SaleId,
@@ -170,7 +170,7 @@ namespace SwiftCheckoutPOS.BLL.Services
                         CustomerName = customer.FullName,
                         CustomerPhone = customer.PhoneNumber,
                         DiscountAmount = discount,
-                        EstimatedProfit = s.SubTotal - cost - discount,
+                        EstimatedProfit = s.TotalAmount - s.TaxAmount - cost,
                         SaleItems = s.SaleItems.Select(si => new SaleItemDTO
                         {
                             ProductId = si.ProductId,

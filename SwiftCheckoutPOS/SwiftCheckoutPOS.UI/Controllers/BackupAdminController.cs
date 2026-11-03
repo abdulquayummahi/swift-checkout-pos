@@ -1,4 +1,4 @@
-﻿// Project: SwiftCheckoutPOS.UI
+// Project: SwiftCheckoutPOS.UI
 // File: Controllers/BackupAdminController.cs
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -9,7 +9,7 @@ using System.IO;
 
 namespace SwiftCheckoutPOS.UI.Controllers
 {
-    [Authorize(Roles = "Admin,Manager")]
+    [Authorize(Roles = "Admin")] // PR-Q50/Q92: backup, download and restore are Admin-only
     public class BackupAdminController : Controller
     {
         private readonly BackupService _backupService;

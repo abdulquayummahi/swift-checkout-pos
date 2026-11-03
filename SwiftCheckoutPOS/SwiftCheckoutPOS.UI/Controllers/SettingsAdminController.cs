@@ -1,4 +1,4 @@
-﻿// Project: SwiftCheckoutPOS.UI
+// Project: SwiftCheckoutPOS.UI
 // File: Controllers/SettingsAdminController.cs
 using System;
 using Microsoft.AspNetCore.Authorization;
@@ -22,7 +22,24 @@ namespace SwiftCheckoutPOS.UI.Controllers
         {
             // Fetch the current dynamic setting from the Tier 2 BLL
             ViewBag.RetentionHours = _settingsService.GetHeldOrderRetentionHours();
+            ViewBag.IsAdmin = User.IsInRole("Admin");
+            ViewBag.ManagerFinancialView = _settingsService.GetAllowManagerFinancialView();
             return View();
+        }
+
+        /// <summary>PR-Q92: Admin-only, audited.</summary>
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        [Microsoft.AspNetCore.Authorization.Authorize(Roles = "Admin")]
+        public IActionResult SetManagerFinancialView(bool allow)
+        {
+            try
+            {
+                _settingsService.SetAllowManagerFinancialView(allow, SwiftCheckoutPOS.UI.Infrastructure.ActorExtensions.Actor(User), "Admin");
+                TempData["Success"] = allow ? "Managers can now view financial reports." : "Financial reports are now Admin-only.";
+            }
+            catch (InvalidOperationException ex) { TempData["Error"] = ex.Message; }
+            return RedirectToAction(nameof(Index));
         }
 
         [HttpPost]

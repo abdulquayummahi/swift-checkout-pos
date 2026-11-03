@@ -1,4 +1,4 @@
-﻿// Project: SwiftCheckoutPOS.UI
+// Project: SwiftCheckoutPOS.UI
 // File: Controllers/CustomerController.cs
 using System;
 using Microsoft.AspNetCore.Authorization;
@@ -12,17 +12,24 @@ namespace SwiftCheckoutPOS.UI.Controllers
     {
         private readonly CustomerService _customerService;
 
-        public CustomerController(CustomerService customerService)
+        private readonly SettingsService _settings;
+
+        public CustomerController(CustomerService customerService, SettingsService settings)
         {
             _customerService = customerService;
+            _settings = settings;
         }
 
         [HttpGet]
         public IActionResult Index(string searchQuery, string sortOrder)
         {
             ViewBag.SearchQuery = searchQuery;
-            ViewBag.SortOrder = sortOrder; // Persist sorting state
-            var customers = _customerService.GetAllCustomers(searchQuery, sortOrder);
+            var canFin = SwiftCheckoutPOS.UI.Infrastructure.FinancialViewExtensions.CanViewFinancials(User, _settings);
+            ViewBag.CanViewFinancials = canFin;
+            if (!canFin && sortOrder is not null && sortOrder.StartsWith("profit")) sortOrder = null; // PR-Q92
+            ViewBag.SortOrder = sortOrder;
+            var customers = _customerService.GetAllCustomers(searchQuery, sortOrder).ToList();
+            if (!canFin) foreach (var c in customers) c.EstimatedProfit = 0;
             return View(customers);
         }
 
@@ -37,7 +44,7 @@ namespace SwiftCheckoutPOS.UI.Controllers
             }
             catch (Exception ex)
             {
-                TempData["Error"] = $"Enrollment Fault: {ex.Message}";
+                TempData["Error"] = ex is ArgumentException or InvalidOperationException ? ex.Message : "The customer could not be saved.";
             }
             return RedirectToAction(nameof(Index));
         }
@@ -48,11 +55,18 @@ namespace SwiftCheckoutPOS.UI.Controllers
             try
             {
                 var profile = _customerService.GetCustomerProfile(id);
+                var canFin = SwiftCheckoutPOS.UI.Infrastructure.FinancialViewExtensions.CanViewFinancials(User, _settings);
+                ViewBag.CanViewFinancials = canFin;
+                if (!canFin)
+                {
+                    profile.EstimatedProfit = 0;
+                    foreach (var t in profile.PurchaseHistory) t.EstimatedProfit = 0;
+                }
                 return View(profile);
             }
             catch (Exception ex)
             {
-                TempData["Error"] = $"Data Retrieval Fault: {ex.Message}";
+                TempData["Error"] = "Customer not found.";
                 return RedirectToAction(nameof(Index));
             }
         }

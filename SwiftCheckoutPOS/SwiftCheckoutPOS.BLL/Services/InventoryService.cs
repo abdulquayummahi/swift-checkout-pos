@@ -115,7 +115,7 @@ namespace SwiftCheckoutPOS.BLL.Services
         {
             ValidateMoney(newProductDto.CostPrice, newProductDto.SellingPrice, newProductDto.TaxRate);
             if (newProductDto.StockQuantity < 0) throw new ArgumentException("Opening stock cannot be negative.");
-            if (newProductDto.SellingPrice < newProductDto.CostPrice) throw new ArgumentException("Selling price cannot be lower than wholesale cost price.");
+            if (newProductDto.SellingPrice < newProductDto.CostPrice) throw new ArgumentException(BelowMinimum);
 
             // T06: product, opening-stock ledger entry and audit are saved together or not at all.
             _unit.Run(() =>
@@ -153,7 +153,7 @@ namespace SwiftCheckoutPOS.BLL.Services
         public void UpdateProduct(ProductDTO dto, int categoryId, string actor = "SYSTEM")
         {
             ValidateMoney(dto.CostPrice, dto.SellingPrice, dto.TaxRate);
-            if (dto.SellingPrice < dto.CostPrice) throw new ArgumentException("Loss Prevention: Selling price cannot be lower than cost price.");
+            if (!dto.KeepCost && dto.SellingPrice < dto.CostPrice) throw new ArgumentException(BelowMinimum);
             try
             {
                 _unit.Run(() =>
@@ -164,7 +164,8 @@ namespace SwiftCheckoutPOS.BLL.Services
                     if (entity.Barcode != dto.Barcode && _inventoryRepo.GetProductByBarcode(dto.Barcode) != null)
                         throw new InvalidOperationException($"Barcode '{dto.Barcode}' is already assigned.");
 
-                    var newCost = Pricing.Money.R2(dto.CostPrice);
+                    var newCost = dto.KeepCost ? entity.CostPrice : Pricing.Money.R2(dto.CostPrice);
+                    if (dto.SellingPrice < newCost) throw new ArgumentException(BelowMinimum);
                     var newPrice = Pricing.Money.R2(dto.SellingPrice);
                     var newTax = Pricing.Money.R2(dto.TaxRate);
                     if (entity.CostPrice != newCost || entity.SellingPrice != newPrice || entity.TaxRate != newTax)
@@ -236,7 +237,7 @@ namespace SwiftCheckoutPOS.BLL.Services
                 if (newRetailPrice.HasValue && newRetailPrice.Value > 0)
                 {
                     if (newRetailPrice.Value < product.CostPrice)
-                        throw new InvalidOperationException("Loss Prevention Alert: Target retail price is below the new blended wholesale cost.");
+                        throw new InvalidOperationException(BelowMinimum);
                     var price = Pricing.Money.R2(newRetailPrice.Value);
                     if (price != product.SellingPrice)
                         _unit.Audit(actor, "PriceChange", "Product", product.Barcode, details: $"Price {product.SellingPrice:0.00}->{price:0.00} (restock)");
@@ -266,6 +267,9 @@ namespace SwiftCheckoutPOS.BLL.Services
                     $"-{returnQty} units; refund received {refundAmount:0.00}");
             });
         }
+
+        /// <summary>PR-Q92: never reveals the cost.</summary>
+        public const string BelowMinimum = "Price is below the allowed minimum — ask Admin.";
 
         private static void ValidateMoney(decimal cost, decimal price, decimal tax)
         {

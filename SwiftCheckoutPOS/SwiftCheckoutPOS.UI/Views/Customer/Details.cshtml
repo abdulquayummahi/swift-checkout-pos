@@ -154,7 +154,7 @@
                 <div class="col-md-3">
                     <div class="metric-card card-green p-3">
                         <div class="metric-icon mb-2" style="width:30px; height:30px; font-size:1rem;">📈</div>
-                        <div><div class="metric-value fs-4">@Model.EstimatedProfit.ToString("N2")</div><div class="metric-label" style="font-size:0.7rem;">Generated Profit</div></div>
+                        <div><div class="metric-value fs-4">@((bool)ViewBag.CanViewFinancials ? Model.EstimatedProfit.ToString("N2") : "Admin only")</div><div class="metric-label" style="font-size:0.7rem;">Generated Profit</div></div>
                     </div>
                 </div>
                 <div class="col-md-3">
@@ -301,7 +301,7 @@
                         </div>
                         <div class="d-flex justify-content-between align-items-center">
                             <span class="text-muted small fw-bold">Discount: <span class="text-danger">-BDT @txn.DiscountAmount.ToString("N2")</span></span>
-                            <span class="text-muted small fw-bold">Est. Profit: <span class="text-success">BDT @txn.EstimatedProfit.ToString("N2")</span></span>
+                            @if ((bool)ViewBag.CanViewFinancials) { <span class="text-muted small fw-bold">Est. Profit: <span class="text-success">BDT @txn.EstimatedProfit.ToString("N2")</span></span> }
                         </div>
                     </div>
                     <div style="max-height: 350px; overflow-y: auto;">

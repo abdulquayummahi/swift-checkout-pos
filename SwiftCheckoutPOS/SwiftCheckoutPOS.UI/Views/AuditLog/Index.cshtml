@@ -1,0 +1,16 @@
+@model IReadOnlyList<SwiftCheckoutPOS.DAL.Entities.AuditEvent>
+@{ ViewData["Title"] = "Audit log"; }
+<div class="container-fluid py-4 px-4">
+    <h2 class="fw-bold">Audit log</h2>
+    <p class="text-muted">Last 300 sensitive actions: price changes, stock corrections, discounts approved, refunds, voids, drawer openings, shifts and setting changes.</p>
+    <table class="table table-sm bg-white shadow-sm">
+        <thead><tr><th>When</th><th>Who</th><th>Action</th><th>On</th><th>Reason</th><th>Details</th></tr></thead>
+        <tbody>
+        @foreach (var a in Model)
+        {
+            <tr><td class="text-nowrap">@a.OccurredAt.ToString("dd-MM-yyyy HH:mm:ss")</td><td>@a.Actor</td><td class="fw-bold">@a.Action</td>
+                <td>@a.EntityType @a.EntityKey</td><td>@a.Reason</td><td class="small">@a.Details</td></tr>
+        }
+        </tbody>
+    </table>
+</div>

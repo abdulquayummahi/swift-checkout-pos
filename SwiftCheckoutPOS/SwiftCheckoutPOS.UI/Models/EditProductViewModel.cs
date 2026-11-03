@@ -26,8 +26,8 @@ namespace SwiftCheckoutPOS.UI.Models
 
         [Required]
         [Range(0.01, 100000, ErrorMessage = "Cost price must be greater than zero.")]
-        [Display(Name = "Wholesale Cost (BDT)")]
-        public decimal CostPrice { get; set; }
+        [Display(Name = "Cost Price")]
+        public decimal? CostPrice { get; set; } // null = keep current cost (write-only for Managers, CQ-03)
 
         [Required]
         [Range(0.01, 100000, ErrorMessage = "Selling price must be greater than zero.")]

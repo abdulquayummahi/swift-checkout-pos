@@ -1,4 +1,4 @@
-﻿// Project: SwiftCheckoutPOS.BLL
+// Project: SwiftCheckoutPOS.BLL
 // File: DTOs/FinanceDTOs.cs
 using System;
 using System.Collections.Generic;
@@ -31,5 +31,10 @@ namespace SwiftCheckoutPOS.BLL.DTOs
         public decimal AverageMonthlyProfit { get; set; }
         public decimal PaybackPercentage { get; set; }
         public int EstimatedMonthsToBreakEven { get; set; }
+        public string PaybackEstimate { get; set; } = "";
+        public DateTime PeriodFrom { get; set; }
+        public DateTime PeriodTo { get; set; }
+        public SwiftCheckoutPOS.BLL.Services.PeriodMetricsDTO Period { get; set; } = new();
+        public SwiftCheckoutPOS.BLL.Services.LifetimeMetricsDTO Lifetime { get; set; } = new();
     }
 }

@@ -46,8 +46,11 @@ builder.Services.AddAuthentication("POSAuthCookie")
         options.AccessDeniedPath = "/Account/AccessDenied";
     });
 
+builder.Services.AddScoped<Microsoft.AspNetCore.Authorization.IAuthorizationHandler, SwiftCheckoutPOS.UI.Infrastructure.FinancialViewHandler>();
 builder.Services.AddAuthorization(options =>
 {
+    options.AddPolicy(SwiftCheckoutPOS.UI.Infrastructure.FinancialViewRequirement.Policy,
+        policy => policy.RequireAuthenticatedUser().AddRequirements(new SwiftCheckoutPOS.UI.Infrastructure.FinancialViewRequirement()));
     options.FallbackPolicy = new AuthorizationPolicyBuilder("POSAuthCookie")
         .RequireAuthenticatedUser()
         .Build();
@@ -58,6 +61,8 @@ builder.Services.AddDbContext<ApplicationDbContext>(options =>
     options.UseSqlServer(connectionString, sqlOptions => sqlOptions.EnableRetryOnFailure()));
 
 builder.Services.AddScoped<AtomicUnit>();
+builder.Services.AddScoped<MetricsRepository>();
+builder.Services.AddScoped<MetricsService>();
 builder.Services.AddScoped<ShiftRepository>();
 builder.Services.AddScoped<ShiftService>();
 builder.Services.AddScoped<UserRepository>();

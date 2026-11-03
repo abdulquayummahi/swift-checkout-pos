@@ -21,8 +21,11 @@ namespace SwiftCheckoutPOS.UI.Controllers
         private readonly InventoryService _inventoryService;
         private readonly IWebHostEnvironment _webHostEnvironment;
 
-        public InventoryAdminController(InventoryService inventoryService, IWebHostEnvironment webHostEnvironment)
+        private readonly SettingsService _settings;
+
+        public InventoryAdminController(InventoryService inventoryService, IWebHostEnvironment webHostEnvironment, SettingsService settings)
         {
+            _settings = settings;
             _inventoryService = inventoryService;
             _webHostEnvironment = webHostEnvironment;
         }
@@ -31,9 +34,13 @@ namespace SwiftCheckoutPOS.UI.Controllers
         public IActionResult Index(string searchQuery, string sortOrder)
         {
             ViewBag.SearchQuery = searchQuery;
+            var canFin = User.CanViewFinancials(_settings);
+            ViewBag.CanViewFinancials = canFin;
+            // PR-Q92: cost/margin values and sort keys never reach a Manager without financial view.
+            if (!canFin && sortOrder is not null && (sortOrder.StartsWith("cost") || sortOrder.StartsWith("margin"))) sortOrder = null;
             ViewBag.SortOrder = sortOrder;
-
-            var products = _inventoryService.GetAllSystemProducts(searchQuery, sortOrder);
+            var products = _inventoryService.GetAllSystemProducts(searchQuery, sortOrder).ToList();
+            if (!canFin) foreach (var p in products) { p.CostPrice = 0; p.MarginPercentage = 0; }
             return View(products);
         }
 
@@ -124,7 +131,7 @@ namespace SwiftCheckoutPOS.UI.Controllers
                     ProductName = dto.ProductName,
                     CategoryId = dto.CategoryId,
                     VendorId = dto.VendorId,
-                    CostPrice = dto.CostPrice,
+                    CostPrice = User.CanViewFinancials(_settings) ? dto.CostPrice : null, // CQ-03: never shown to Manager without view
                     SellingPrice = dto.SellingPrice,
                     StockQuantity = dto.StockQuantity,
                     RowVersion = dto.RowVersion,
@@ -167,7 +174,8 @@ namespace SwiftCheckoutPOS.UI.Controllers
                     Barcode = model.Barcode,
                     ProductName = model.ProductName,
                     VendorId = model.VendorId,
-                    CostPrice = model.CostPrice,
+                    CostPrice = model.CostPrice ?? 0,
+                    KeepCost = model.CostPrice is null, // write-only cost: empty keeps the current cost
                     SellingPrice = model.SellingPrice,
                     RowVersion = model.RowVersion,
                     TaxRate = model.TaxRate,
