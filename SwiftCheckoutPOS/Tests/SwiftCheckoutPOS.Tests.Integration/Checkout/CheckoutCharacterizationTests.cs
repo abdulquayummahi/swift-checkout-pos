@@ -277,21 +277,80 @@ public sealed class CheckoutCharacterizationTests
     }
 
     [Fact]
-    [Trait("Difference", "DR-33")]
-    public void Current_ResumeReleasesStockThenCompletesOriginalSale_DiffersFromCQ04()
+    [Trait("Fixes", "DR-33")]
+    public void Approved_ResumeKeepsReservationUntilCompletion_CQ04()
     {
         var p = Seed(stock: 20);
         var service = FixtureData.Checkout(fixture);
         var cart = FixtureData.Cart(service, p.ProductId, 8);
         service.HoldOrder(cart, FixtureData.Actor);
         var resumed = service.ResumeOrder(cart.PersistedSaleId!.Value);
-        using (var verify = fixture.Context()) Assert.Equal(20, verify.Products.Single().StockQuantity);
+        using (var verify = fixture.Context())
+        {
+            Assert.Equal(20, verify.Products.Single().StockQuantity);  // still owned
+            Assert.Equal(8, verify.Products.Single().ReservedQuantity); // still reserved while resumed
+        }
+        // Another cashier cannot take the reserved units.
+        var other = new SwiftCheckoutPOS.BLL.DTOs.CheckoutSessionDTO();
+        Assert.Throws<SwiftCheckoutPOS.BLL.Services.CheckoutValidationException>(() => service.AddToCart(other, p.ProductId, 13));
         var completed = service.CompleteSale(resumed, "Cash", FixtureData.Actor);
         Assert.Equal(cart.PersistedSaleId, completed.SaleId);
         using var final = fixture.Context();
         Assert.Single(final.Sales);
-        Assert.Single(final.LedgerEntries);
         Assert.Equal(12, final.Products.Single().StockQuantity);
+        Assert.Equal(0, final.Products.Single().ReservedQuantity);
+    }
+
+    [Fact]
+    [Trait("Fixes", "DR-10")]
+    public void Approved_CancelReleasesReservationAndKeepsHistory_PRQ17()
+    {
+        var p = Seed(stock: 10);
+        var service = FixtureData.Checkout(fixture);
+        var cart = FixtureData.Cart(service, p.ProductId, 4);
+        service.HoldOrder(cart, FixtureData.Actor);
+        var resumed = service.ResumeOrder(cart.PersistedSaleId!.Value);
+        service.CancelCart(resumed);
+        using var verify = fixture.Context();
+        Assert.Equal("Cancelled", verify.Sales.Single().OrderStatus);
+        Assert.Equal(10, verify.Products.Single().StockQuantity);
+        Assert.Equal(0, verify.Products.Single().ReservedQuantity);
+    }
+
+    [Theory]
+    [Trait("Fixes", "DR-10")]
+    [InlineData(72, 73, true)]
+    [InlineData(72, 71, false)]
+    [InlineData(0, 10000, false)] // 0 = never expire
+    public void Approved_HeldOrdersExpireAfterConfiguredHours_PRQ18(int hours, int ageHours, bool expires)
+    {
+        var p = Seed(stock: 10);
+        var service = FixtureData.Checkout(fixture);
+        var cart = FixtureData.Cart(service, p.ProductId, 3);
+        service.HoldOrder(cart, FixtureData.Actor);
+        var expired = service.ExpireHeldOrders(hours, DateTime.Now.AddHours(ageHours));
+        Assert.Equal(expires ? 1 : 0, expired);
+        using var verify = fixture.Context();
+        Assert.Equal(expires ? "Cancelled" : "Held", verify.Sales.Single().OrderStatus);
+        Assert.Equal(expires ? 0 : 3, verify.Products.Single().ReservedQuantity);
+        Assert.Equal(10, verify.Products.Single().StockQuantity);
+    }
+
+    [Fact]
+    [Trait("Fixes", "DR-10")]
+    public void Approved_ResumedOrderDoesNotExpireAndReholdRestartsClock_CQ20()
+    {
+        var p = Seed(stock: 10);
+        var service = FixtureData.Checkout(fixture);
+        var cart = FixtureData.Cart(service, p.ProductId, 3);
+        service.HoldOrder(cart, FixtureData.Actor);
+        var resumed = service.ResumeOrder(cart.PersistedSaleId!.Value);
+        Assert.Equal(0, service.ExpireHeldOrders(72, DateTime.Now.AddHours(100))); // resumed: no expiry
+        service.HoldOrder(resumed, FixtureData.Actor);                              // re-hold: new clock
+        Assert.Equal(0, service.ExpireHeldOrders(72, DateTime.Now.AddHours(71)));
+        using var verify = fixture.Context();
+        Assert.Equal(3, verify.Products.Single().ReservedQuantity);
+        Assert.Equal("Held", verify.Sales.Single().OrderStatus);
     }
 
     [Fact]

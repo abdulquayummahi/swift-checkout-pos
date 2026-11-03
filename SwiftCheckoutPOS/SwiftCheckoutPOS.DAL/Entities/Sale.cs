@@ -48,6 +48,9 @@ namespace SwiftCheckoutPOS.DAL.Entities
         [MaxLength(100)]
         public string? CashierName { get; set; }
 
+        /// <summary>BP-03/CQ-20: when the order was last put on hold; the 72h expiry clock runs only while Held.</summary>
+        public DateTime? HeldAt { get; set; }
+
         [Timestamp]
         public byte[] RowVersion { get; set; } = null!;
 

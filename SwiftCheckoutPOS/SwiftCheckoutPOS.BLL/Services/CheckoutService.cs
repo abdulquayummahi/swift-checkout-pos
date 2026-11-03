@@ -21,7 +21,7 @@ public sealed class CheckoutService(ICheckoutRepository repository)
     {
         ProductId = p.ProductId, Barcode = p.Barcode, ProductName = p.ProductName,
         CategoryId = p.CategoryId, VendorId = p.VendorId, SellingPrice = p.SellingPrice,
-        CostPrice = p.CostPrice, TaxRate = p.TaxRate, StockQuantity = p.StockQuantity,
+        CostPrice = p.CostPrice, TaxRate = p.TaxRate, StockQuantity = p.StockQuantity - p.ReservedQuantity,
         IsActive = p.IsActive, ImagePath = p.ImagePath, UnitOfMeasure = p.UnitOfMeasure
     }).ToList();
 
@@ -55,7 +55,8 @@ public sealed class CheckoutService(ICheckoutRepository repository)
         if (quantity <= 0) Fail("Quantity to add must be greater than zero.");
         var existing = cart.Items.SingleOrDefault(i => i.ProductId == product.ProductId);
         var requested = (long)(existing?.Quantity ?? 0) + quantity;
-        if (requested > int.MaxValue || requested > product.StockQuantity)
+        var available = Available(product) + cart.ReservedByOrder.GetValueOrDefault(product.ProductId);
+        if (requested > int.MaxValue || requested > available)
             Fail("Not enough stock. Reduce the requested quantity.");
         var previousQuantity = existing?.Quantity ?? 0;
         if (existing is not null)
@@ -151,11 +152,14 @@ public sealed class CheckoutService(ICheckoutRepository repository)
                 return existing; // Lost acknowledgement/double submission: no second reservation.
             }
             CheckEditableOrder(existing, command);
+            if (existing is not null) ReleaseReservation(data, existing); // re-hold: replace the old reservation
             var items = BuildItems(data, command);
             CheckCustomer(data, command);
             var sale = existing ?? new Sale { ReceiptNumber = command.InvoiceNumber };
             SetSale(sale, command, "Pending", cashierName, Held);
-            foreach (var item in items) data.FindProduct(item.ProductId)!.StockQuantity -= item.Quantity;
+            sale.HeldAt = DateTime.Now; // CQ-20: (re)holding starts a new expiry clock
+            // PR-Q15/16: held units stay in owned stock but are reserved for this order.
+            foreach (var item in items) data.FindProduct(item.ProductId)!.ReservedQuantity += item.Quantity;
             if (existing is null)
             {
                 sale.SaleItems = items;
@@ -178,18 +182,9 @@ public sealed class CheckoutService(ICheckoutRepository repository)
                 Fail("This order is no longer available to resume.");
             // Reconstruct/validate BEFORE releasing stock. Never delete the SQL copy.
             var cart = RestoreCart(data, sale!);
-            if (sale!.OrderStatus == Held)
-            {
-                foreach (var item in sale.SaleItems)
-                {
-                    var product = data.FindProduct(item.ProductId);
-                    if (product is null) Fail("An ordered product is missing. The held order has been preserved.");
-                    var restored = (long)product!.StockQuantity + item.Quantity;
-                    if (restored > int.MaxValue) Fail("Restoring this order would exceed the stock limit.");
-                    product.StockQuantity = (int)restored;
-                }
-                sale.OrderStatus = Resumed;
-            }
+            // CQ-04: resuming does NOT release stock; the reservation stays until completion or cancellation.
+            sale!.OrderStatus = Resumed;
+            cart.ReservedByOrder = sale.SaleItems.GroupBy(i => i.ProductId).ToDictionary(g => g.Key, g => g.Sum(i => i.Quantity));
             return (Sale: sale, Cart: cart);
         });
         // Saved rowversion is populated by SaveChanges before Execute returns.
@@ -207,7 +202,8 @@ public sealed class CheckoutService(ICheckoutRepository repository)
             // reservation or financial record. Leave its durable copy untouched.
             if (sale?.SaleId != cart.PersistedSaleId || sale.OrderStatus != Resumed ||
                 Version(sale) != cart.PersistedRowVersion) return true;
-            sale.OrderStatus = Cancelled; // Resuming already released its reservation once.
+            ReleaseReservation(data, sale);
+            sale.OrderStatus = Cancelled; // PR-Q17: kept in history, reservation released once.
             return true;
         });
     }
@@ -230,6 +226,7 @@ public sealed class CheckoutService(ICheckoutRepository repository)
                 return (Sale: existing, Replay: true);
             }
             CheckEditableOrder(existing, command);
+            if (existing is not null) ReleaseReservation(data, existing); // its own reservation becomes the sale
             var items = BuildItems(data, command);
             CheckCustomer(data, command);
             var sale = existing ?? new Sale { ReceiptNumber = command.InvoiceNumber };
@@ -286,7 +283,7 @@ public sealed class CheckoutService(ICheckoutRepository repository)
             if (product is null) Fail("An ordered product no longer exists. Review the cart.");
             ValidateProduct(product!);
             CheckCurrentPrice(line, product!);
-            if (product!.StockQuantity < line.Quantity)
+            if (Available(product!) < line.Quantity)
                 Fail("Not enough stock. Reduce the requested quantity.");
             items.Add(new SaleItem
             {
@@ -295,6 +292,38 @@ public sealed class CheckoutService(ICheckoutRepository repository)
             });
         }
         return items;
+    }
+
+    private static int Available(Product product) => product.StockQuantity - product.ReservedQuantity;
+
+    private static void ReleaseReservation(ICheckoutDataSession data, Sale sale)
+    {
+        foreach (var item in sale.SaleItems)
+        {
+            var product = data.FindProduct(item.ProductId);
+            if (product is null || product.ReservedQuantity < item.Quantity)
+                Fail("Reserved stock for this order does not match. The order is preserved for review.");
+            product!.ReservedQuantity -= item.Quantity;
+        }
+    }
+
+    /// <summary>
+    /// PR-Q18/CQ-20: cancel orders held longer than <paramref name="retentionHours"/> (0 = never),
+    /// releasing their reservations. Orders stay in history as Cancelled. Returns how many expired.
+    /// </summary>
+    public int ExpireHeldOrders(int retentionHours, DateTime now)
+    {
+        if (retentionHours <= 0) return 0;
+        return repository.Execute(data =>
+        {
+            var expired = data.HeldBefore(now.AddHours(-retentionHours));
+            foreach (var sale in expired)
+            {
+                ReleaseReservation(data, sale);
+                sale.OrderStatus = Cancelled;
+            }
+            return expired.Count;
+        });
     }
 
     private static void SetSale(Sale sale, CheckoutSessionDTO cart, string payment, string actor, string status)
@@ -453,6 +482,7 @@ public sealed class CheckoutService(ICheckoutRepository repository)
         {
             SessionId = cart.SessionId, InvoiceNumber = cart.InvoiceNumber,
             PersistedSaleId = cart.PersistedSaleId, PersistedRowVersion = cart.PersistedRowVersion,
+            ReservedByOrder = new Dictionary<int, int>(cart.ReservedByOrder ?? new()),
             CustomerId = cart.CustomerId, CustomerType = cart.CustomerType, CustomerName = cart.CustomerName,
             BillDiscountAmount = cart.BillDiscountAmount, BillDiscountPercentage = cart.BillDiscountPercentage,
             Items = cart.Items.Select(i => new CartItemDTO

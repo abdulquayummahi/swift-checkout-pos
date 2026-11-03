@@ -79,8 +79,8 @@ public sealed class InventoryMappingCharacterizationTests
     }
 
     [Fact]
-    [Trait("Difference", "DR-09")]
-    public void Current_HeldStockIsExcludedFromWac_DiffersFromPRQ16()
+    [Trait("Fixes", "DR-09")]
+    public void Approved_HeldStockStaysInWac_PRQ16()
     {
         int id;
         using (var seed = fixture.Context())
@@ -90,8 +90,9 @@ public sealed class InventoryMappingCharacterizationTests
         using (var context = fixture.Context())
             FixtureData.Inventory(context).RestockProduct("BP10-ITEM", 10, 160m, null);
         using var verify = fixture.Context();
-        Assert.Equal(12.73m, verify.Products.Single().CostPrice); // (12*10+160)/22, not owned-stock basis
-        Assert.Equal(22, verify.Products.Single().StockQuantity);
+        Assert.Equal(12.00m, verify.Products.Single().CostPrice); // (20*10+160)/30 = 12: held units are still owned (old basis 12.73)
+        Assert.Equal(30, verify.Products.Single().StockQuantity);
+        Assert.Equal(8, verify.Products.Single().ReservedQuantity);
     }
 
     [Theory]

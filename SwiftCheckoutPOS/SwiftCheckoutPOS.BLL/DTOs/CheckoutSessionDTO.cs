@@ -17,6 +17,8 @@ namespace SwiftCheckoutPOS.BLL.DTOs
 
         // A resumed order retains its SQL copy until completion/cancellation.
         public int? PersistedSaleId { get; set; }
+        /// <summary>BP-03: units this resumed order still reserves, per product (CQ-04).</summary>
+        public Dictionary<int, int> ReservedByOrder { get; set; } = new();
         public string? PersistedRowVersion { get; set; }
         public string? ReceiptCashierName { get; set; }
         public DateTime? ReceiptSaleDate { get; set; }

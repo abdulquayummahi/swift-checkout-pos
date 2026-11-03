@@ -195,6 +195,10 @@
                                     {
                                         @product.StockQuantity
                                     }
+                                    @if (product.ReservedQuantity > 0)
+                                    {
+                                        <div class="small text-muted fw-normal" title="Reserved by held orders">@product.ReservedQuantity held</div>
+                                    }
                                 </td>
 
                                 <td class="text-center fw-bold">

@@ -64,6 +64,7 @@ public partial class ApplicationDbContext : DbContext
             entity.Property(e => e.TaxRate).HasColumnType("decimal(5, 2)");
             entity.Property(e => e.RowVersion).IsRowVersion();
             entity.HasIndex(e => new { e.IsActive, e.StockQuantity });
+            entity.ToTable(t => t.HasCheckConstraint("CK_Products_Reserved", "[ReservedQuantity] >= 0 AND [ReservedQuantity] <= [StockQuantity]"));
             entity.HasOne(d => d.Category).WithMany(p => p.Products)
                 .HasForeignKey(d => d.CategoryId)
                 .OnDelete(DeleteBehavior.ClientSetNull)
@@ -91,6 +92,8 @@ public partial class ApplicationDbContext : DbContext
             entity.Property(e => e.CashierName).HasMaxLength(100);
             entity.Property(e => e.RowVersion).IsRowVersion();
             entity.HasIndex(e => new { e.SaleDate, e.OrderStatus });
+            entity.Property(e => e.HeldAt).HasColumnType("datetime2");
+            entity.HasIndex(e => new { e.OrderStatus, e.HeldAt });
         });
 
         modelBuilder.Entity<SaleItem>(entity =>

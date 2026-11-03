@@ -10,7 +10,7 @@ public sealed class CheckoutRepository(DbContextOptions<ApplicationDbContext> op
     public IReadOnlyList<Product> GetAvailableProducts()
     {
         using var context = new ApplicationDbContext(options);
-        return context.Products.AsNoTracking().Where(p => p.IsActive && p.StockQuantity > 0)
+        return context.Products.AsNoTracking().Where(p => p.IsActive && p.StockQuantity - p.ReservedQuantity > 0)
             .OrderBy(p => p.ProductName).ToList();
     }
 
@@ -29,7 +29,7 @@ public sealed class CheckoutRepository(DbContextOptions<ApplicationDbContext> op
     public IReadOnlyList<Sale> GetRecoverableOrders()
     {
         using var context = new ApplicationDbContext(options);
-        // Never silently hide an old stock reservation. Expiry policy is still undecided.
+        // Expired holds are cancelled by CheckoutService.ExpireHeldOrders (BP-03); never hidden silently.
         return context.Sales.AsNoTracking().Include(s => s.Customer).Include(s => s.SaleItems)
             .Where(s => s.OrderStatus == "Held" || s.OrderStatus == "Resumed")
             .OrderByDescending(s => s.SaleDate).ToList();
@@ -87,6 +87,8 @@ public sealed class CheckoutRepository(DbContextOptions<ApplicationDbContext> op
         private IQueryable<Sale> Sales() => context.Sales.Include(s => s.SaleItems).Include(s => s.Customer);
         public void AddSale(Sale sale) => context.Sales.Add(sale);
         public void AddLedgerEntry(LedgerEntry entry) => context.LedgerEntries.Add(entry);
+        public IReadOnlyList<Sale> HeldBefore(DateTime cutoff) =>
+            Sales().Where(s => s.OrderStatus == "Held" && (s.HeldAt ?? s.SaleDate) < cutoff).ToList();
 
         public void ReplaceItems(Sale sale, IReadOnlyList<SaleItem> items)
         {

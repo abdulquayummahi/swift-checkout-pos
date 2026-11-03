@@ -1,4 +1,4 @@
-﻿// Project: SwiftCheckoutPOS.DAL
+// Project: SwiftCheckoutPOS.DAL
 // File: Entities/Product.cs
 using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
@@ -49,7 +49,11 @@ namespace SwiftCheckoutPOS.DAL.Entities
         [MaxLength(255)]
         public string? ImagePath { get; set; }
 
+        /// <summary>Owned units on hand, INCLUDING units reserved by held/resumed orders (PR-Q16).</summary>
         public int StockQuantity { get; set; }
+
+        /// <summary>BP-03: units reserved by held/resumed orders; not sellable to others (PR-Q15). Available = Stock - Reserved.</summary>
+        public int ReservedQuantity { get; set; }
         public bool IsActive { get; set; }
 
         [Timestamp]

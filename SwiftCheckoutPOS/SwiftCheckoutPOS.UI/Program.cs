@@ -88,6 +88,7 @@ builder.Services.AddScoped<IReceiptPrinter, VirtualPrinterService>();
 builder.Services.AddScoped<Func<IReceiptPrinter>>(services => () => services.GetRequiredService<IReceiptPrinter>());
 
 builder.Services.AddHostedService<AutoBackupWorker>();
+builder.Services.AddHostedService<HeldOrderExpiryWorker>();
 
 var app = builder.Build();
 

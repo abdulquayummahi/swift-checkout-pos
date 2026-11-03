@@ -42,6 +42,7 @@ namespace SwiftCheckoutPOS.BLL.Services
                 SellingPrice = p.SellingPrice,
                 MarginPercentage = p.SellingPrice > 0 ? ((p.SellingPrice - p.CostPrice) / p.SellingPrice) * 100 : 0,
                 StockQuantity = p.StockQuantity,
+                ReservedQuantity = p.ReservedQuantity,
                 IsActive = p.IsActive,
                 ImagePath = p.ImagePath,
                 TaxRate = p.TaxRate,
@@ -198,6 +199,8 @@ namespace SwiftCheckoutPOS.BLL.Services
             _unit.Run(() =>
             {
                 var product = _inventoryRepo.GetProductByBarcode(barcode.Trim()) ?? throw new InvalidOperationException("Unrecognized barcode. Product not found.");
+                if (countedQuantity < product.ReservedQuantity)
+                    throw new InvalidOperationException($"{product.ReservedQuantity} unit(s) are reserved by held orders. Cancel or complete them first, or count them too.");
                 var delta = countedQuantity - product.StockQuantity;
                 if (delta == 0) throw new InvalidOperationException("The counted quantity equals the current stock. Nothing to correct.");
                 var value = Pricing.Money.R2(Math.Abs(delta) * product.CostPrice);
@@ -254,7 +257,8 @@ namespace SwiftCheckoutPOS.BLL.Services
             _unit.Run(() =>
             {
                 var product = _inventoryRepo.GetProductByBarcode(barcode.Trim()) ?? throw new InvalidOperationException("Unrecognized barcode. Product not found.");
-                if (product.StockQuantity < returnQty) throw new InvalidOperationException($"Insufficient stock. Current inventory holds {product.StockQuantity} units.");
+                var available = product.StockQuantity - product.ReservedQuantity;
+                if (available < returnQty) throw new InvalidOperationException($"Insufficient stock. {available} unit(s) available ({product.ReservedQuantity} reserved by held orders).");
                 product.StockQuantity -= returnQty;
                 _inventoryRepo.UpdateProduct(product);
                 if (refundAmount > 0) _financeService.RecordSystemVendorRefund(refundAmount, $"RTV: {barcode}", actor);

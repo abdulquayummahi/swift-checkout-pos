@@ -23,4 +23,6 @@ public interface ICheckoutDataSession
     void AddSale(Sale sale);
     void ReplaceItems(Sale sale, IReadOnlyList<SaleItem> items);
     void AddLedgerEntry(LedgerEntry entry);
+    /// <summary>Held orders put on hold before <paramref name="cutoff"/> (BP-03 expiry).</summary>
+    IReadOnlyList<Sale> HeldBefore(DateTime cutoff);
 }

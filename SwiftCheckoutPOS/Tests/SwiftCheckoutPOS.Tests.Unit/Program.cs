@@ -10,6 +10,7 @@ using SwiftCheckoutPOS.BLL.Services;
 using SwiftCheckoutPOS.DAL.Entities;
 using SwiftCheckoutPOS.DAL.Repositories;
 using SwiftCheckoutPOS.UI.Controllers;
+using static SwiftCheckoutPOS.Tests.Unit.StockHelpers;
 
 namespace SwiftCheckoutPOS.Tests.Unit;
 
@@ -177,18 +178,20 @@ internal static class Program
                 var (repo, service, cart) = Ready();
                 service.HoldOrder(cart, Actor);
                 service.HoldOrder(cart, Actor);
-                Equal(8, repo.Products[1].StockQuantity);
+                Equal(8, Avail(repo)); // BP-03: held units stay in stock, reserved
+                Equal(10, repo.Products[1].StockQuantity);
                 Equal(1, repo.Sales.Count);
                 Equal(0, repo.Ledger.Count);
                 Equal("Held", repo.Sales.Single().OrderStatus);
             }),
-            ("Repeated resume releases once and retains recoverable SQL copy", () =>
+            ("Repeated resume keeps reservation once and retains recoverable SQL copy", () =>
             {
                 var (repo, service, cart) = Ready();
                 service.HoldOrder(cart, Actor);
                 var id = repo.Sales.Single().SaleId;
                 var resumed = service.ResumeOrder(id);
                 var again = service.ResumeOrder(id);
+                Equal(8, Avail(repo)); // CQ-04: resume keeps the reservation
                 Equal(10, repo.Products[1].StockQuantity);
                 Equal(1, repo.Sales.Count);
                 Equal("Resumed", repo.Sales.Single().OrderStatus);
@@ -216,7 +219,8 @@ internal static class Program
                 var stale = Copy(resumed);
                 service.HoldOrder(resumed, Actor);
                 Reject(() => service.CompleteSale(stale, "Cash", Actor));
-                Equal(8, repo.Products[1].StockQuantity);
+                Equal(8, Avail(repo)); // BP-03: held units stay in stock, reserved
+                Equal(10, repo.Products[1].StockQuantity);
                 Equal(1, repo.Sales.Count);
             }),
             ("Clearing resumed work preserves a cancelled row without extra stock", () =>
@@ -237,7 +241,8 @@ internal static class Program
                 repo.Products[1].TaxRate = 20;
                 Reject(() => service.ResumeOrder(repo.Sales.Single().SaleId));
                 Equal("Held", repo.Sales.Single().OrderStatus);
-                Equal(8, repo.Products[1].StockQuantity);
+                Equal(8, Avail(repo)); // BP-03: held units stay in stock, reserved
+                Equal(10, repo.Products[1].StockQuantity);
             }),
             ("Saved held discount amount survives resume", () =>
             {
@@ -382,7 +387,8 @@ internal static class Program
                 service.HoldOrder(resumed, Actor);
                 service.CancelCart(stale);
                 Equal("Held", repo.Sales.Single().OrderStatus);
-                Equal(8, repo.Products[1].StockQuantity);
+                Equal(8, Avail(repo)); // BP-03: held units stay in stock, reserved
+                Equal(10, repo.Products[1].StockQuantity);
             }),
             ("Legacy direct print endpoint cannot print an unpaid cart", () =>
             {
@@ -444,6 +450,11 @@ internal static class Program
     }
 }
 
+internal static class StockHelpers
+{
+    public static int Avail(FixtureRepository repo) => repo.Products[1].StockQuantity - repo.Products[1].ReservedQuantity;
+}
+
 internal sealed class FixtureRepository : ICheckoutRepository, ICheckoutDataSession
 {
     public Dictionary<int, Product> Products { get; private set; } = [];
@@ -454,7 +465,7 @@ internal sealed class FixtureRepository : ICheckoutRepository, ICheckoutDataSess
     public bool FailCommit { get; set; }
     public bool LoseAcknowledgement { get; set; }
 
-    public IReadOnlyList<Product> GetAvailableProducts() => Products.Values.Where(p => p.IsActive && p.StockQuantity > 0).ToList();
+    public IReadOnlyList<Product> GetAvailableProducts() => Products.Values.Where(p => p.IsActive && p.StockQuantity - p.ReservedQuantity > 0).ToList();
     public Product? FindProduct(int id) => Products.GetValueOrDefault(id);
     public Product? FindProductByBarcode(string barcode) => Products.Values.SingleOrDefault(p => p.Barcode == barcode);
     public Customer? FindCustomerByPhone(string phone) => Customers.Values.SingleOrDefault(c => c.PhoneNumber == phone);
@@ -465,6 +476,7 @@ internal sealed class FixtureRepository : ICheckoutRepository, ICheckoutDataSess
     public void AddSale(Sale sale) { sale.SaleId = Sales.Select(s => s.SaleId).DefaultIfEmpty().Max() + 1; Sales.Add(sale); }
     public void ReplaceItems(Sale sale, IReadOnlyList<SaleItem> items) => sale.SaleItems = items.ToList();
     public void AddLedgerEntry(LedgerEntry entry) => Ledger.Add(entry);
+    public IReadOnlyList<Sale> HeldBefore(DateTime cutoff) => Sales.Where(s => s.OrderStatus == "Held" && (s.HeldAt ?? s.SaleDate) < cutoff).ToList();
 
     public T Execute<T>(Func<ICheckoutDataSession, T> operation)
     {

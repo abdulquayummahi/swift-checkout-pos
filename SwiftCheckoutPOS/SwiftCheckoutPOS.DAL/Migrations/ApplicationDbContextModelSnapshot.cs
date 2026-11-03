@@ -209,6 +209,9 @@ namespace SwiftCheckoutPOS.DAL.Migrations
                     b.Property<int>("ReorderLevel")
                         .HasColumnType("int");
 
+                    b.Property<int>("ReservedQuantity")
+                        .HasColumnType("int");
+
                     b.Property<byte[]>("RowVersion")
                         .IsConcurrencyToken()
                         .IsRequired()
@@ -244,7 +247,10 @@ namespace SwiftCheckoutPOS.DAL.Migrations
                     b.HasIndex(new[] { "Barcode" }, "UQ__Products__177800D302B1BAD5")
                         .IsUnique();
 
-                    b.ToTable("Products");
+                    b.ToTable("Products", t =>
+                        {
+                            t.HasCheckConstraint("CK_Products_Reserved", "[ReservedQuantity] >= 0 AND [ReservedQuantity] <= [StockQuantity]");
+                        });
                 });
 
             modelBuilder.Entity("SwiftCheckoutPOS.DAL.Entities.Sale", b =>
@@ -261,6 +267,9 @@ namespace SwiftCheckoutPOS.DAL.Migrations
 
                     b.Property<int?>("CustomerId")
                         .HasColumnType("int");
+
+                    b.Property<DateTime?>("HeldAt")
+                        .HasColumnType("datetime2");
 
                     b.Property<string>("OrderStatus")
                         .IsRequired()
@@ -306,6 +315,8 @@ namespace SwiftCheckoutPOS.DAL.Migrations
                         .HasName("PK__Sales__1EE3C3FFEB3A7B6D");
 
                     b.HasIndex("CustomerId");
+
+                    b.HasIndex("OrderStatus", "HeldAt");
 
                     b.HasIndex("SaleDate", "OrderStatus");
 
