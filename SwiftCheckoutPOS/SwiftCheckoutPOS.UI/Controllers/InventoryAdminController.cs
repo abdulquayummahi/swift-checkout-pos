@@ -1,4 +1,4 @@
-﻿// Project: SwiftCheckoutPOS.UI
+// Project: SwiftCheckoutPOS.UI
 // File: Controllers/InventoryAdminController.cs
 using System;
 using System.IO;
@@ -10,6 +10,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Rendering;
 using SwiftCheckoutPOS.BLL.DTOs;
 using SwiftCheckoutPOS.BLL.Services;
+using SwiftCheckoutPOS.UI.Infrastructure;
 using SwiftCheckoutPOS.UI.Models;
 
 namespace SwiftCheckoutPOS.UI.Controllers
@@ -97,7 +98,7 @@ namespace SwiftCheckoutPOS.UI.Controllers
                     ImagePath = imagePath
                 };
 
-                _inventoryService.AddNewProduct(dto, model.CategoryId);
+                _inventoryService.AddNewProduct(dto, model.CategoryId, User.Actor());
                 TempData["Success"] = "Product successfully added to master inventory.";
                 return RedirectToAction(nameof(Index));
             }
@@ -126,6 +127,7 @@ namespace SwiftCheckoutPOS.UI.Controllers
                     CostPrice = dto.CostPrice,
                     SellingPrice = dto.SellingPrice,
                     StockQuantity = dto.StockQuantity,
+                    RowVersion = dto.RowVersion,
                     TaxRate = dto.TaxRate,
                     UnitOfMeasure = dto.UnitOfMeasure,
                     ReorderLevel = dto.ReorderLevel,
@@ -167,7 +169,7 @@ namespace SwiftCheckoutPOS.UI.Controllers
                     VendorId = model.VendorId,
                     CostPrice = model.CostPrice,
                     SellingPrice = model.SellingPrice,
-                    StockQuantity = model.StockQuantity,
+                    RowVersion = model.RowVersion,
                     TaxRate = model.TaxRate,
                     UnitOfMeasure = model.UnitOfMeasure,
                     ReorderLevel = model.ReorderLevel,
@@ -176,7 +178,7 @@ namespace SwiftCheckoutPOS.UI.Controllers
                     IsActive = model.IsActive
                 };
 
-                _inventoryService.UpdateProduct(dto, model.CategoryId);
+                _inventoryService.UpdateProduct(dto, model.CategoryId, User.Actor());
                 TempData["Success"] = "Product details successfully updated.";
                 return RedirectToAction(nameof(Index));
             }
@@ -192,11 +194,11 @@ namespace SwiftCheckoutPOS.UI.Controllers
         // --- ARCHITECT NEW: High-Speed Operations ---
         [HttpPost]
         [ValidateAntiForgeryToken]
-        public IActionResult ProcessRestock(string barcode, int addedQty, decimal totalBatchCost, decimal? newRetailPrice)
+        public IActionResult ProcessRestock(string barcode, int addedQty, decimal totalBatchCost, decimal? newRetailPrice, string? zeroCostReason)
         {
             try
             {
-                _inventoryService.RestockProduct(barcode, addedQty, totalBatchCost, newRetailPrice);
+                _inventoryService.RestockProduct(barcode, addedQty, totalBatchCost, newRetailPrice, User.Actor(), zeroCostReason);
                 TempData["Success"] = $"Restock successful. Moving Average Cost calculated and Ledger updated.";
             }
             catch (Exception ex)
@@ -212,7 +214,7 @@ namespace SwiftCheckoutPOS.UI.Controllers
         {
             try
             {
-                _inventoryService.ReturnToVendor(barcode, returnQty, refundAmount);
+                _inventoryService.ReturnToVendor(barcode, returnQty, refundAmount, User.Actor());
                 TempData["Success"] = $"RTV successful. Inventory deducted and Ledger credited.";
             }
             catch (Exception ex)
@@ -234,6 +236,23 @@ namespace SwiftCheckoutPOS.UI.Controllers
         {
             try { _inventoryService.AddVendor(vendorName); return Json(new { success = true }); }
             catch (Exception ex) { return Json(new { success = false, message = ex.Message }); }
+        }
+
+        /// <summary>PR-Q23/82: stock correction to a counted quantity, with reason (Manager/Admin via class role gate).</summary>
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public IActionResult AdjustStock(string barcode, int countedQuantity, string reason, string? note)
+        {
+            try
+            {
+                _inventoryService.AdjustStock(barcode ?? "", countedQuantity, reason ?? "", note, User.Actor());
+                TempData["Success"] = "Stock corrected and recorded.";
+            }
+            catch (Exception ex) when (ex is ArgumentException or InvalidOperationException)
+            {
+                TempData["Error"] = ex.Message;
+            }
+            return RedirectToAction(nameof(Index));
         }
 
         private SelectList GetCategorySelectList() => new SelectList(_inventoryService.GetAllCategories(), "CategoryId", "CategoryName");

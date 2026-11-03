@@ -41,7 +41,7 @@ public static class FixtureData
 
     public static InventoryService Inventory(ApplicationDbContext context) =>
         new(new InventoryRepository(context),
-            new FinanceService(new FinanceRepository(context), new SalesRepository(context)));
+            new FinanceService(new FinanceRepository(context), new SalesRepository(context)), new AtomicUnit(context));
 
     public static Sale CompletedSale(ApplicationDbContext context, int productId,
         string status = "Completed", int quantity = 2, int ageDays = 0)

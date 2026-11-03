@@ -127,8 +127,8 @@ public sealed class InventoryMappingCharacterizationTests
     }
 
     [Fact]
-    [Trait("Audit", "PB-03")]
-    public void Current_LedgerFailureLeavesProductCommitted_DiffersFromAtomicInventory()
+    [Trait("Fixes", "PB-03")]
+    public void Approved_LedgerFailureRollsBackProductToo_T06()
     {
         int categoryId, vendorId;
         using (var seed = fixture.Context())
@@ -141,10 +141,101 @@ public sealed class InventoryMappingCharacterizationTests
             Assert.Throws<InjectedTestFailure>(() =>
                 FixtureData.Inventory(context).AddNewProduct(NewProduct(categoryId, vendorId), categoryId));
         using var verify = fixture.Context();
-        var stored = verify.Products.Single(p => p.Barcode == "BP10-NEW");
-        Assert.Equal(2, stored.StockQuantity);
-        Assert.Equal(10.50m, stored.CostPrice); // paisa kept (IMM-05); atomicity gap PB-03 remains
-        Assert.Empty(verify.LedgerEntries); // product save committed before failed ledger save
+        Assert.DoesNotContain(verify.Products, p => p.Barcode == "BP10-NEW");
+        Assert.Empty(verify.LedgerEntries);
+        Assert.Empty(verify.AuditEvents);
+    }
+
+    [Fact]
+    [Trait("Fixes", "IMM-06")]
+    public void Approved_StaleEditFormIsRejectedAndEditNeverChangesStock()
+    {
+        int id;
+        using (var seed = fixture.Context()) id = FixtureData.Product(seed, stock: 10).ProductId;
+        ProductDTO form;
+        using (var context = fixture.Context()) form = FixtureData.Inventory(context).GetProductForEdit(id);
+        // A sale happens after the form was opened.
+        var checkout = FixtureData.Checkout(fixture);
+        checkout.CompleteSale(FixtureData.Cart(checkout, id, 3), "Card", FixtureData.Actor);
+        form.ProductName = "Renamed from a stale form";
+        form.StockQuantity = 10; // stale value must never overwrite the sale's deduction
+        using (var context = fixture.Context())
+            Assert.Throws<InvalidOperationException>(() => FixtureData.Inventory(context).UpdateProduct(form, form.CategoryId, FixtureData.Actor));
+        using (var context = fixture.Context())
+        {
+            var fresh = FixtureData.Inventory(context).GetProductForEdit(id);
+            fresh.ProductName = "Renamed";
+            fresh.StockQuantity = 999;
+            fresh.SellingPrice = 11m;
+            FixtureData.Inventory(context).UpdateProduct(fresh, fresh.CategoryId, FixtureData.Actor);
+        }
+        using var verify = fixture.Context();
+        var stored = verify.Products.Single();
+        Assert.Equal("Renamed", stored.ProductName);
+        Assert.Equal(7, stored.StockQuantity);
+        Assert.Equal("PriceChange", verify.AuditEvents.Single().Action);
+    }
+
+    [Theory]
+    [InlineData(4, "Damaged", "Damaged", "Outflow", 30)]
+    [InlineData(4, "Theft/Loss", "Inventory Adjustment", "Outflow", 30)]
+    [InlineData(12, "Found", "Inventory Adjustment", "Inflow", 10)]
+    public void Approved_StockCorrectionPostsValueAndAudit_PRQ24_PRQ82(int counted, string reason, string category, string type, int value)
+    {
+        using (var seed = fixture.Context()) FixtureData.Product(seed, cost: 5m, stock: 10);
+        using (var context = fixture.Context())
+            FixtureData.Inventory(context).AdjustStock("BP10-ITEM", counted, reason, null, FixtureData.Actor);
+        using var verify = fixture.Context();
+        Assert.Equal(counted, verify.Products.Single().StockQuantity);
+        var entry = verify.LedgerEntries.Single();
+        Assert.Equal(category, entry.Category);
+        Assert.Equal(type, entry.TransactionType);
+        Assert.Equal((decimal)value, entry.Amount);
+        var audit = verify.AuditEvents.Single();
+        Assert.Equal("StockAdjustment", audit.Action);
+        Assert.Equal(reason, audit.Reason);
+        Assert.Equal(FixtureData.Actor, audit.Actor);
+    }
+
+    [Theory]
+    [InlineData("", null)]
+    [InlineData("Other", null)]
+    [InlineData("Bogus", "note")]
+    public void Approved_StockCorrectionNeedsValidReason(string reason, string? note)
+    {
+        using (var seed = fixture.Context()) FixtureData.Product(seed, stock: 10);
+        using (var context = fixture.Context())
+            Assert.Throws<ArgumentException>(() => FixtureData.Inventory(context).AdjustStock("BP10-ITEM", 5, reason, note, FixtureData.Actor));
+        using var verify = fixture.Context();
+        Assert.Equal(10, verify.Products.Single().StockQuantity);
+        Assert.Empty(verify.AuditEvents);
+    }
+
+    [Fact]
+    public void Approved_ZeroCostRestockNeedsReasonAndPostsNoCash_PRQ20()
+    {
+        using (var seed = fixture.Context()) FixtureData.Product(seed, cost: 10m, stock: 10);
+        using (var context = fixture.Context())
+            Assert.Throws<ArgumentException>(() => FixtureData.Inventory(context).RestockProduct("BP10-ITEM", 10, 0m, null, FixtureData.Actor));
+        using (var context = fixture.Context())
+            FixtureData.Inventory(context).RestockProduct("BP10-ITEM", 10, 0m, null, FixtureData.Actor, "Supplier bonus");
+        using var verify = fixture.Context();
+        Assert.Equal(20, verify.Products.Single().StockQuantity);
+        Assert.Equal(5m, verify.Products.Single().CostPrice); // average cost goes down
+        Assert.Empty(verify.LedgerEntries);
+        Assert.Equal("Supplier bonus", verify.AuditEvents.Single().Reason);
+    }
+
+    [Fact]
+    public void Approved_ReturnWithoutCashNotesVendorCredit_PRQ25()
+    {
+        using (var seed = fixture.Context()) FixtureData.Product(seed, stock: 10);
+        using (var context = fixture.Context())
+            FixtureData.Inventory(context).ReturnToVendor("BP10-ITEM", 3, 0m, FixtureData.Actor);
+        using var verify = fixture.Context();
+        Assert.Equal(7, verify.Products.Single().StockQuantity);
+        Assert.Empty(verify.LedgerEntries);
+        Assert.Equal("Vendor credit pending", verify.AuditEvents.Single().Reason);
     }
 
     private static ProductDTO NewProduct(int categoryId, int vendorId) => new()

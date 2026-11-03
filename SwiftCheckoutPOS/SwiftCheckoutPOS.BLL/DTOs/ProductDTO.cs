@@ -1,10 +1,12 @@
-﻿// Project: SwiftCheckoutPOS.BLL
+// Project: SwiftCheckoutPOS.BLL
 // File: DTOs/ProductDTO.cs
 namespace SwiftCheckoutPOS.BLL.DTOs
 {
     public class ProductDTO
     {
         public int ProductId { get; set; }
+        /// <summary>Base64 SQL rowversion the edit form was loaded with (IMM-06).</summary>
+        public string? RowVersion { get; set; }
         public string Barcode { get; set; } = null!;
         public string ProductName { get; set; } = null!;
         public int CategoryId { get; set; }

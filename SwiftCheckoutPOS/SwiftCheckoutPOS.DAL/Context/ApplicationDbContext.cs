@@ -28,6 +28,7 @@ public partial class ApplicationDbContext : DbContext
     public virtual DbSet<TillReconciliation> TillReconciliations { get; set; }
     public virtual DbSet<LedgerEntry> LedgerEntries { get; set; }
     public virtual DbSet<SystemSetting> SystemSettings { get; set; }
+    public virtual DbSet<AuditEvent> AuditEvents { get; set; } = null!;
 
     protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
     {
@@ -147,6 +148,13 @@ public partial class ApplicationDbContext : DbContext
             entity.Property(e => e.ExpectedCash).HasColumnType("decimal(18, 2)");
             entity.Property(e => e.CountedCash).HasColumnType("decimal(18, 2)");
             entity.HasIndex(e => e.CloseTime);
+        });
+
+        modelBuilder.Entity<AuditEvent>(entity =>
+        {
+            entity.Property(e => e.OccurredAt).HasColumnType("datetime2");
+            entity.HasIndex(e => e.OccurredAt);
+            entity.HasIndex(e => new { e.EntityType, e.EntityKey });
         });
 
         OnModelCreatingPartial(modelBuilder);

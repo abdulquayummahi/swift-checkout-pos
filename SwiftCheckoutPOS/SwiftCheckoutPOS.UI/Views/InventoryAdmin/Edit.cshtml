@@ -24,6 +24,7 @@
                 <div class="card-body p-4 bg-light">
 
                     <form asp-action="Edit" method="post" enctype="multipart/form-data">
+                        <input type="hidden" asp-for="RowVersion" />
                         <div asp-validation-summary="ModelOnly" class="text-danger mb-3 fw-bold"></div>
                         <input type="hidden" asp-for="ProductId" />
                         <input type="hidden" asp-for="ExistingImagePath" />
@@ -94,7 +95,8 @@
                         <div class="row g-3 mb-4 border-top pt-3">
                             <div class="col-md-4">
                                 <label asp-for="StockQuantity" class="form-label fw-bold"></label>
-                                <input asp-for="StockQuantity" class="form-control shadow-sm" type="number" />
+                                <input asp-for="StockQuantity" class="form-control shadow-sm bg-light" type="number" readonly tabindex="-1" />
+                                <small class="text-muted">Change stock with <strong>Correct Stock</strong> on the inventory page (reason required).</small>
                                 <span asp-validation-for="StockQuantity" class="text-danger small fw-bold"></span>
                             </div>
                             <div class="col-md-4">

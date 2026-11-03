@@ -1,4 +1,4 @@
-﻿// Project: SwiftCheckoutPOS.BLL
+// Project: SwiftCheckoutPOS.BLL
 // File: Services/FinanceService.cs
 using System;
 using System.Collections.Generic;
@@ -135,32 +135,22 @@ namespace SwiftCheckoutPOS.BLL.Services
             _financeRepo.AddEntry(entry);
         }
 
-        public void RecordSystemInventoryCost(decimal totalCost, string referenceId)
-        {
-            var entry = new LedgerEntry
-            {
-                TransactionDate = DateTime.Now,
-                Category = "Inventory",
-                TransactionType = "Outflow",
-                Amount = totalCost,
-                Description = $"System Auto-Record: Inventory Restock. Ref: {referenceId}",
-                RecordedBy = "SYSTEM"
-            };
-            _financeRepo.AddEntry(entry);
-        }
+        public void RecordSystemInventoryCost(decimal totalCost, string referenceId, string actor = "SYSTEM") =>
+            RecordSystemEntry("Inventory", "Outflow", totalCost, $"System Auto-Record: Inventory Restock. Ref: {referenceId}", actor);
 
-        public void RecordSystemVendorRefund(decimal refundAmount, string referenceId)
+        public void RecordSystemVendorRefund(decimal refundAmount, string referenceId, string actor = "SYSTEM") =>
+            RecordSystemEntry("Inventory", "Inflow", refundAmount, $"System Auto-Record: Vendor RTV Refund. Ref: {referenceId}", actor);
+
+        /// <summary>System-only ledger entry (Inventory, COGS, Inventory Adjustment, Damaged). Stage inside an AtomicUnit.</summary>
+        public void RecordSystemEntry(string category, string type, decimal amount, string description, string actor)
         {
-            var entry = new LedgerEntry
+            if (amount <= 0) return;
+            _financeRepo.AddEntry(new LedgerEntry
             {
-                TransactionDate = DateTime.Now,
-                Category = "Inventory",
-                TransactionType = "Inflow",
-                Amount = refundAmount,
-                Description = $"System Auto-Record: Vendor RTV Refund. Ref: {referenceId}",
-                RecordedBy = "SYSTEM"
-            };
-            _financeRepo.AddEntry(entry);
+                TransactionDate = DateTime.Now, Category = category, TransactionType = type, Amount = amount,
+                Description = description.Length <= 500 ? description : description[..500],
+                RecordedBy = actor.Length <= 100 ? actor : actor[..100]
+            });
         }
 
         public void RecordSystemCOGS(decimal cogsAmount, string receiptNumber)

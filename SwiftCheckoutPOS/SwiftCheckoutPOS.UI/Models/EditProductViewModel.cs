@@ -1,4 +1,4 @@
-﻿// Project: SwiftCheckoutPOS.UI
+// Project: SwiftCheckoutPOS.UI
 // File: Models/EditProductViewModel.cs
 using System.ComponentModel.DataAnnotations;
 using Microsoft.AspNetCore.Http;
@@ -9,6 +9,7 @@ namespace SwiftCheckoutPOS.UI.Models
     public class EditProductViewModel
     {
         public int ProductId { get; set; }
+        public string? RowVersion { get; set; }
 
         [Required(ErrorMessage = "Hardware SKU/Barcode is required.")]
         public string Barcode { get; set; } = null!;

@@ -92,6 +92,9 @@
             <button class="btn btn-danger fw-bold px-4 shadow-sm d-flex align-items-center" style="height: 50px;" data-bs-toggle="modal" data-bs-target="#rtvModal" id="btnRtv">
                 Return RTV (F4)
             </button>
+            <button class="btn btn-outline-dark fw-bold px-4 shadow-sm d-flex align-items-center" style="height: 50px;" data-bs-toggle="modal" data-bs-target="#adjustModal" id="btnAdjust">
+                Correct Stock (F6)
+            </button>
             <a asp-action="Create" class="btn btn-success fw-bold px-4 shadow-sm" style="height: 50px; display: flex; align-items: center;">
                 + Add New Product
             </a>
@@ -245,10 +248,59 @@
                         <input type="number" name="newRetailPrice" step="0.01" class="form-control" autocomplete="off" placeholder="Leave blank to maintain current shelf price" />
                         <small class="text-muted" style="font-size: 0.75rem;">System will automatically calculate moving average cost upon submission.</small>
                     </div>
+                    <div class="mt-2">
+                        <label class="form-label fw-bold text-muted small text-uppercase">Reason if batch cost is 0 (free / bonus stock)</label>
+                        <input type="text" name="zeroCostReason" maxlength="150" class="form-control" autocomplete="off" placeholder="Only needed for zero-cost stock" />
+                    </div>
                 </div>
                 <div class="modal-footer border-0 p-4 pt-0 d-flex gap-2">
                     <button type="button" class="btn btn-light border fw-bold flex-grow-1 py-2" data-bs-dismiss="modal">Cancel (ESC)</button>
                     <button type="submit" class="btn btn-warning fw-bold flex-grow-1 py-2 text-dark">Commit Restock (ENTER)</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+
+<!-- IMM-06: Stock correction with reason (PR-Q23/24/82) -->
+<div class="modal fade" id="adjustModal" tabindex="-1" data-bs-backdrop="static">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content rounded-4 border-0 shadow-lg">
+            <div class="modal-header border-0 bg-dark text-white rounded-top-4">
+                <h5 class="modal-title fw-bold">Correct Stock Count</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <form asp-action="AdjustStock" method="post">
+                <div class="modal-body p-4">
+                    <div class="mb-3">
+                        <label class="form-label fw-bold text-muted small text-uppercase">Scan Barcode</label>
+                        <input type="text" name="barcode" id="adjustBarcode" class="form-control form-control-lg bg-light font-monospace" required autocomplete="off" />
+                    </div>
+                    <div class="row g-3 mb-3">
+                        <div class="col-md-6">
+                            <label class="form-label fw-bold text-muted small text-uppercase">Counted Quantity</label>
+                            <input type="number" name="countedQuantity" class="form-control form-control-lg bg-light fw-bold" required min="0" autocomplete="off" />
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-bold text-muted small text-uppercase">Reason</label>
+                            <select name="reason" class="form-select form-select-lg" required>
+                                <option value="">Choose…</option>
+                                @foreach (var r in SwiftCheckoutPOS.BLL.Services.InventoryService.StockAdjustmentReasons)
+                                {
+                                    <option value="@r">@r</option>
+                                }
+                            </select>
+                        </div>
+                    </div>
+                    <div>
+                        <label class="form-label fw-bold text-muted small text-uppercase">Note (required for Other)</label>
+                        <input type="text" name="note" maxlength="150" class="form-control" autocomplete="off" />
+                    </div>
+                </div>
+                <div class="modal-footer border-0 p-4 pt-0 d-flex gap-2">
+                    <button type="button" class="btn btn-light border fw-bold flex-grow-1 py-2" data-bs-dismiss="modal">Cancel (ESC)</button>
+                    <button type="submit" class="btn btn-dark fw-bold flex-grow-1 py-2">Save Correction (ENTER)</button>
                 </div>
             </form>
         </div>
@@ -326,6 +378,10 @@
             e.preventDefault();
             document.getElementById('btnRtv').click();
         }
+        if (e.key === 'F6') {
+            e.preventDefault();
+            document.getElementById('btnAdjust').click();
+        }
         if (e.key === 'Escape') {
             var anyModalOpen = document.querySelector('.modal.show');
             if (!anyModalOpen) {
@@ -339,6 +395,10 @@
     var restockModal = document.getElementById('restockModal');
     restockModal.addEventListener('shown.bs.modal', function () {
         document.getElementById('restockBarcode').focus();
+    });
+
+    document.getElementById('adjustModal').addEventListener('shown.bs.modal', function () {
+        document.getElementById('adjustBarcode').focus();
     });
 
     var rtvModal = document.getElementById('rtvModal');
