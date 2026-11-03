@@ -396,6 +396,51 @@ internal static class Program
                 var controller = Controller(service, cart, () => throw new Exception("Must not construct printer"));
                 Check(controller.TriggerHardwarePrint() is JsonResult);
             })
+            ,
+            ("BP-07 only login, setup, logout, access-denied and error pages allow anonymous access", () =>
+            {
+                var anonymous = Actions().Where(a => a.Method.IsDefined(typeof(Microsoft.AspNetCore.Authorization.AllowAnonymousAttribute), true)
+                        || a.Type.IsDefined(typeof(Microsoft.AspNetCore.Authorization.AllowAnonymousAttribute), true))
+                    .Select(a => $"{a.Type.Name}.{a.Method.Name}").Distinct().OrderBy(n => n).ToArray();
+                Equal("AccountController.AccessDenied,AccountController.Login,AccountController.Logout,AccountController.Setup,HomeController.Error",
+                    string.Join(",", anonymous));
+            }),
+            ("BP-07 no action skips antiforgery and Admin-only areas stay Admin-only", () =>
+            {
+                Check(!Actions().Any(a => a.Method.IsDefined(typeof(IgnoreAntiforgeryTokenAttribute), true)
+                    || a.Type.IsDefined(typeof(IgnoreAntiforgeryTokenAttribute), true)));
+                string Roles(Type t) => string.Join("|", t.GetCustomAttributes(typeof(Microsoft.AspNetCore.Authorization.AuthorizeAttribute), true)
+                    .Cast<Microsoft.AspNetCore.Authorization.AuthorizeAttribute>().Select(x => x.Roles ?? x.Policy ?? "signed-in"));
+                foreach (var t in new[] { typeof(BackupAdminController), typeof(UserAdminController), typeof(AuditLogController), typeof(AdminDashboardController), typeof(SalesAdminController) })
+                    Equal("Admin", Roles(t));
+                foreach (var name in new[] { "SetReceiptHeader", "SetManagerFinancialView" })
+                    Equal("Admin", string.Join("|", typeof(SettingsAdminController).GetMethod(name)!
+                        .GetCustomAttributes(typeof(Microsoft.AspNetCore.Authorization.AuthorizeAttribute), true)
+                        .Cast<Microsoft.AspNetCore.Authorization.AuthorizeAttribute>().Select(x => x.Roles)));
+                Check(Roles(typeof(ReportAdminController)).Contains(SwiftCheckoutPOS.UI.Infrastructure.FinancialViewRequirement.Policy));
+            }),
+            ("BP-07 database and unexpected errors never show their raw text", () =>
+            {
+                var generic = SwiftCheckoutPOS.UI.Infrastructure.SafeErrors.Generic;
+                Equal(generic, SwiftCheckoutPOS.UI.Infrastructure.SafeErrors.UserMessage(new Microsoft.EntityFrameworkCore.DbUpdateException("INSERT INTO dbo.Products cost 7.25")));
+                Equal(generic, SwiftCheckoutPOS.UI.Infrastructure.SafeErrors.UserMessage(new IOException(@"C:\ProgramData\x locked")));
+                Equal(generic, SwiftCheckoutPOS.UI.Infrastructure.SafeErrors.UserMessage(new Exception("Server=.;Password=secret")));
+                Equal("Not enough stock.", SwiftCheckoutPOS.UI.Infrastructure.SafeErrors.UserMessage(new InvalidOperationException("Not enough stock.")));
+                Equal("Bad price.", SwiftCheckoutPOS.UI.Infrastructure.SafeErrors.UserMessage(new CheckoutValidationException("Bad price.")));
+            })
+            ,
+            ("IMM-12 views and controllers never receive DAL entities or repositories", () =>
+            {
+                static bool IsDal(Type t) => (t.Namespace ?? "").StartsWith("SwiftCheckoutPOS.DAL", StringComparison.Ordinal)
+                    || (t.IsGenericType && t.GetGenericArguments().Any(IsDal)) || (t.IsArray && IsDal(t.GetElementType()!));
+                var ui = typeof(CheckoutController).Assembly.GetTypes();
+                var views = ui.Where(t => t.BaseType is { IsGenericType: true } b && b.GetGenericTypeDefinition().Name.StartsWith("RazorPage", StringComparison.Ordinal))
+                    .Where(t => IsDal(t.BaseType!.GetGenericArguments()[0])).Select(t => t.Name).ToArray();
+                Equal("", string.Join(",", views));
+                var controllers = ui.Where(t => typeof(ControllerBase).IsAssignableFrom(t))
+                    .Where(t => t.GetConstructors().SelectMany(c => c.GetParameters()).Any(p => IsDal(p.ParameterType))).Select(t => t.Name).ToArray();
+                Equal("", string.Join(",", controllers));
+            })
         ];
         var failures = 0;
         foreach (var (name, test) in cases)
@@ -440,6 +485,11 @@ internal static class Program
 
     private static CheckoutSessionDTO Copy(CheckoutSessionDTO cart) =>
         JsonConvert.DeserializeObject<CheckoutSessionDTO>(JsonConvert.SerializeObject(cart))!;
+    private static IEnumerable<(Type Type, System.Reflection.MethodInfo Method)> Actions() =>
+        typeof(CheckoutController).Assembly.GetTypes()
+            .Where(t => typeof(ControllerBase).IsAssignableFrom(t) && !t.IsAbstract)
+            .SelectMany(t => t.GetMethods(System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.DeclaredOnly)
+                .Where(m => !m.IsSpecialName && !m.IsDefined(typeof(NonActionAttribute), true)).Select(m => (t, m)));
     private static void Check(bool condition) { if (!condition) throw new Exception("Assertion failed"); }
     private static void Equal<T>(T expected, T actual) { if (!EqualityComparer<T>.Default.Equals(expected, actual)) throw new Exception($"Expected {expected}; got {actual}"); }
     private static void Reject(Action action) => Throws<CheckoutValidationException>(action);

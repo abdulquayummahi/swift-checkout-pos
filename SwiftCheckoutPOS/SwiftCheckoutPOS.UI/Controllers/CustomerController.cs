@@ -1,5 +1,6 @@
 // Project: SwiftCheckoutPOS.UI
 // File: Controllers/CustomerController.cs
+using SwiftCheckoutPOS.UI.Infrastructure;
 using System;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -44,7 +45,7 @@ namespace SwiftCheckoutPOS.UI.Controllers
             }
             catch (Exception ex)
             {
-                TempData["Error"] = ex is ArgumentException or InvalidOperationException ? ex.Message : "The customer could not be saved.";
+                TempData["Error"] = ex is ArgumentException or InvalidOperationException ? this.SafeError(ex) : "The customer could not be saved.";
             }
             return RedirectToAction(nameof(Index));
         }
@@ -82,7 +83,7 @@ namespace SwiftCheckoutPOS.UI.Controllers
             }
             catch (Exception ex)
             {
-                TempData["Error"] = $"Update Fault: {ex.Message}";
+                TempData["Error"] = $"Update Fault: {this.SafeError(ex)}";
             }
             return RedirectToAction(nameof(Details), new { id = customerId });
         }

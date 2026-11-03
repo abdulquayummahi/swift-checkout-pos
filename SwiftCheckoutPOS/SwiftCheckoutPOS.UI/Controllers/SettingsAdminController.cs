@@ -1,5 +1,6 @@
 // Project: SwiftCheckoutPOS.UI
 // File: Controllers/SettingsAdminController.cs
+using SwiftCheckoutPOS.UI.Infrastructure;
 using System;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -40,7 +41,7 @@ namespace SwiftCheckoutPOS.UI.Controllers
                     SwiftCheckoutPOS.UI.Infrastructure.ActorExtensions.Actor(User), "Admin");
                 TempData["Success"] = "Receipt header saved.";
             }
-            catch (Exception ex) when (ex is ArgumentException or InvalidOperationException) { TempData["Error"] = ex.Message; }
+            catch (Exception ex) when (ex is ArgumentException or InvalidOperationException) { TempData["Error"] = this.SafeError(ex); }
             return RedirectToAction(nameof(Index));
         }
 
@@ -55,7 +56,7 @@ namespace SwiftCheckoutPOS.UI.Controllers
                 _settingsService.SetAllowManagerFinancialView(allow, SwiftCheckoutPOS.UI.Infrastructure.ActorExtensions.Actor(User), "Admin");
                 TempData["Success"] = allow ? "Managers can now view financial reports." : "Financial reports are now Admin-only.";
             }
-            catch (InvalidOperationException ex) { TempData["Error"] = ex.Message; }
+            catch (InvalidOperationException ex) { TempData["Error"] = this.SafeError(ex); }
             return RedirectToAction(nameof(Index));
         }
 
@@ -72,7 +73,7 @@ namespace SwiftCheckoutPOS.UI.Controllers
             }
             catch (Exception ex)
             {
-                TempData["Error"] = $"Configuration Fault: {ex.Message}";
+                TempData["Error"] = $"Configuration Fault: {this.SafeError(ex)}";
             }
 
             return RedirectToAction(nameof(Index));

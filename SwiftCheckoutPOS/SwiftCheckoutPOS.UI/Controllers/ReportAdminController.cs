@@ -1,5 +1,6 @@
 // Project: SwiftCheckoutPOS.UI
 // File: Controllers/ReportAdminController.cs
+using SwiftCheckoutPOS.UI.Infrastructure;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using SwiftCheckoutPOS.BLL.Interfaces;
@@ -43,7 +44,7 @@ namespace SwiftCheckoutPOS.UI.Controllers
             }
             catch (Exception ex)
             {
-                return Json(new { success = false, message = $"SOFTWARE EXCEPTION: {ex.Message}" });
+                return Json(new { success = false, message = $"{this.SafeError(ex)}" });
             }
         }
 
@@ -68,7 +69,7 @@ namespace SwiftCheckoutPOS.UI.Controllers
             }
             catch (Exception ex)
             {
-                return Json(new { success = false, message = $"CRITICAL HARDWARE EXCEPTION: {ex.Message}" });
+                return Json(new { success = false, message = $"Printer: {this.SafeError(ex)}" });
             }
         }
     }

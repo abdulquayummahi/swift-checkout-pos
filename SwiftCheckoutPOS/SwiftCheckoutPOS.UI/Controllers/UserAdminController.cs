@@ -1,5 +1,6 @@
 ﻿// Project: SwiftCheckoutPOS.UI
 // File: Controllers/UserAdminController.cs
+using SwiftCheckoutPOS.UI.Infrastructure;
 using System;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -55,7 +56,7 @@ namespace SwiftCheckoutPOS.UI.Controllers
             }
             catch (Exception ex)
             {
-                ModelState.AddModelError(string.Empty, ex.Message);
+                ModelState.AddModelError(string.Empty, this.SafeError(ex));
                 return View(model);
             }
         }
@@ -78,7 +79,7 @@ namespace SwiftCheckoutPOS.UI.Controllers
             }
             catch (Exception ex)
             {
-                TempData["Error"] = ex.Message;
+                TempData["Error"] = this.SafeError(ex);
                 return RedirectToAction(nameof(Index));
             }
         }
@@ -105,7 +106,7 @@ namespace SwiftCheckoutPOS.UI.Controllers
             }
             catch (Exception ex)
             {
-                ModelState.AddModelError(string.Empty, ex.Message);
+                ModelState.AddModelError(string.Empty, this.SafeError(ex));
                 return View(model);
             }
         }

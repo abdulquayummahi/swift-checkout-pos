@@ -55,7 +55,7 @@ namespace SwiftCheckoutPOS.UI.Controllers
             }
             catch (Exception ex) when (ex is ArgumentException or InvalidOperationException)
             {
-                TempData["Error"] = ex.Message;
+                TempData["Error"] = this.SafeError(ex);
             }
             return RedirectToAction(nameof(Index));
         }

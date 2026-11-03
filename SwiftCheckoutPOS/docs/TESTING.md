@@ -108,7 +108,14 @@ Both cases passed in the complete suite and in **10 further repetitions each (20
 it backs up `SwiftCheckoutPOS_Test`, restores the drill copy as `SwiftCheckoutPOS_Test_RestoreDrill` and an in-place-restore
 target as `SwiftCheckoutPOS_Test_RestoreLive`, and drops both. The fixture's own session is never cut off (the in-place restore
 runs on the copy). Pure rules (retention, schedule/catch-up, settings validation, download names, image validation) need no SQL.
-Latest run (2026-11-04): 35/35 unit, 142/142 integration.
+
+
+`Host/HostSmokeTests.cs` (BP-06/07/09) starts the real `Program` in memory (WebApplicationFactory/TestServer) in **Production**
+mode with the guarded test connection and a temporary `Paths:DataRoot`: every controller resolves from DI; first-Admin setup,
+sign-in and every main page render without error text or external assets; security headers, host filtering and a manual
+backup through the Backup page are checked. No port is opened.
+
+Latest run (2026-11-04): 39/39 unit, 145/145 integration.
 
 ## Executed verification
 

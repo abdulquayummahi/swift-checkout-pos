@@ -1,5 +1,6 @@
 // Project: SwiftCheckoutPOS.UI
 // File: Controllers/ReconciliationController.cs
+using SwiftCheckoutPOS.UI.Infrastructure;
 using System;
 using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
@@ -38,7 +39,7 @@ namespace SwiftCheckoutPOS.UI.Controllers
             }
             catch (Exception ex)
             {
-                TempData["Error"] = $"Reconciliation Fault: {ex.Message}";
+                TempData["Error"] = $"Reconciliation Fault: {this.SafeError(ex)}";
                 return RedirectToAction(nameof(Index));
             }
         }

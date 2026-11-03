@@ -5,23 +5,20 @@ using System.Diagnostics;
 
 namespace SwiftCheckoutPOS.UI.Controllers
 {
-    [AllowAnonymous]
     public class HomeController : Controller
     {
-        public IActionResult Index()
-        {
-            return View();
-        }
+        // The old template pages are retired: signed-in staff go straight to the till.
+        public IActionResult Index() => RedirectToAction("Index", "Checkout");
 
-        public IActionResult Privacy()
-        {
-            return View();
-        }
+        public IActionResult Privacy() => RedirectToAction("Index", "Checkout");
 
+        /// <summary>BP-07: production error page. Shows a reference number only, never exception details.</summary>
+        [AllowAnonymous]
         [ResponseCache(Duration = 0, Location = ResponseCacheLocation.None, NoStore = true)]
-        public IActionResult Error()
+        public IActionResult Error(int? code)
         {
-            return View(new ErrorViewModel { RequestId = Activity.Current?.Id ?? HttpContext.TraceIdentifier });
+            Response.StatusCode = code is >= 400 and < 600 ? code.Value : StatusCodes.Status500InternalServerError;
+            return View(new ErrorViewModel { RequestId = Activity.Current?.Id ?? HttpContext.TraceIdentifier, StatusCode = Response.StatusCode });
         }
     }
 }

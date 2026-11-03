@@ -23,6 +23,8 @@ namespace SwiftCheckoutPOS.BLL.Services
         }
 
         /// <summary>BP-13/PR-Q52: true until the first user exists (one-time setup).</summary>
+        public string? UsernameOf(int userId) => _userRepo.GetUserById(userId)?.Username;
+
         public bool NeedsFirstAdmin() => !_userRepo.GetAllUsers().Any();
 
         /// <summary>BP-13: create the first Admin only while no user exists. No default password anywhere.</summary>

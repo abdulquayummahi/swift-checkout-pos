@@ -98,7 +98,7 @@ namespace SwiftCheckoutPOS.UI.Controllers
             catch (Exception ex)
             {
                 _images.Remove(imagePath); // the product was not saved: do not leave an orphan file
-                ModelState.AddModelError(string.Empty, ex.Message);
+                ModelState.AddModelError(string.Empty, this.SafeError(ex));
                 model.AvailableCategories = GetCategorySelectList();
                 model.AvailableVendors = GetVendorSelectList();
                 return View(model);
@@ -135,7 +135,7 @@ namespace SwiftCheckoutPOS.UI.Controllers
             }
             catch (Exception ex)
             {
-                TempData["Error"] = ex.Message;
+                TempData["Error"] = this.SafeError(ex);
                 return RedirectToAction(nameof(Index));
             }
         }
@@ -184,7 +184,7 @@ namespace SwiftCheckoutPOS.UI.Controllers
             catch (Exception ex)
             {
                 _images.Remove(newImagePath); // save failed: keep the old picture, drop the new upload
-                ModelState.AddModelError(string.Empty, ex.Message);
+                ModelState.AddModelError(string.Empty, this.SafeError(ex));
                 model.AvailableCategories = GetCategorySelectList();
                 model.AvailableVendors = GetVendorSelectList();
                 return View(model);
@@ -203,7 +203,7 @@ namespace SwiftCheckoutPOS.UI.Controllers
             }
             catch (Exception ex)
             {
-                TempData["Error"] = $"Restock Failed: {ex.Message}";
+                TempData["Error"] = $"Restock Failed: {this.SafeError(ex)}";
             }
             return RedirectToAction(nameof(Index));
         }
@@ -219,7 +219,7 @@ namespace SwiftCheckoutPOS.UI.Controllers
             }
             catch (Exception ex)
             {
-                TempData["Error"] = $"Return Failed: {ex.Message}";
+                TempData["Error"] = $"Return Failed: {this.SafeError(ex)}";
             }
             return RedirectToAction(nameof(Index));
         }
@@ -228,14 +228,14 @@ namespace SwiftCheckoutPOS.UI.Controllers
         public IActionResult QuickAddCategory([FromForm] string categoryName)
         {
             try { _inventoryService.AddCategory(categoryName); return Json(new { success = true }); }
-            catch (Exception ex) { return Json(new { success = false, message = ex.Message }); }
+            catch (Exception ex) { return Json(new { success = false, message = this.SafeError(ex) }); }
         }
 
         [HttpPost]
         public IActionResult QuickAddVendor([FromForm] string vendorName)
         {
             try { _inventoryService.AddVendor(vendorName); return Json(new { success = true }); }
-            catch (Exception ex) { return Json(new { success = false, message = ex.Message }); }
+            catch (Exception ex) { return Json(new { success = false, message = this.SafeError(ex) }); }
         }
 
         /// <summary>PR-Q23/82: stock correction to a counted quantity, with reason (Manager/Admin via class role gate).</summary>
@@ -250,7 +250,7 @@ namespace SwiftCheckoutPOS.UI.Controllers
             }
             catch (Exception ex) when (ex is ArgumentException or InvalidOperationException)
             {
-                TempData["Error"] = ex.Message;
+                TempData["Error"] = this.SafeError(ex);
             }
             return RedirectToAction(nameof(Index));
         }

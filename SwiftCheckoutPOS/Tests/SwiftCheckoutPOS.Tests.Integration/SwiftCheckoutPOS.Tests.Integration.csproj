@@ -14,10 +14,13 @@
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.14.1" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" Version="10.0.14" />
     <PackageReference Include="Microsoft.Data.SqlClient" Version="6.1.7" />
+    <PackageReference Include="Microsoft.AspNetCore.Mvc.Testing" Version="10.0.14" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="../../SwiftCheckoutPOS.BLL/SwiftCheckoutPOS.BLL.csproj" />
     <ProjectReference Include="../../SwiftCheckoutPOS.DAL/SwiftCheckoutPOS.DAL.csproj" />
+    <!-- BP-07 host smoke tests start the real Program in memory (TestServer), never Kestrel or a browser. -->
+    <ProjectReference Include="../../SwiftCheckoutPOS.UI/SwiftCheckoutPOS.UI.csproj" />
     <Using Include="Xunit" />
     <None Update="xunit.runner.json" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>

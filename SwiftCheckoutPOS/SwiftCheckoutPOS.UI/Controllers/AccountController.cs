@@ -6,7 +6,6 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using SwiftCheckoutPOS.BLL.Security;
 using SwiftCheckoutPOS.BLL.Services;
-using SwiftCheckoutPOS.DAL.Repositories;
 using SwiftCheckoutPOS.UI.Infrastructure;
 using SwiftCheckoutPOS.UI.Models;
 
@@ -16,13 +15,13 @@ namespace SwiftCheckoutPOS.UI.Controllers
     {
         private readonly AuthService _authService;
         private readonly LoginThrottle _throttle;
-        private readonly AtomicUnit _unit;
+        private readonly AuditService _audit;
 
-        public AccountController(AuthService authService, LoginThrottle throttle, AtomicUnit unit)
+        public AccountController(AuthService authService, LoginThrottle throttle, AuditService audit)
         {
             _authService = authService;
             _throttle = throttle;
-            _unit = unit;
+            _audit = audit;
         }
 
         [HttpGet]
@@ -57,7 +56,7 @@ namespace SwiftCheckoutPOS.UI.Controllers
 
             // PR-Q78: failed attempts are logged (never the password).
             var delay = _throttle.RegisterFailure(username, DateTime.Now);
-            try { _unit.Run(() => _unit.Audit($"login:{(username.Length > 50 ? username[..50] : username)}", "LoginFailed", "User", username.Length > 100 ? username[..100] : username)); }
+            try { _audit.Record($"login:{(username.Length > 50 ? username[..50] : username)}", "LoginFailed", "User", username.Length > 100 ? username[..100] : username); }
             catch { /* logging must not block the login page */ }
             ModelState.AddModelError(string.Empty, delay > TimeSpan.Zero
                 ? $"Invalid username or password. Wait {Math.Ceiling(delay.TotalSeconds)} seconds before the next try."
@@ -123,7 +122,7 @@ namespace SwiftCheckoutPOS.UI.Controllers
             {
                 // Same user: verify the signed-in user's own password.
                 var state = int.TryParse(me, out var id) ? _authService.SecurityState(id) : null;
-                var myName = HttpContext.RequestServices.GetRequiredService<UserRepository>().GetUserById(id)?.Username;
+                var myName = _authService.UsernameOf(id);
                 ok = myName is not null && _authService.ValidateCredentials(myName, password, out var uid, out _, out _) && uid == id;
             }
             else
@@ -140,7 +139,7 @@ namespace SwiftCheckoutPOS.UI.Controllers
             _throttle.Reset(throttleKey);
             HttpContext.Session.Remove(IdleLockMiddleware.LockedKey);
             HttpContext.Session.SetString(IdleLockMiddleware.LastActivityKey, DateTime.UtcNow.Ticks.ToString());
-            if (who is not null) _unit.Run(() => _unit.Audit(who, "ScreenUnlocked", "User", me ?? "", details: $"Unlocked session of {User.Identity?.Name}"));
+            if (who is not null) _audit.Record(who, "ScreenUnlocked", "User", me ?? "", details: $"Unlocked session of {User.Identity?.Name}");
             return LocalRedirect(Url.IsLocalUrl(returnUrl) ? returnUrl! : "/");
         }
 

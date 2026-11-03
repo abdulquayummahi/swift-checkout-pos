@@ -32,7 +32,7 @@ namespace SwiftCheckoutPOS.UI.Controllers
             }
             catch (Exception ex) when (ex is ArgumentException or InvalidOperationException)
             {
-                TempData["Error"] = ex.Message;
+                TempData["Error"] = this.SafeError(ex);
                 return RedirectToAction(nameof(Index));
             }
         }
@@ -51,7 +51,7 @@ namespace SwiftCheckoutPOS.UI.Controllers
             }
             catch (Exception ex) when (ex is ArgumentException or InvalidOperationException)
             {
-                TempData["Error"] = $"Refund failed: {ex.Message}";
+                TempData["Error"] = $"Refund failed: {this.SafeError(ex)}";
                 return Reload(receiptNumber);
             }
         }
@@ -68,7 +68,7 @@ namespace SwiftCheckoutPOS.UI.Controllers
             }
             catch (Exception ex) when (ex is ArgumentException or InvalidOperationException)
             {
-                TempData["Error"] = $"Void failed: {ex.Message}";
+                TempData["Error"] = $"Void failed: {this.SafeError(ex)}";
                 return Reload(receiptNumber);
             }
         }

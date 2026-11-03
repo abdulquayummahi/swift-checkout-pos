@@ -141,6 +141,9 @@
 
             let formData = new FormData();
             formData.append(type === 'Category' ? 'categoryName' : 'vendorName', input.trim());
+            // IMM-02: every POST carries the antiforgery token (global AutoValidateAntiforgeryToken).
+            const token = document.querySelector('input[name="__RequestVerificationToken"]');
+            if (token) formData.append('__RequestVerificationToken', token.value);
 
             try {
                 let response = await fetch(`/InventoryAdmin/QuickAdd${type}`, { method: 'POST', body: formData });

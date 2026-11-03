@@ -62,6 +62,8 @@ builder.Services.AddControllersWithViews(options =>
 {
     options.Filters.Add(new AutoValidateAntiforgeryTokenAttribute());
 });
+builder.WebHost.ConfigureKestrel(kestrel => kestrel.AddServerHeader = false); // BP-07: no server banner
+builder.Services.Configure<Microsoft.AspNetCore.Http.Features.FormOptions>(o => o.MultipartBodyLengthLimit = 4 * 1024 * 1024); // images are max 2 MB
 
 builder.Services.AddAntiforgery(options => options.HeaderName = "RequestVerificationToken");
 
@@ -117,6 +119,7 @@ builder.Services.AddDbContext<ApplicationDbContext>(options =>
     options.UseSqlServer(connectionString, sqlOptions => sqlOptions.EnableRetryOnFailure()));
 
 builder.Services.AddScoped<AtomicUnit>();
+builder.Services.AddScoped<AuditService>();
 builder.Services.AddScoped<MetricsRepository>();
 builder.Services.AddScoped<MetricsService>();
 builder.Services.AddScoped<ShiftRepository>();
@@ -174,9 +177,11 @@ builder.Services.AddHostedService<HeldOrderExpiryWorker>();
 
 var app = builder.Build();
 
+app.UseMiddleware<SwiftCheckoutPOS.UI.Infrastructure.SecurityHeadersMiddleware>(); // BP-07
 if (!app.Environment.IsDevelopment())
 {
-    app.UseExceptionHandler("/Home/Error");
+    app.UseExceptionHandler("/Home/Error"); // BP-07: no exception text reaches the browser
+    app.UseStatusCodePagesWithReExecute("/Home/Error", "?code={0}");
     if (useHttps) app.UseHsts();
 }
 
@@ -210,3 +215,6 @@ app.MapControllerRoute(
     .WithStaticAssets();
 
 app.Run();
+
+/// <summary>Visible to the in-memory host tests (WebApplicationFactory).</summary>
+public partial class Program { }
