@@ -1,0 +1,17 @@
+@* One place for TempData messages on every screen. Success fades after 5 s; errors and warnings stay until dismissed. *@
+@{
+    var notes = new List<(string Kind, string Icon, string Text)>();
+    if (TempData["Success"] is string ok) { notes.Add(("success", "check-circle", ok)); }
+    if (TempData["Warning"] is string warn) { notes.Add(("warning", "alert", warn)); }
+    if (TempData["Error"] is string err) { notes.Add(("error", "circle-x", err)); }
+}
+<div class="toast-stack" aria-live="polite">
+    @foreach (var n in notes)
+    {
+        <div class="toast-note is-@n.Kind" role="@(n.Kind == "error" ? "alert" : "status")">
+            @Html.Icon(n.Icon)
+            <div>@n.Text</div>
+            <button type="button" class="toast-x" aria-label="Dismiss">@Html.Icon("x")</button>
+        </div>
+    }
+</div>

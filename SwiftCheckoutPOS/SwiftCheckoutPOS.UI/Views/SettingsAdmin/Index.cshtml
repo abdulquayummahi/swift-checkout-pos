@@ -1,137 +1,86 @@
-<!-- Project: SwiftCheckoutPOS.UI -->
-<!-- File: Views/SettingsAdmin/Index.cshtml -->
 @{
-    ViewData["Title"] = "System Settings";
+    ViewData["Title"] = "Settings";
+    ViewData["Narrow"] = true;
+    var isAdmin = (bool)ViewBag.IsAdmin;
+    var managerView = (bool)ViewBag.ManagerFinancialView;
 }
-
-<style>
-    :root {
-        --dash-bg: #f8f9fa;
-    }
-
-    .dashboard-container {
-        background-color: var(--dash-bg);
-        padding: 2rem;
-        min-height: calc(100vh - 60px);
-    }
-
-    .settings-panel {
-        background: #fff;
-        border-radius: 1rem;
-        padding: 2rem;
-        box-shadow: 0 4px 12px rgba(0,0,0,0.03);
-        border: 1px solid #e4e6ef;
-        max-width: 800px;
-    }
-
-    .form-control {
-        border-radius: 0.5rem;
-        border: 2px solid #e4e6ef;
-        padding: 0.75rem 1rem;
-        font-weight: 600;
-        color: #3f4254;
-        transition: all 0.2s;
-        height: 50px;
-    }
-
-        .form-control:focus {
-            border-color: #3699ff;
-            box-shadow: 0 0 0 0.2rem rgba(54, 153, 255, 0.1);
-        }
-</style>
-
-<div class="dashboard-container">
-    <div class="mb-4">
-        <h2 class="fw-bold mb-1" style="color: #181c32;">System Settings</h2>
-        <span class="text-muted fw-bold" style="font-size: 0.9rem;">Global Application Configuration</span>
-    </div>
-
-    @if (TempData["Error"] != null)
-    {
-        <div class="alert alert-danger fw-bold border-0 shadow-sm" style="max-width: 800px;">@TempData["Error"]</div>
-    }
-    @if (TempData["Success"] != null)
-    {
-        <div class="alert alert-success fw-bold border-0 shadow-sm" style="max-width: 800px;">@TempData["Success"]</div>
-    }
-
-    <div class="settings-panel">
-        <h5 class="fw-bold text-dark border-bottom pb-3 mb-4">Terminal Behavior</h5>
-
-        <form asp-action="UpdateRetention" method="post" id="systemSettingsForm">
-            <div class="row align-items-center mb-4">
-                <div class="col-md-8">
-                    <label class="fw-bold text-dark mb-1">Held Order Retention Window (Hours)</label>
-                    <p class="text-muted small mb-0 fw-bold">
-                        Determines how far back the POS terminals will search for abandoned/held carts.
-                        Warning: Values above 720 hours (30 days) may impact terminal speed during high-volume shifts.
-                    </p>
-                </div>
-                <div class="col-md-4">
-                    <div class="input-group">
-                        <!-- ARCHITECT FIX: Aligned UI validation (min="0") with BLL domain rules -->
-                        <input type="number" name="retentionHours" id="retentionInput" class="form-control text-end fs-5" value="@ViewBag.RetentionHours" required min="0" max="87600" autocomplete="off" />
-                        <span class="input-group-text bg-light text-muted fw-bold">HRS</span>
-                    </div>
-                </div>
-            </div>
-
-            <div class="d-flex justify-content-end border-top pt-4">
-                <button type="submit" class="btn btn-primary fw-bold px-5" style="height: 50px;">Save Configuration (ENTER)</button>
-            </div>
-        </form>
-
-        @if ((bool)ViewBag.IsAdmin)
-        {
-            var h = (SwiftCheckoutPOS.BLL.Hardware.ReceiptHeaderDTO)ViewBag.Header;
-            <div class="card border-0 shadow-sm mt-4">
-                <div class="card-body">
-                    <h6 class="fw-bold">Receipt header (Admin only)</h6>
-                    <form asp-action="SetReceiptHeader" method="post" class="row g-2">
-                        <div class="col-md-6"><input name="shopName" value="@h.ShopName" maxlength="48" class="form-control" placeholder="Shop name" required /></div>
-                        <div class="col-md-6"><input name="phone" value="@h.Phone" maxlength="48" class="form-control" placeholder="Phone" /></div>
-                        <div class="col-12"><input name="address" value="@h.Address" maxlength="48" class="form-control" placeholder="Address" /></div>
-                        <div class="col-md-6"><input name="bin" value="@h.Bin" maxlength="48" class="form-control" placeholder="BIN (only if VAT-registered)" /></div>
-                        <div class="col-md-6"><input name="footer" value="@h.Footer" maxlength="48" class="form-control" placeholder="Footer message" /></div>
-                        <div class="col-12"><button class="btn btn-sm btn-dark fw-bold">Save header</button></div>
-                    </form>
-                </div>
-            </div>
-            <div class="card border-0 shadow-sm mt-4">
-                <div class="card-body">
-                    <h6 class="fw-bold">Financial privacy (Admin only)</h6>
-                    <p class="text-muted small mb-2">When OFF, Managers cannot see profit, cost, margin, sales totals, the ledger or capital. Every change is logged.</p>
-                    <form asp-action="SetManagerFinancialView" method="post" class="d-flex align-items-center gap-3">
-                        <input type="hidden" name="allow" value="@(((bool)ViewBag.ManagerFinancialView) ? "false" : "true")" />
-                        <span class="fw-bold">Allow Managers to view financial reports: @(((bool)ViewBag.ManagerFinancialView) ? "ON" : "OFF")</span>
-                        <button class="btn btn-sm @(((bool)ViewBag.ManagerFinancialView) ? "btn-outline-danger" : "btn-outline-success") fw-bold">Turn @(((bool)ViewBag.ManagerFinancialView) ? "OFF" : "ON")</button>
-                    </form>
-                </div>
-            </div>
-        }
+<div class="page-head">
+    <div>
+        <h1 class="page-title">Settings</h1>
+        <p class="page-sub">Shop-wide choices. Receipt and privacy settings can be changed by the Admin only; every change is written to the activity log.</p>
     </div>
 </div>
 
-<script>
-    document.addEventListener('keydown', function (e) {
-        if (e.key === 'Enter' && document.activeElement.tagName !== 'BUTTON') {
-            e.preventDefault();
+<div class="d-grid gap-3">
+    <section class="card">
+        <div class="panel-head"><h2>Held orders</h2></div>
+        <form asp-action="UpdateRetention" method="post" class="panel-body d-flex gap-4 flex-wrap align-items-end">
+            <div class="flex-grow-1" style="min-width:260px;max-width:52ch">
+                <label class="form-label" for="retentionInput">Cancel a held order automatically after</label>
+                <p class="help mb-0">The reserved stock goes back on sale when a held order is cancelled. Enter 0 to never cancel automatically.</p>
+            </div>
+            <div class="input-group" style="width:200px">
+                <input type="number" name="retentionHours" id="retentionInput" class="form-control num text-end" value="@ViewBag.RetentionHours" required min="0" max="87600" autocomplete="off" />
+                <span class="input-group-text">hours</span>
+            </div>
+            <button type="submit" class="btn btn-primary">Save</button>
+        </form>
+    </section>
 
-            // Trigger strict client-side DOM validation before executing POST
-            var form = document.getElementById('systemSettingsForm');
-            if(form.checkValidity()) {
-                form.submit();
-            } else {
-                form.reportValidity();
-            }
-        }
-    });
+    @if (isAdmin)
+    {
+        var h = (SwiftCheckoutPOS.BLL.Hardware.ReceiptHeaderDTO)ViewBag.Header;
+        <section class="card">
+            <div class="panel-head"><h2>Receipt header</h2><span class="small text-muted">Printed at the top of every receipt</span></div>
+            <form asp-action="SetReceiptHeader" method="post" class="panel-body">
+                <div class="row g-3">
+                    <div class="col-md-6"><label class="form-label" for="shopName">Shop name</label><input id="shopName" name="shopName" value="@h.ShopName" maxlength="48" class="form-control" required /></div>
+                    <div class="col-md-6"><label class="form-label" for="shopPhone">Phone</label><input id="shopPhone" name="phone" value="@h.Phone" maxlength="48" class="form-control" /></div>
+                    <div class="col-12"><label class="form-label" for="shopAddress">Address</label><input id="shopAddress" name="address" value="@h.Address" maxlength="48" class="form-control" /></div>
+                    <div class="col-md-6"><label class="form-label" for="shopBin">BIN</label><input id="shopBin" name="bin" value="@h.Bin" maxlength="48" class="form-control" /><div class="form-text">Only when the shop is VAT-registered.</div></div>
+                    <div class="col-md-6"><label class="form-label" for="shopFooter">Message at the bottom</label><input id="shopFooter" name="footer" value="@h.Footer" maxlength="48" class="form-control" placeholder="For example: Thank you, come again" /></div>
+                </div>
+                <div class="d-flex justify-content-end mt-3"><button class="btn btn-primary">Save receipt header</button></div>
+            </form>
+        </section>
+        <section class="card">
+            <div class="panel-head"><h2>Money figures for Managers</h2><span class="status @(managerView ? "is-warn" : "is-ok")">@(managerView ? "Managers can see them" : "Admin only")</span></div>
+            <form asp-action="SetManagerFinancialView" method="post" class="panel-body d-flex gap-4 flex-wrap align-items-center justify-content-between"
+                  data-confirm="@(managerView ? "Hide money figures from Managers?" : "Show money figures to Managers?")" data-confirm-text="This covers profit, cost, margins, sales totals, the ledger and capital." data-confirm-ok="@(managerView ? "Hide" : "Show")">
+                <input type="hidden" name="allow" value="@(managerView ? "false" : "true")" />
+                <p class="mb-0 text-muted" style="max-width:56ch">When hidden, Managers still sell, restock and record expenses, but never see profit, cost, margins, sales totals, the ledger or capital. Backups stay Admin-only either way.</p>
+                <button class="btn @(managerView ? "btn-outline-danger" : "btn-quiet")">@(managerView ? "Hide from Managers" : "Show to Managers")</button>
+            </form>
+        </section>
+    }
 
-    document.addEventListener("DOMContentLoaded", function () {
-        const input = document.getElementById('retentionInput');
-        if (input) {
-            input.focus();
-            input.select();
-        }
-    });
-</script>
+    <section class="card">
+        <div class="panel-head"><h2>Screen</h2><span class="small text-muted">This PC only</span></div>
+        <div class="panel-body d-flex gap-3 flex-wrap align-items-center justify-content-between">
+            <p class="mb-0 text-muted">Light, dark, or follow the Windows setting.</p>
+            <div class="segmented" role="radiogroup" aria-label="Screen colours" id="themeChoice">
+                <button type="button" data-theme="light">@Html.Icon("sun") Light</button>
+                <button type="button" data-theme="dark">@Html.Icon("moon") Dark</button>
+                <button type="button" data-theme="">Follow Windows</button>
+            </div>
+        </div>
+    </section>
+</div>
+
+@section Scripts {
+    <script>
+        (function () {
+            var box = document.getElementById('themeChoice');
+            function current() { try { return localStorage.getItem('scpos-theme') || ''; } catch (e) { return ''; } }
+            function mark() { box.querySelectorAll('button').forEach(function (b) { var on = b.dataset.theme === current(); b.classList.toggle('is-active', on); b.setAttribute('aria-checked', on); b.setAttribute('role', 'radio'); }); }
+            box.addEventListener('click', function (e) {
+                var b = e.target.closest('button'); if (!b) return;
+                try { if (b.dataset.theme) localStorage.setItem('scpos-theme', b.dataset.theme); else localStorage.removeItem('scpos-theme'); } catch (err) { }
+                var dark = b.dataset.theme === 'dark' || (!b.dataset.theme && matchMedia('(prefers-color-scheme: dark)').matches);
+                document.documentElement.setAttribute('data-bs-theme', dark ? 'dark' : 'light');
+                mark();
+            });
+            mark();
+        })();
+    </script>
+}

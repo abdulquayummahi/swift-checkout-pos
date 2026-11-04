@@ -1,0 +1,39 @@
+@model SwiftCheckoutPOS.UI.Models.UserViewModel
+@{ var editing = Model?.UserId > 0; }
+<div class="row g-3">
+    <div class="col-md-6">
+        <label asp-for="FullName" class="form-label">Full name</label>
+        <input asp-for="FullName" class="form-control" autocomplete="off" autofocus />
+        <span asp-validation-for="FullName" class="text-danger small"></span>
+    </div>
+    <div class="col-md-6">
+        <label asp-for="Username" class="form-label">Username</label>
+        <input asp-for="Username" class="form-control font-monospace" autocomplete="off" placeholder="For example: rahim" />
+        <span asp-validation-for="Username" class="text-danger small"></span>
+    </div>
+    <div class="col-12">
+        <span class="form-label d-block">Role</span>
+        <div class="d-grid gap-2" role="radiogroup" aria-label="Role">
+            @foreach (var (value, text, note) in new[] {
+                ("Cashier", "Cashier", "Till, held orders, finding and adding customers, own shift and till count."),
+                ("Manager", "Manager", "Everything a Cashier can do, plus products and stock, refunds, expenses and shop settings."),
+                ("Admin", "Admin", "Everything, including staff accounts, backups and all money figures.") })
+            {
+                <label class="d-flex gap-3 align-items-start p-3 border rounded-3 cursor-pointer role-option">
+                    <input class="form-check-input mt-1" type="radio" name="Role" value="@value" @(Model?.Role == value ? "checked" : "") required />
+                    <span><span class="fw-semibold d-block">@text</span><span class="small text-muted">@note</span></span>
+                </label>
+            }
+        </div>
+        <span asp-validation-for="Role" class="text-danger small"></span>
+    </div>
+    <div class="col-md-6">
+        <label for="pw" class="form-label">@(editing ? "New password (optional)" : "Password")</label>
+        <div class="input-group">
+            <input asp-for="Password" type="password" class="form-control" id="pw" autocomplete="new-password" placeholder="@(editing ? "Leave empty to keep the current one" : "")" />
+            <button type="button" class="btn btn-quiet" data-reveal="pw" aria-label="Show password">@Html.Icon("eye")</button>
+        </div>
+        <div class="form-text">At least 12 characters, with letters and numbers. @(editing ? "Changing it signs this person out everywhere." : "")</div>
+        <span asp-validation-for="Password" class="text-danger small"></span>
+    </div>
+</div>

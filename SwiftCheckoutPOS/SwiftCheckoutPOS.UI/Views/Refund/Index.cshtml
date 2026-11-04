@@ -1,236 +1,117 @@
-<!-- Project: SwiftCheckoutPOS.UI -->
-<!-- File: Views/Refund/Index.cshtml -->
 @model SwiftCheckoutPOS.BLL.DTOs.RefundLookupDTO
-
 @{
-    ViewData["Title"] = "Refund Processing";
-    Layout = null;
+    ViewData["Title"] = "Refunds and voids";
 }
+<div class="page-head">
+    <div>
+        <h1 class="page-title">Refunds and voids</h1>
+        <p class="page-sub">Find the sale by its receipt number. Refunds are allowed for 7 days; a sale can be voided within 5 minutes.</p>
+    </div>
+</div>
 
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Returns Terminal - SwiftCheckout</title>
-    <link rel="stylesheet" href="~/lib/bootstrap/dist/css/bootstrap.min.css" />
-    <style>
-            body {
-                background-color: #f8f9fa;
-                font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-                user-select: none;
-            }
+<form asp-action="Lookup" method="post" id="lookupForm" class="till-search mb-4" style="max-width:none" role="search">
+    @Html.Icon("receipt")
+    <input type="text" name="receiptNumber" id="barcodeInput" placeholder="Scan the receipt barcode or type the receipt number" autocomplete="off" autofocus required aria-label="Receipt number" class="font-monospace" />
+    <kbd>F2</kbd>
+    <button type="submit" class="btn btn-primary btn-sm">Find sale</button>
+</form>
 
-            .terminal-header {
-                background: #1e293b;
-                color: white;
-                padding: 1rem 1.5rem;
-                display: flex;
-                justify-content: space-between;
-                align-items: center;
-                border-bottom: 4px solid #ef4444;
-            }
-
-            .search-container {
-                background: white;
-                border: 2px solid #cbd5e1;
-                border-radius: 0.5rem;
-                padding: 1rem;
-                display: flex;
-                align-items: center;
-                box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05);
-            }
-
-            .search-input {
-                border: none;
-                outline: none;
-                flex-grow: 1;
-                font-size: 1.25rem;
-                font-family: monospace;
-                font-weight: bold;
-                margin-left: 1rem;
-            }
-
-                .search-input:focus {
-                    background-color: #f1f5f9;
-                }
-
-            .invoice-card {
-                background: white;
-                border-radius: 0.5rem;
-                border: 1px solid #e2e8f0;
-                box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05);
-            }
-
-            .status-badge {
-                font-weight: 800;
-                font-size: 1.1rem;
-                padding: 0.5rem 1rem;
-                border-radius: 0.375rem;
-            }
-
-            .status-refunded {
-                background-color: #fee2e2;
-                color: #dc2626;
-                border: 1px solid #fca5a5;
-            }
-
-            .status-completed {
-                background-color: #d1fae5;
-                color: #059669;
-                border: 1px solid #6ee7b7;
-            }
-
-            .item-grid {
-                display: grid;
-                grid-template-columns: 3fr 1fr 1fr 1fr;
-                gap: 1rem;
-                padding: 1rem;
-                border-bottom: 1px solid #f1f5f9;
-                align-items: center;
-            }
-
-            .item-grid-header {
-                font-weight: 700;
-                text-transform: uppercase;
-                font-size: 0.8rem;
-                color: #64748b;
-                background: #f8fafc;
-            }
-    </style>
-</head>
-<body>
-
-    @if (TempData["Error"] != null)
-    {
-        <div class="position-absolute top-0 start-50 translate-middle-x mt-2 alert alert-danger shadow-lg z-3 py-3 px-5 rounded-3 border-0 fw-bold fs-5">@TempData["Error"]</div>
-    }
-    @if (TempData["Success"] != null)
-    {
-        <div class="position-absolute top-0 start-50 translate-middle-x mt-2 alert alert-success shadow-lg z-3 py-3 px-5 rounded-3 border-0 fw-bold fs-5">@TempData["Success"]</div>
-    }
-
-    <header class="terminal-header">
-        <div>
-            <h4 class="m-0 fw-bold">SWIFT REFUND TERMINAL</h4>
-            <span class="text-muted small font-monospace">AUTH: @User.Identity.Name</span>
-        </div>
-        <!-- ARCHITECT FIX: Dynamic Server-Side Routing -->
-        <a href="@Url.Action("Index", "AdminDashboard")" class="btn btn-outline-light fw-bold">Exit Module (ESC)</a>
-    </header>
-
-    <div class="container-fluid p-4">
-        <div class="row justify-content-center">
-            <div class="col-md-10">
-                <form asp-action="Lookup" method="post" id="lookupForm" class="search-container mb-4">
-                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" stroke-width="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path><polyline points="22,6 12,13 2,6"></polyline></svg>
-                    <input type="text" name="receiptNumber" id="barcodeInput" class="search-input" placeholder="SCAN RECEIPT BARCODE OR TYPE INVOICE NUMBER (Press F2 to focus)" autocomplete="off" autofocus required />
-                    <button type="submit" class="d-none"></button>
-                </form>
-
-                @if (Model != null)
-                {
-                    <div class="invoice-card">
-                        <div class="p-4 border-bottom d-flex justify-content-between align-items-center bg-light rounded-top">
-                            <div>
-                                <h3 class="fw-bold text-dark m-0 font-monospace">@Model.ReceiptNumber</h3>
-                                <div class="text-muted fw-bold mt-1">Sold: @Model.SaleDate.ToString("yyyy-MM-dd HH:mm:ss") | Tender: @Model.PaymentMethod
-                                    @if (!string.IsNullOrEmpty(Model.CustomerName)) { <span> | Customer: @Model.CustomerName</span> }</div>
-                                <div class="text-muted small mt-1">Total BDT @Model.TotalAmount.ToString("N2") · Already refunded BDT @Model.RefundedAmount.ToString("N2")</div>
-                            </div>
-                            <div>
-                                <span class="status-badge @(Model.CanRefund ? "status-completed" : "status-refunded")">@Model.OrderStatus.ToUpperInvariant()</span>
-                            </div>
-                        </div>
-                        @if (Model.RefundBlockedReason != null)
-                        {
-                            <div class="alert alert-warning m-3 fw-bold">@Model.RefundBlockedReason</div>
-                        }
-                        <form asp-action="ConfirmRefund" method="post" id="refundForm" class="m-0">
-                            <input type="hidden" name="receiptNumber" value="@Model.ReceiptNumber" />
-                            <div class="item-grid item-grid-header">
-                                <div>Product</div>
-                                <div class="text-end">Paid (line)</div>
-                                <div class="text-center">Sold / left</div>
-                                <div class="text-end">Refund qty · Returned goods</div>
-                            </div>
-                            <div style="max-height: 400px; overflow-y: auto;">
-                                @for (var i = 0; i < Model.Lines.Count; i++)
-                                {
-                                    var line = Model.Lines[i];
-                                    <div class="item-grid">
-                                        <div class="fw-bold text-dark text-truncate">@line.ProductName</div>
-                                        <div class="text-end text-muted">@line.LineNet.ToString("N2")</div>
-                                        <div class="text-center fw-bold">@line.Quantity / @line.Remaining</div>
-                                        <div class="text-end d-flex gap-2 justify-content-end">
-                                            <input type="hidden" name="lines[@i].SaleItemId" value="@line.SaleItemId" />
-                                            <input type="number" name="lines[@i].Quantity" min="0" max="@line.Remaining" value="@(Model.CanRefund ? line.Remaining : 0)"
-                                                   class="form-control form-control-sm text-end" style="width: 80px;" @(Model.CanRefund && line.Remaining > 0 ? "" : "disabled") />
-                                            <select name="lines[@i].Disposition" class="form-select form-select-sm" style="width: 150px;" @(Model.CanRefund ? "" : "disabled")>
-                                                <option value="Restock">Return to stock</option>
-                                                <option value="Damaged">Damaged</option>
-                                            </select>
-                                        </div>
-                                    </div>
-                                }
-                            </div>
-                            <div class="p-4 bg-light border-top rounded-bottom">
-                                @if (Model.CanRefund)
-                                {
-                                    <div class="d-flex gap-3 align-items-center">
-                                        <input type="text" name="reason" maxlength="200" class="form-control" placeholder="Reason (optional)" />
-                                        <button type="button" class="btn btn-danger btn-lg fw-bold px-5 shadow text-nowrap" onclick="triggerRefund()" id="refundBtn">REFUND SELECTED (F12)</button>
-                                    </div>
-                                    <div class="small text-muted mt-2">Unpaid Due on this sale is cancelled first; the rest is paid back to the original payment methods (cash rounded to whole taka).</div>
-                                }
-                            </div>
-                        </form>
-                        @if (Model.CanVoid)
-                        {
-                            <form asp-action="VoidSale" method="post" class="p-4 border-top d-flex gap-3 align-items-center" onsubmit="return confirm('Void the whole sale? Stock is restored and all money given back.');">
-                                <input type="hidden" name="receiptNumber" value="@Model.ReceiptNumber" />
-                                <input type="text" name="reason" maxlength="200" class="form-control" placeholder="Reason for void (required)" required />
-                                <button type="submit" class="btn btn-outline-danger fw-bold text-nowrap">VOID SALE (within 5 min)</button>
-                            </form>
-                        }
-                    </div>
-                }
+@if (Model == null)
+{
+    <div class="card"><div class="empty">
+        @Html.Icon("refund")
+        <div class="empty-title">No sale selected</div>
+        <div class="small">The receipt number is printed at the top of the receipt, for example SCP-20261104-0001.</div>
+    </div></div>
+}
+else
+{
+    var status = Model.OrderStatus;
+    var statusClass = Model.CanRefund ? "is-ok" : status is "Refunded" or "Voided" ? "is-bad" : "is-warn";
+    <div class="card">
+        <div class="panel-head flex-wrap">
+            <div>
+                <div class="d-flex align-items-center gap-2 flex-wrap">
+                    <h2 class="h4 mb-0 font-monospace">@Model.ReceiptNumber</h2>
+                    <span class="status @statusClass">@status</span>
+                </div>
+                <div class="text-muted small mt-1">
+                    Sold @Model.SaleDate.ToString("dd MMM yyyy, HH:mm") · paid by @Model.PaymentMethod
+                    @if (!string.IsNullOrEmpty(Model.CustomerName)) { <span> · @Model.CustomerName</span> }
+                </div>
+            </div>
+            <div class="d-flex gap-4 text-end">
+                <div><div class="small text-muted">Sale total</div><div class="num fs-4 fw-semibold">@Html.Money(Model.TotalAmount)</div></div>
+                <div><div class="small text-muted">Already refunded</div><div class="num fs-4 fw-semibold @(Model.RefundedAmount > 0 ? "text-danger" : "")">@Html.Money(Model.RefundedAmount)</div></div>
             </div>
         </div>
+        @if (Model.RefundBlockedReason != null)
+        {
+            <div class="alert alert-warning m-3 mb-0">@Html.Icon("alert") <span>@Model.RefundBlockedReason</span></div>
+        }
+        <form asp-action="ConfirmRefund" method="post" id="refundForm" class="m-0" data-confirm="Refund the selected items?" data-confirm-text="Returned items go back into stock unless you mark them Damaged. Money goes back to the original payment methods." data-confirm-ok="Refund" data-confirm-danger>
+            <input type="hidden" name="receiptNumber" value="@Model.ReceiptNumber" />
+            <div class="table-responsive">
+                <table class="table">
+                    <thead><tr><th>Product</th><th class="text-end">Paid for line</th><th class="text-end">Sold</th><th class="text-end">Can still refund</th><th class="text-end" style="width:120px">Refund qty</th><th style="width:190px">Returned goods</th></tr></thead>
+                    <tbody>
+                        @for (var i = 0; i < Model.Lines.Count; i++)
+                        {
+                            var line = Model.Lines[i];
+                            <tr>
+                                <td class="fw-semibold">@line.ProductName</td>
+                                <td class="text-end num">@line.LineNet.ToString("N2")</td>
+                                <td class="text-end num">@line.Quantity</td>
+                                <td class="text-end num">@line.Remaining</td>
+                                <td class="text-end">
+                                    <input type="hidden" name="lines[@i].SaleItemId" value="@line.SaleItemId" />
+                                    <input type="number" name="lines[@i].Quantity" min="0" max="@line.Remaining" value="@(Model.CanRefund ? line.Remaining : 0)" aria-label="Refund quantity for @line.ProductName"
+                                           class="form-control form-control-sm text-end num ms-auto" style="width:88px" @(Model.CanRefund && line.Remaining > 0 ? "" : "disabled") />
+                                </td>
+                                <td>
+                                    <select name="lines[@i].Disposition" class="form-select form-select-sm" aria-label="Returned goods for @line.ProductName" @(Model.CanRefund ? "" : "disabled")>
+                                        <option value="Restock">Back into stock</option>
+                                        <option value="Damaged">Damaged, write off</option>
+                                    </select>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+            @if (Model.CanRefund)
+            {
+                <div class="panel-body border-top d-flex gap-3 align-items-end flex-wrap">
+                    <div class="flex-grow-1" style="min-width:240px">
+                        <label class="form-label" for="refundReason">Reason (optional)</label>
+                        <input id="refundReason" type="text" name="reason" maxlength="200" class="form-control" placeholder="For example: wrong size, expired" />
+                    </div>
+                    <button type="submit" class="btn btn-danger btn-lg" id="refundBtn" data-busy="Refunding…">@Html.Icon("refund") Refund selected <kbd>F12</kbd></button>
+                    <div class="help w-100">Any unpaid Due on this sale is cancelled first; the rest is paid back to the original payment methods, cash rounded to whole taka.</div>
+                </div>
+            }
+        </form>
+        @if (Model.CanVoid)
+        {
+            <form asp-action="VoidSale" method="post" class="panel-body border-top d-flex gap-3 align-items-end flex-wrap" data-confirm="Void the whole sale?" data-confirm-text="All stock goes back and all money is given back. The sale stays in the records as Voided." data-confirm-ok="Void sale" data-confirm-danger>
+                <input type="hidden" name="receiptNumber" value="@Model.ReceiptNumber" />
+                <div class="flex-grow-1" style="min-width:240px">
+                    <label class="form-label" for="voidReason">Reason for the void</label>
+                    <input id="voidReason" type="text" name="reason" maxlength="200" class="form-control" required placeholder="Required" />
+                </div>
+                <button type="submit" class="btn btn-outline-danger btn-lg">@Html.Icon("ban") Void the whole sale</button>
+                <div class="help w-100">Only possible in the first 5 minutes after the sale.</div>
+            </form>
+        }
     </div>
+}
 
-    <script src="~/lib/bootstrap/dist/js/bootstrap.bundle.min.js"></script>
+@section Scripts {
     <script>
-        function triggerRefund() {
-        if(confirm('Refund the selected quantities? Returned items go back to stock unless marked Damaged.')) {
-        document.getElementById('refundBtn').disabled = true;
-        document.getElementById('refundBtn').innerText = "PROCESSING...";
-        document.getElementById('refundForm').submit();
-        }
-        }
-
-        document.addEventListener('keydown', function(e) {
-        if (e.key === 'F2') {
-        e.preventDefault();
-        const input = document.getElementById('barcodeInput');
-        input.focus();
-        input.select();
-        return;
-        }
-        if (e.key === 'F12') {
-        e.preventDefault();
-        const btn = document.getElementById('refundBtn');
-        if(btn && !btn.disabled) { triggerRefund(); }
-        return;
-        }
-        if (e.key === 'Escape') {
-        e.preventDefault();
-        // ARCHITECT FIX: Server-injected accurate URL parsing
-        window.location.href = '@Url.Action("Index", "AdminDashboard")';
-        return;
-        }
+        document.addEventListener('keydown', function (e) {
+            if (document.querySelector('.modal.show')) return;
+            if (e.key === 'F2') { e.preventDefault(); var i = document.getElementById('barcodeInput'); i.focus(); i.select(); }
+            if (e.key === 'F12') { e.preventDefault(); var b = document.getElementById('refundBtn'); if (b && !b.disabled) document.getElementById('refundForm').requestSubmit(b); }
         });
     </script>
-    <partial name="_IdleLock" />
-</body>
-</html>
+}

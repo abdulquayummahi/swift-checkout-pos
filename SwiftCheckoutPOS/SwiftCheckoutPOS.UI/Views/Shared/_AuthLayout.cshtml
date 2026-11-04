@@ -1,0 +1,50 @@
+@* Sign-in, first setup, screen lock and access denied: a quiet split screen. The left side lists the till keys,
+   printed like a receipt, because that is what a new cashier needs to learn first. *@
+<!DOCTYPE html>
+<html lang="en" data-bs-theme="light">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="color-scheme" content="light dark" />
+    <title>@ViewData["Title"] – SwiftCheckout</title>
+    <script>
+        (function () { var t = null; try { t = localStorage.getItem('scpos-theme'); } catch (e) { }
+            var d = t === 'dark' || (t !== 'light' && matchMedia('(prefers-color-scheme: dark)').matches);
+            document.documentElement.setAttribute('data-bs-theme', d ? 'dark' : 'light'); })();
+    </script>
+    <link rel="icon" href="~/favicon.ico" />
+    <link rel="stylesheet" href="~/lib/bootstrap/dist/css/bootstrap.min.css" />
+    <link rel="stylesheet" href="~/css/app.css" />
+</head>
+<body>
+    <div class="auth">
+        <section class="auth-side" aria-hidden="true">
+            <div class="d-flex align-items-center gap-2">
+                <span class="brand-mark">৳</span>
+                <span class="brand-name">SwiftCheckout</span>
+            </div>
+            <div>
+                <p class="auth-tagline">Sell, count and close the day on this PC.</p>
+                <div class="auth-receipt">
+                    <div><span>Find a product</span><span>F2</span></div>
+                    <div><span>Cash</span><span>F4</span></div>
+                    <div><span>Card</span><span>F7</span></div>
+                    <div><span>bKash</span><span>F8</span></div>
+                    <div><span>Nagad</span><span>F10</span></div>
+                    <div><span>Show receipt first</span><span>F9</span></div>
+                </div>
+            </div>
+            <div class="auth-foot">Works without internet. Data stays on this computer.</div>
+        </section>
+        <section class="auth-main">
+            <div class="auth-card">
+                @RenderBody()
+            </div>
+        </section>
+    </div>
+    <partial name="_Toasts" />
+    <script src="~/lib/bootstrap/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="~/js/app.js"></script>
+    @await RenderSectionAsync("Scripts", required: false)
+</body>
+</html>

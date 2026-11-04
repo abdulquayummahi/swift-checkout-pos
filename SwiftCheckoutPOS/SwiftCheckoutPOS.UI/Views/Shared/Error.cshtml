@@ -3,18 +3,19 @@
     ViewData["Title"] = "Error";
     var notFound = Model.StatusCode == 404;
     var denied = Model.StatusCode is 401 or 403;
+    ViewData["Narrow"] = true;
 }
-
-<div class="container py-5" style="max-width: 640px;">
-    <h1 class="h3 fw-bold text-danger">@(notFound ? "Page not found" : denied ? "Not allowed" : "Something went wrong")</h1>
-    <p class="mt-3">
-        @if (notFound) { <text>This page does not exist.</text> }
+<div class="empty" style="padding-top:4rem">
+    @Html.Icon(notFound ? "search" : denied ? "ban" : "alert")
+    <h1 class="page-title mb-2">@(notFound ? "Page not found" : denied ? "Not allowed" : "Something went wrong")</h1>
+    <p class="page-sub mx-auto mb-4">
+        @if (notFound) { <text>This page does not exist. Use the menu to find what you need.</text> }
         else if (denied) { <text>Your account cannot open this page.</text> }
         else { <text>The request could not be completed. If you were finishing a sale, check the last receipt (Reprint) before charging again.</text> }
     </p>
+    <a class="btn btn-primary" href="/Checkout/Index">@Html.Icon("till") Back to the till</a>
     @if (Model.ShowRequestId && !notFound)
     {
-        <p class="text-muted small">Reference for the Admin: <code>@Model.RequestId</code> (details are in the log on this PC).</p>
+        <p class="help mt-4 mb-0">Reference for the Admin: <span class="font-monospace">@Model.RequestId</span> (details are in the log on this PC).</p>
     }
-    <a class="btn btn-primary fw-bold" href="/Checkout/Index">Back to the till</a>
 </div>

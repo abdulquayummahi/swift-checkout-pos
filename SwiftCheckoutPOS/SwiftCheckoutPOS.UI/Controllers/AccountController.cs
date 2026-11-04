@@ -104,6 +104,16 @@ namespace SwiftCheckoutPOS.UI.Controllers
             return View();
         }
 
+        /// <summary>Lock the screen now (cashier stepping away). The cart stays in the session.</summary>
+        [HttpPost]
+        [Authorize]
+        [ValidateAntiForgeryToken]
+        public IActionResult LockNow(string? returnUrl)
+        {
+            HttpContext.Session.SetString(IdleLockMiddleware.LockedKey, "1");
+            return RedirectToAction(nameof(Locked), new { returnUrl = Url.IsLocalUrl(returnUrl) ? returnUrl : "/Checkout/Index" });
+        }
+
         [HttpPost]
         [Authorize]
         [ValidateAntiForgeryToken]

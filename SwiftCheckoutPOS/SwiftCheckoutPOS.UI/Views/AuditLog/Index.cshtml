@@ -1,16 +1,42 @@
 @model IReadOnlyList<SwiftCheckoutPOS.BLL.Services.AuditEventDTO>
-@{ ViewData["Title"] = "Audit log"; }
-<div class="container-fluid py-4 px-4">
-    <h2 class="fw-bold">Audit log</h2>
-    <p class="text-muted">Last 300 sensitive actions: price changes, stock corrections, discounts approved, refunds, voids, drawer openings, shifts and setting changes.</p>
-    <table class="table table-sm bg-white shadow-sm">
-        <thead><tr><th>When</th><th>Who</th><th>Action</th><th>On</th><th>Reason</th><th>Details</th></tr></thead>
-        <tbody>
-        @foreach (var a in Model)
-        {
-            <tr><td class="text-nowrap">@a.OccurredAt.ToString("dd-MM-yyyy HH:mm:ss")</td><td>@a.Actor</td><td class="fw-bold">@a.Action</td>
-                <td>@a.EntityType @a.EntityKey</td><td>@a.Reason</td><td class="small">@a.Details</td></tr>
-        }
-        </tbody>
-    </table>
+@{
+    ViewData["Title"] = "Activity log";
+    var type = Context.Request.Query["type"].ToString();
+    var types = Model.Select(a => a.EntityType).Distinct().OrderBy(t => t).ToList();
+}
+<div class="page-head">
+    <div>
+        <h1 class="page-title">Activity log</h1>
+        <p class="page-sub">The last 300 sensitive actions: price changes, stock corrections, approved discounts, refunds, voids, drawer openings, shifts, sign-in failures and setting changes. Entries can't be edited.</p>
+    </div>
+</div>
+<div class="d-flex gap-2 flex-wrap mb-3" role="toolbar" aria-label="Filter">
+    <a class="chip @(string.IsNullOrEmpty(type) ? "is-active" : "")" asp-action="Index">All</a>
+    @foreach (var t in types.Union(string.IsNullOrEmpty(type) ? Array.Empty<string>() : new[] { type }).Distinct())
+    {
+        <a class="chip @(type == t ? "is-active" : "")" asp-action="Index" asp-route-type="@t">@t</a>
+    }
+</div>
+<div class="table-wrap">
+    <div class="table-responsive">
+        <table class="table">
+            <thead><tr><th>When</th><th>Who</th><th>What</th><th>On</th><th>Reason and details</th></tr></thead>
+            <tbody>
+                @if (Model.Count == 0)
+                {
+                    <tr><td colspan="5"><div class="empty">@Html.Icon("audit")<div class="empty-title">Nothing recorded yet</div></div></td></tr>
+                }
+                @foreach (var a in Model)
+                {
+                    <tr>
+                        <td class="text-nowrap small"><span class="num">@a.OccurredAt.ToString("dd MMM, HH:mm:ss")</span></td>
+                        <td class="small">@UiHelpers.Person(a.Actor)</td>
+                        <td class="fw-semibold">@UiHelpers.Words(a.Action)</td>
+                        <td class="small text-muted">@a.EntityType @if (a.EntityKey != "new") { <span class="font-monospace">@a.EntityKey</span> }</td>
+                        <td class="small">@if (!string.IsNullOrEmpty(a.Reason)) { <div>@a.Reason</div> }<div class="text-muted">@a.Details</div></td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
 </div>

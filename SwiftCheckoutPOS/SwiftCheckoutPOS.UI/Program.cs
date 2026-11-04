@@ -208,7 +208,9 @@ app.UseAuthentication();
 app.UseMiddleware<SwiftCheckoutPOS.UI.Infrastructure.IdleLockMiddleware>(); // BP-21
 app.UseAuthorization();
 
-app.MapStaticAssets();
+// CSS, scripts, icons and pictures are public files: without AllowAnonymous the sign-in fallback policy blocks
+// them for signed-out visitors, and the sign-in, setup and lock screens show without any styling.
+app.MapStaticAssets().AllowAnonymous();
 
 app.MapControllerRoute(
     name: "default",

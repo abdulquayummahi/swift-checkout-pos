@@ -285,18 +285,23 @@ namespace SwiftCheckoutPOS.BLL.Services
             return vendors.Select(v => new VendorDTO { VendorId = v.VendorId, VendorName = v.VendorName }).ToList();
         }
 
-        public void AddCategory(string categoryName)
+        /// <summary>Adds a category and returns its id (so a half-filled product form can select it without reloading).</summary>
+        public int AddCategory(string categoryName)
         {
             if (string.IsNullOrWhiteSpace(categoryName)) throw new ArgumentException("Category name cannot be empty.");
             if (_inventoryRepo.CategoryExists(categoryName)) throw new InvalidOperationException("This category already exists.");
-            _inventoryRepo.AddCategory(new Category { CategoryName = categoryName });
+            var category = new Category { CategoryName = categoryName.Trim() };
+            _inventoryRepo.AddCategory(category);
+            return category.CategoryId;
         }
 
-        public void AddVendor(string vendorName)
+        public int AddVendor(string vendorName)
         {
-            if (string.IsNullOrWhiteSpace(vendorName)) throw new ArgumentException("Vendor name cannot be empty.");
-            if (_inventoryRepo.VendorExists(vendorName)) throw new InvalidOperationException("This vendor already exists.");
-            _inventoryRepo.AddVendor(new Vendor { VendorName = vendorName });
+            if (string.IsNullOrWhiteSpace(vendorName)) throw new ArgumentException("Supplier name cannot be empty.");
+            if (_inventoryRepo.VendorExists(vendorName)) throw new InvalidOperationException("This supplier already exists.");
+            var vendor = new Vendor { VendorName = vendorName.Trim() };
+            _inventoryRepo.AddVendor(vendor);
+            return vendor.VendorId;
         }
     }
 }

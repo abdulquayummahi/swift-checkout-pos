@@ -20,9 +20,9 @@ public sealed class CheckoutService(ICheckoutRepository repository, IApprover? a
     public List<ProductDTO> GetAvailableProducts() => repository.GetAvailableProducts().Select(p => new ProductDTO
     {
         ProductId = p.ProductId, Barcode = p.Barcode, ProductName = p.ProductName,
-        CategoryId = p.CategoryId, VendorId = p.VendorId, SellingPrice = p.SellingPrice,
-        CostPrice = p.CostPrice, TaxRate = p.TaxRate, StockQuantity = p.StockQuantity - p.ReservedQuantity,
-        IsActive = p.IsActive, ImagePath = p.ImagePath, UnitOfMeasure = p.UnitOfMeasure
+        CategoryId = p.CategoryId, CategoryName = p.Category?.CategoryName ?? "", VendorId = p.VendorId, SellingPrice = p.SellingPrice,
+        TaxRate = p.TaxRate, StockQuantity = p.StockQuantity - p.ReservedQuantity, // cost is never sent to the till
+        IsActive = p.IsActive, ImagePath = p.ImagePath, UnitOfMeasure = p.UnitOfMeasure, ReorderLevel = p.ReorderLevel
     }).ToList();
 
     public List<HeldOrderDTO> GetHeldOrders() => repository.GetRecoverableOrders().Select(s => new HeldOrderDTO

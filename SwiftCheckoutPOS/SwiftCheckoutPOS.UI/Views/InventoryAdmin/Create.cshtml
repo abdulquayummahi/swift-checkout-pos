@@ -1,158 +1,111 @@
-<!-- Project: SwiftCheckoutPOS.UI -->
-<!-- File: Views/InventoryAdmin/Create.cshtml -->
 @model SwiftCheckoutPOS.UI.Models.CreateProductViewModel
-
 @{
-    ViewData["Title"] = "Add New Product";
+    ViewData["Title"] = "Add product";
+    var units = new[] { ("pcs", "Pieces"), ("kg", "Kilograms"), ("ltr", "Litres"), ("box", "Box") };
 }
-
-<div class="container mt-4 mb-5">
-    <div class="row justify-content-center">
-        <div class="col-lg-10">
-            <div class="card shadow-sm border-0">
-                <div class="card-header bg-dark text-white py-3">
-                    <h5 class="mb-0 fw-bold">Add New Master Product</h5>
-                </div>
-                <div class="card-body p-4 bg-light">
-
-                    <form asp-action="Create" method="post" enctype="multipart/form-data" id="productForm">
-                        <div asp-validation-summary="ModelOnly" class="text-danger mb-3 fw-bold"></div>
-
-                        <div class="row g-3 mb-3">
-                            <div class="col-md-6">
-                                <label asp-for="Barcode" class="form-label fw-bold"></label>
-                                <input asp-for="Barcode" class="form-control font-monospace border-secondary shadow-sm" placeholder="Scan or type SKU..." autocomplete="off" autofocus />
-                                <span asp-validation-for="Barcode" class="text-danger small fw-bold"></span>
-                            </div>
-                            <div class="col-md-6">
-                                <label asp-for="ProductName" class="form-label fw-bold"></label>
-                                <input asp-for="ProductName" class="form-control border-secondary shadow-sm" placeholder="e.g., Coca-Cola 2L" autocomplete="off" />
-                                <span asp-validation-for="ProductName" class="text-danger small fw-bold"></span>
-                            </div>
-                        </div>
-
-                        <div class="row g-3 mb-4">
-                            <div class="col-md-6">
-                                <label asp-for="CategoryId" class="form-label fw-bold d-flex justify-content-between">
-                                    Category
-                                    <a href="#" onclick="quickAdd('Category')" class="text-decoration-none text-success">+ Add New</a>
-                                </label>
-                                <select asp-for="CategoryId" asp-items="Model.AvailableCategories" class="form-select border-secondary shadow-sm">
-                                    <option value="">-- Select Category --</option>
-                                </select>
-                                <span asp-validation-for="CategoryId" class="text-danger small fw-bold"></span>
-                            </div>
-                            <div class="col-md-6">
-                                <label asp-for="VendorId" class="form-label fw-bold d-flex justify-content-between">
-                                    Primary Supplier
-                                    <a href="#" onclick="quickAdd('Vendor')" class="text-decoration-none text-success">+ Add New</a>
-                                </label>
-                                <select asp-for="VendorId" asp-items="Model.AvailableVendors" class="form-select border-secondary shadow-sm">
-                                    <option value="">-- Select Supplier --</option>
-                                </select>
-                                <span asp-validation-for="VendorId" class="text-danger small fw-bold"></span>
-                            </div>
-                        </div>
-
-                        <div class="row g-3 mb-4 border-top pt-3">
-                            <div class="col-md-4">
-                                <label asp-for="CostPrice" class="form-label fw-bold text-muted"></label>
-                                <div class="input-group shadow-sm">
-                                    <span class="input-group-text bg-white">BDT</span>
-                                    <input asp-for="CostPrice" class="form-control" type="number" step="0.01" placeholder="0" />
-                                </div>
-                                <span asp-validation-for="CostPrice" class="text-danger small fw-bold"></span>
-                            </div>
-                            <div class="col-md-4">
-                                <label asp-for="SellingPrice" class="form-label fw-bold text-primary"></label>
-                                <div class="input-group shadow-sm">
-                                    <span class="input-group-text bg-white text-primary">BDT</span>
-                                    <input asp-for="SellingPrice" class="form-control border-primary" type="number" step="0.01" placeholder="0" />
-                                </div>
-                                <span asp-validation-for="SellingPrice" class="text-danger small fw-bold"></span>
-                            </div>
-                            <div class="col-md-4">
-                                <label asp-for="TaxRate" class="form-label fw-bold text-danger"></label>
-                                <div class="input-group shadow-sm">
-                                    <input asp-for="TaxRate" class="form-control border-danger" type="number" step="0.01" value="0" />
-                                    <span class="input-group-text bg-white text-danger">%</span>
-                                </div>
-                                <span asp-validation-for="TaxRate" class="text-danger small fw-bold"></span>
-                            </div>
-                        </div>
-
-                        <div class="row g-3 mb-4 border-top pt-3">
-                            <div class="col-md-4">
-                                <label asp-for="StockQuantity" class="form-label fw-bold"></label>
-                                <input asp-for="StockQuantity" class="form-control shadow-sm" type="number" placeholder="0" />
-                                <span asp-validation-for="StockQuantity" class="text-danger small fw-bold"></span>
-                            </div>
-                            <div class="col-md-4">
-                                <label asp-for="ReorderLevel" class="form-label fw-bold text-warning"></label>
-                                <input asp-for="ReorderLevel" class="form-control border-warning shadow-sm" type="number" />
-                                <span asp-validation-for="ReorderLevel" class="text-danger small fw-bold"></span>
-                            </div>
-                            <div class="col-md-4">
-                                <label asp-for="UnitOfMeasure" class="form-label fw-bold"></label>
-                                <select asp-for="UnitOfMeasure" class="form-select shadow-sm">
-                                    <option value="pcs">Pieces (pcs)</option>
-                                    <option value="kg">Kilograms (kg)</option>
-                                    <option value="ltr">Liters (ltr)</option>
-                                    <option value="box">Box</option>
-                                </select>
-                            </div>
-                        </div>
-
-                        <div class="row g-3 mb-4 border-top pt-3">
-                            <div class="col-md-12 mb-3">
-                                <label asp-for="ImageFile" class="form-label fw-bold"></label>
-                                <input asp-for="ImageFile" type="file" class="form-control shadow-sm" accept="image/*" />
-                                <div class="form-text">Optional. Images are saved locally to the terminal hard drive for offline viewing.</div>
-                            </div>
-                            <div class="col-md-12">
-                                <label asp-for="Description" class="form-label fw-bold"></label>
-                                <textarea asp-for="Description" class="form-control shadow-sm" rows="2" placeholder="Optional internal notes..."></textarea>
-                            </div>
-                        </div>
-
-                        <div class="d-flex justify-content-between mt-4 pt-2">
-                            <a asp-action="Index" class="btn btn-outline-secondary px-4 fw-bold">Cancel (ESC)</a>
-                            <button type="submit" class="btn btn-primary px-5 fw-bold shadow-sm">Save Master Product (ENTER)</button>
-                        </div>
-                    </form>
-                </div>
-            </div>
-        </div>
+<div class="page-head">
+    <div>
+        <a asp-action="Index" class="btn btn-ghost btn-sm mb-2 ps-0">@Html.Icon("chevron-left") Products and stock</a>
+        <h1 class="page-title">Add product</h1>
+        <p class="page-sub">It appears at the till as soon as it is saved with stock above zero.</p>
     </div>
 </div>
 
+<form asp-action="Create" method="post" enctype="multipart/form-data" id="productForm">
+    <div asp-validation-summary="ModelOnly" class="alert alert-danger mb-3" role="alert"></div>
+    <div class="row g-3">
+        <div class="col-xl-8 d-grid gap-3">
+            <section class="card">
+                <div class="panel-head"><h2>Basics</h2></div>
+                <div class="panel-body row g-3">
+                    <div class="col-md-6">
+                        <label asp-for="Barcode" class="form-label">Barcode</label>
+                        <input asp-for="Barcode" class="form-control font-monospace" placeholder="Scan or type" autocomplete="off" autofocus />
+                        <span asp-validation-for="Barcode" class="text-danger small"></span>
+                    </div>
+                    <div class="col-md-6">
+                        <label asp-for="ProductName" class="form-label">Name</label>
+                        <input asp-for="ProductName" class="form-control" placeholder="For example: Soybean oil 1 L" autocomplete="off" />
+                        <span asp-validation-for="ProductName" class="text-danger small"></span>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="d-flex justify-content-between align-items-baseline"><label asp-for="CategoryId" class="form-label">Category</label><button type="button" class="btn btn-link btn-sm p-0" data-quick-add="Category">@Html.Icon("plus") New category</button></div>
+                        <select asp-for="CategoryId" asp-items="Model.AvailableCategories" class="form-select"><option value="">Choose a category</option></select>
+                        <span asp-validation-for="CategoryId" class="text-danger small"></span>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="d-flex justify-content-between align-items-baseline"><label asp-for="VendorId" class="form-label">Supplier</label><button type="button" class="btn btn-link btn-sm p-0" data-quick-add="Vendor">@Html.Icon("plus") New supplier</button></div>
+                        <select asp-for="VendorId" asp-items="Model.AvailableVendors" class="form-select"><option value="">Choose a supplier</option></select>
+                        <span asp-validation-for="VendorId" class="text-danger small"></span>
+                    </div>
+                    <div class="col-12">
+                        <label asp-for="Description" class="form-label">Notes (optional)</label>
+                        <textarea asp-for="Description" class="form-control" rows="2" placeholder="Only staff see this"></textarea>
+                    </div>
+                </div>
+            </section>
+            <section class="card">
+                <div class="panel-head"><h2>Price</h2></div>
+                <div class="panel-body row g-3">
+                    <div class="col-md-4">
+                        <label asp-for="CostPrice" class="form-label">Cost per unit</label>
+                        <div class="input-group"><span class="input-group-text">৳</span><input asp-for="CostPrice" class="form-control num" type="number" step="0.01" min="0" placeholder="0.00" /></div>
+                        <span asp-validation-for="CostPrice" class="text-danger small"></span>
+                    </div>
+                    <div class="col-md-4">
+                        <label asp-for="SellingPrice" class="form-label">Selling price</label>
+                        <div class="input-group"><span class="input-group-text">৳</span><input asp-for="SellingPrice" class="form-control num" type="number" step="0.01" min="0" placeholder="0.00" /></div>
+                        <span asp-validation-for="SellingPrice" class="text-danger small"></span>
+                    </div>
+                    <div class="col-md-4">
+                        <label asp-for="TaxRate" class="form-label">VAT included in the price</label>
+                        <div class="input-group"><input asp-for="TaxRate" class="form-control num" type="number" step="0.01" min="0" value="0" /><span class="input-group-text">%</span></div>
+                        <span asp-validation-for="TaxRate" class="text-danger small"></span>
+                    </div>
+                    <div class="col-12 help">The selling price must not be below the cost. While the shop is not VAT-registered, keep VAT at 0%.</div>
+                </div>
+            </section>
+            <section class="card">
+                <div class="panel-head"><h2>Stock</h2></div>
+                <div class="panel-body row g-3">
+                    <div class="col-md-4">
+                        <label asp-for="StockQuantity" class="form-label">Starting stock</label>
+                        <input asp-for="StockQuantity" class="form-control num" type="number" min="0" placeholder="0" />
+                        <span asp-validation-for="StockQuantity" class="text-danger small"></span>
+                    </div>
+                    <div class="col-md-4">
+                        <label asp-for="ReorderLevel" class="form-label">Warn when stock reaches</label>
+                        <input asp-for="ReorderLevel" class="form-control num" type="number" min="0" />
+                        <span asp-validation-for="ReorderLevel" class="text-danger small"></span>
+                    </div>
+                    <div class="col-md-4">
+                        <label asp-for="UnitOfMeasure" class="form-label">Sold by</label>
+                        <select asp-for="UnitOfMeasure" class="form-select">
+                            @foreach (var (value, text) in units) { <option value="@value">@text (@value)</option> }
+                        </select>
+                    </div>
+                </div>
+            </section>
+        </div>
+        <div class="col-xl-4">
+            <section class="card" style="position:sticky;top:calc(var(--topbar-h) + 1rem)">
+                <div class="panel-head"><h2>Picture</h2></div>
+                <div class="panel-body">
+                    <img id="imagePreview" src="/img/product.svg" alt="" class="w-100 rounded-3 border mb-3" style="aspect-ratio:4/3;object-fit:cover" />
+                    <label asp-for="ImageFile" class="form-label">Choose a picture (optional)</label>
+                    <input asp-for="ImageFile" type="file" class="form-control" accept=".jpg,.jpeg,.png,.webp" data-preview="imagePreview" />
+                    <div class="form-text">JPG, PNG or WebP, up to 2 MB and 2000 × 2000 pixels. Stored on this PC.</div>
+                </div>
+                <div class="card-footer d-flex gap-2 justify-content-end">
+                    <a asp-action="Index" class="btn btn-quiet">Cancel</a>
+                    <button type="submit" class="btn btn-primary" data-busy="Saving…">@Html.Icon("check") Save product</button>
+                </div>
+            </section>
+        </div>
+    </div>
+</form>
+
 @section Scripts {
-    @{
-        await Html.RenderPartialAsync("_ValidationScriptsPartial");
-    }
-    <script>
-        document.addEventListener('keydown', function(event) {
-            if (event.key === 'Escape') { window.location.href = '@Url.Action("Index", "InventoryAdmin")'; }
-        });
-
-        async function quickAdd(type) {
-            let input = prompt(`Enter new ${type} name:`);
-            if (!input || input.trim() === '') return;
-
-            let formData = new FormData();
-            formData.append(type === 'Category' ? 'categoryName' : 'vendorName', input.trim());
-            // IMM-02: every POST carries the antiforgery token (global AutoValidateAntiforgeryToken).
-            const token = document.querySelector('input[name="__RequestVerificationToken"]');
-            if (token) formData.append('__RequestVerificationToken', token.value);
-
-            try {
-                let response = await fetch(`/InventoryAdmin/QuickAdd${type}`, { method: 'POST', body: formData });
-                let result = await response.json();
-                if (result.success) {
-                    alert(`${type} added successfully! Form will refresh to update dropdowns.`);
-                    window.location.reload();
-                } else { alert(`Error: ${result.message}`); }
-            } catch (error) { alert("Terminal error communicating with the local server."); }
-        }
-    </script>
+    <partial name="_ValidationScriptsPartial" />
+    <partial name="_ProductFormScripts" />
 }

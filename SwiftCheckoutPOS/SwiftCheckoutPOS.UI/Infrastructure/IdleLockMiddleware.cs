@@ -39,5 +39,5 @@ public sealed class IdleLockMiddleware(RequestDelegate next)
     }
 
     private static bool IsStatic(string path) =>
-        path.StartsWith("/lib/") || path.StartsWith("/css/") || path.StartsWith("/js/") || path.StartsWith("/images/") || path == "/favicon.ico";
+        path.StartsWith("/lib/") || path.StartsWith("/css/") || path.StartsWith("/js/") || path.StartsWith("/images/") || path.StartsWith("/img/") || path == "/favicon.ico";
 }

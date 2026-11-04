@@ -54,6 +54,15 @@ public sealed class HostSmokeTests : IDisposable
         Assert.Contains("no-store", login.Headers.CacheControl!.ToString());
         Assert.False(login.Headers.Contains("Server"));
 
+        // Signed-out screens (sign-in, setup, lock) must get their styles, scripts and icons.
+        foreach (var (asset, type) in new[] { ("/lib/bootstrap/dist/css/bootstrap.min.css", "text/css"), ("/css/app.css", "text/css"),
+                     ("/js/app.js", "javascript"), ("/img/icons.svg", "image/svg+xml") })
+        {
+            var file = await client.GetAsync(asset);
+            Assert.True(file.StatusCode == HttpStatusCode.OK, $"{asset} returned {(int)file.StatusCode} to a signed-out visitor");
+            Assert.Contains(type, file.Content.Headers.ContentType?.ToString() ?? "");
+        }
+
         var till = await client.GetAsync("/Checkout");
         Assert.Equal(HttpStatusCode.Redirect, till.StatusCode);         // fallback policy: sign in first
         Assert.Contains("/Account/Login", till.Headers.Location!.ToString());

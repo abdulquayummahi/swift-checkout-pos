@@ -121,7 +121,7 @@ public sealed class RefundService(SalesRepository salesRepo, AtomicUnit unit)
         if (sale.OrderStatus == "Refunded") return "This transaction has already been refunded.";
         if (sale.OrderStatus == "Voided") return "This sale was voided.";
         if (sale.OrderStatus is not ("Completed" or "PartiallyRefunded")) return "Only completed sales can be refunded.";
-        if (at - sale.SaleDate > TimeSpan.FromHours(RefundWindowHours)) return "The 7-day refund window has passed (PR-Q27).";
+        if (at - sale.SaleDate > TimeSpan.FromHours(RefundWindowHours)) return "The 7-day refund window has passed.";
         return null;
     }
 

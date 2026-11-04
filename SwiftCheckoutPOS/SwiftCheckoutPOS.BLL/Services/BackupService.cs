@@ -286,12 +286,12 @@ namespace SwiftCheckoutPOS.BLL.Services
             var newest = history.FirstOrDefault(s => s.Verified);
             var now = _clock();
             if (newest is null) warnings.Add("There is no verified backup yet. Press \"Back up now\".");
-            else if (now - newest.CreatedAt > TimeSpan.FromHours(26)) warnings.Add($"The newest verified backup is from {newest.CreatedAt:dd MMM yyyy HH:mm}. The limit is one business day (PR-Q69).");
+            else if (now - newest.CreatedAt > TimeSpan.FromHours(26)) warnings.Add($"The newest verified backup is from {newest.CreatedAt:dd MMM yyyy HH:mm}. Back up at least once every business day.");
             if (!config.IsAutoBackupEnabled) warnings.Add("Automatic daily backup is OFF.");
             if (status.LastUsbCopyAt is null || now - status.LastUsbCopyAt > TimeSpan.FromHours(30))
-                warnings.Add("Copy the newest backup to the USB drive today and keep the drive away from this PC (PR-Q56).");
+                warnings.Add("Copy the newest backup to the USB drive today and keep the drive away from this PC.");
             if (status.LastDrillAt is null || now - status.LastDrillAt > TimeSpan.FromDays(31))
-                warnings.Add("A monthly restore drill is due (PR-Q84). See DATA_RECOVERY_PLAN.md.");
+                warnings.Add("A monthly restore test is due. How to run it is under \"Restoring\" below.");
             else if (!status.LastDrillPassed) warnings.Add("The last restore drill FAILED: " + status.LastDrillResult);
             if (config.LegacyTargetDirectory is not null)
                 warnings.Add($"Old backups may still be in {config.LegacyTargetDirectory}. Copy them to the backup folder or USB before upgrading.");

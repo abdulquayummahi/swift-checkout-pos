@@ -7,6 +7,10 @@ namespace SwiftCheckoutPOS.DAL.Repositories;
 public sealed class ShiftRepository(ApplicationDbContext context)
 {
     public Shift? OpenShift() => context.Shifts.Include(s => s.CashMovements).SingleOrDefault(s => s.Status == "Open");
+    /// <summary>Light query for the page header: when the open shift started and who opened it.</summary>
+    public (DateTime OpenedAt, string OpenedBy)? OpenShiftHeader() =>
+        context.Shifts.AsNoTracking().Where(s => s.Status == "Open").Select(s => new { s.OpenedAt, s.OpenedBy })
+            .AsEnumerable().Select(s => ((DateTime, string)?)(s.OpenedAt, s.OpenedBy)).SingleOrDefault();
     public Shift? Find(int shiftId) => context.Shifts.Include(s => s.CashMovements).SingleOrDefault(s => s.ShiftId == shiftId);
     public void Add(Shift shift) => context.Shifts.Add(shift);
     public void AddMovement(CashMovement movement) => context.CashMovements.Add(movement);

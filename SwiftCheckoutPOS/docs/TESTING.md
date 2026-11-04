@@ -113,9 +113,14 @@ runs on the copy). Pure rules (retention, schedule/catch-up, settings validation
 `Host/HostSmokeTests.cs` (BP-06/07/09) starts the real `Program` in memory (WebApplicationFactory/TestServer) in **Production**
 mode with the guarded test connection and a temporary `Paths:DataRoot`: every controller resolves from DI; first-Admin setup,
 sign-in and every main page render without error text or external assets; security headers, host filtering and a manual
-backup through the Backup page are checked. No port is opened.
+backup through the Backup page are checked. No port is opened. It also checks that the stylesheet, scripts and icons load
+for a signed-out visitor: the authorization fallback policy once blocked them and the sign-in page showed unstyled.
 
-Latest run (2026-11-04): 39/39 unit, 146/146 integration.
+`Host/DemoDataTests.cs` runs the `--seed-demo` seeder on the test database and checks the sales, receipts, stock and
+ledger stay consistent and the till still works afterwards. `Host/UiSnapshotTests.cs` renders every screen with demo data
+and saves the HTML to `bin/Debug/net10.0/ui-snapshots/` for visual review (light, dark and phone widths).
+
+Latest run (2026-11-04): 39/39 unit, 150/150 integration.
 
 ## Executed verification
 

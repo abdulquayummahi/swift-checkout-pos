@@ -10,7 +10,8 @@ public sealed class CheckoutRepository(DbContextOptions<ApplicationDbContext> op
     public IReadOnlyList<Product> GetAvailableProducts()
     {
         using var context = new ApplicationDbContext(options);
-        return context.Products.AsNoTracking().Where(p => p.IsActive && p.StockQuantity - p.ReservedQuantity > 0)
+        return context.Products.AsNoTracking().Include(p => p.Category) // category shown as till filter chips
+            .Where(p => p.IsActive && p.StockQuantity - p.ReservedQuantity > 0)
             .OrderBy(p => p.ProductName).ToList();
     }
 

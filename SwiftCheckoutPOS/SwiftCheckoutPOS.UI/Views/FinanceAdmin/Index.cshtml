@@ -1,371 +1,138 @@
 @model SwiftCheckoutPOS.BLL.DTOs.FinanceDashboardDTO
-
 @{
-    ViewData["Title"] = "Financial Ledger";
+    ViewData["Title"] = "Finance";
+    var inv = System.Globalization.CultureInfo.InvariantCulture;
+    var payback = Math.Clamp(Model.PaybackPercentage, 0, 100);
 }
-
-<style>
-    :root {
-        --dash-bg: #f8f9fa;
-    }
-
-    .dashboard-container {
-        background-color: var(--dash-bg);
-        padding: 2rem;
-        min-height: calc(100vh - 60px);
-    }
-
-    .metric-card {
-        border-radius: 1rem;
-        padding: 1.25rem;
-        display: flex;
-        flex-direction: column;
-        justify-content: space-between;
-        height: 100%;
-        min-height: 140px;
-        border: none;
-        box-shadow: 0 4px 12px rgba(0,0,0,0.02);
-        transition: transform 0.2s;
-    }
-
-    .metric-icon {
-        width: 40px;
-        height: 40px;
-        border-radius: 50%;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        margin-bottom: 1rem;
-        font-size: 1.15rem;
-    }
-
-    .metric-value {
-        font-size: 1.5rem;
-        font-weight: 800;
-        margin-bottom: 0.15rem;
-        color: #181c32;
-    }
-
-    .metric-label {
-        font-size: 0.8rem;
-        font-weight: 700;
-        color: #a1a5b7;
-        text-transform: uppercase;
-        letter-spacing: 0.05em;
-    }
-
-    .card-blue {
-        background-color: #e0f2fe;
-    }
-
-        .card-blue .metric-icon {
-            background-color: #0284c7;
-            color: white;
-        }
-
-        .card-blue .metric-value {
-            color: #0284c7;
-        }
-
-    .card-red {
-        background-color: #fee2e2;
-    }
-
-        .card-red .metric-icon {
-            background-color: #dc2626;
-            color: white;
-        }
-
-        .card-red .metric-value {
-            color: #dc2626;
-        }
-
-    .card-orange {
-        background-color: #ffedd5;
-    }
-
-        .card-orange .metric-icon {
-            background-color: #ea580c;
-            color: white;
-        }
-
-        .card-orange .metric-value {
-            color: #ea580c;
-        }
-
-    .card-teal {
-        background-color: #ccfbf1;
-    }
-
-        .card-teal .metric-icon {
-            background-color: #0d9488;
-            color: white;
-        }
-
-        .card-teal .metric-value {
-            color: #0d9488;
-        }
-
-    .filter-panel {
-        background: #fff;
-        border-radius: 1rem;
-        padding: 1.5rem;
-        box-shadow: 0 4px 12px rgba(0,0,0,0.03);
-        border: 1px solid #e4e6ef;
-    }
-
-    .form-control, .form-select {
-        border-radius: 0.5rem;
-        border: 2px solid #e4e6ef;
-        padding: 0.75rem 1rem;
-        font-weight: 600;
-        color: #3f4254;
-        height: 50px;
-    }
-
-        .form-control:focus {
-            border-color: #3699ff;
-            box-shadow: 0 0 0 0.2rem rgba(54, 153, 255, 0.1);
-        }
-
-    .btn-filter-clear {
-        height: 50px;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        border-radius: 0.5rem;
-    }
-
-    .roi-panel {
-        background: #fff;
-        border-radius: 1rem;
-        padding: 2rem;
-        box-shadow: 0 4px 12px rgba(0,0,0,0.03);
-        border: 1px solid #e4e6ef;
-    }
-</style>
-
-<div class="dashboard-container">
-
-    <div class="d-flex justify-content-between align-items-center mb-4">
-        <div>
-            <h2 class="fw-bold mb-1" style="color: #181c32;">Financial Ledger</h2>
-            <span class="text-muted fw-bold" style="font-size: 0.9rem;">Capital & Operational Expense Tracking</span>
-        </div>
-        <button class="btn btn-primary fw-bold px-4 shadow-sm" style="height: 50px;" data-bs-toggle="modal" data-bs-target="#addEntryModal" id="newEntryBtn">
-            + New Record (Insert)
-        </button>
+<div class="page-head">
+    <div>
+        <h1 class="page-title">Finance</h1>
+        <p class="page-sub">@Model.PeriodFrom.ToString("dd MMM yyyy") to @Model.PeriodTo.ToString("dd MMM yyyy"). Sales, stock and refunds are recorded automatically; add rent, bills, salaries and capital here.</p>
     </div>
-
-    @if (TempData["Error"] != null)
-    {
-        <div class="alert alert-danger fw-bold border-0 shadow-sm">@TempData["Error"]</div>
-    }
-    @if (TempData["Success"] != null)
-    {
-        <div class="alert alert-success fw-bold border-0 shadow-sm">@TempData["Success"]</div>
-    }
-
-    <div class="roi-panel mb-4">
-        <h5 class="fw-bold mb-1" style="color: #181c32;">Capital payback estimate <span class="badge bg-secondary ms-2">All time</span></h5>
-        <p class="text-muted small fw-bold mb-4">Lifetime net profit against capital invested. Business start: @(Model.Lifetime.BusinessStart?.ToString("dd-MM-yyyy") ?? "—") · @Model.Lifetime.MonthsActive months</p>
-
-        <div class="progress mb-4 shadow-sm" style="height: 30px; border-radius: 1rem; background-color: #e4e6ef;">
-            <div class="progress-bar bg-success text-end pe-3 fw-bold fs-6" role="progressbar" style="width: @Model.PaybackPercentage.ToString("0.0", System.Globalization.CultureInfo.InvariantCulture)%;" aria-valuenow="@Model.PaybackPercentage" aria-valuemin="0" aria-valuemax="100">
-                @Model.PaybackPercentage.ToString("0.0")% paid back
-            </div>
-        </div>
-
-        <div class="row text-center mt-2">
-            <div class="col-md-2 border-end">
-                <span class="d-block text-muted fw-bold small text-uppercase mb-1">Capital invested</span>
-                <span class="fs-5 fw-bold" style="color: #181c32;">@Model.LifetimeCapital.ToString("N2")</span>
-            </div>
-            <div class="col-md-2 border-end">
-                <span class="d-block text-muted fw-bold small text-uppercase mb-1">Net profit</span>
-                <span class="fs-5 fw-bold @(Model.LifetimeNetProfit >= 0 ? "text-success" : "text-danger")">@Model.LifetimeNetProfit.ToString("N2")</span>
-            </div>
-            <div class="col-md-2 border-end">
-                <span class="d-block text-muted fw-bold small text-uppercase mb-1">Avg. monthly profit</span>
-                <span class="fs-5 fw-bold text-primary">@Model.AverageMonthlyProfit.ToString("N2")</span>
-            </div>
-            <div class="col-md-3 border-end">
-                <span class="d-block text-muted fw-bold small text-uppercase mb-1">Net Cash Position</span>
-                <span class="fs-5 fw-bold @(Model.Lifetime.NetCashPosition < 0 ? "text-danger" : "")">@Model.Lifetime.NetCashPosition.ToString("N2")</span>
-            </div>
-            <div class="col-md-3">
-                <span class="d-block text-muted fw-bold small text-uppercase mb-1">Capital payback</span>
-                <span class="fs-6 fw-bold">@Model.PaybackEstimate</span>
-            </div>
-        </div>
-        <div class="small text-muted mt-3">Customers owe (Due): BDT @Model.Lifetime.DueOutstanding.ToString("N2")</div>
+    <div class="page-actions">
+        <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addEntryModal" id="newEntryBtn">@Html.Icon("plus") Record money in or out <kbd>Ins</kbd></button>
     </div>
+</div>
 
-    <div class="filter-panel mb-4">
-        <form asp-action="Index" method="get" id="filterForm" class="row g-3 align-items-end">
-            <div class="col-md-3">
-                <label class="form-label text-muted fw-bold text-uppercase small">Start Date</label>
-                <input type="date" name="startDate" id="startDate" value="@ViewBag.StartDate" class="form-control" />
-            </div>
-            <div class="col-md-3">
-                <label class="form-label text-muted fw-bold text-uppercase small">End Date</label>
-                <input type="date" name="endDate" id="endDate" value="@ViewBag.EndDate" class="form-control" />
-            </div>
-            <div class="col-md-5">
-                <label class="form-label text-muted fw-bold text-uppercase small">Search Category/Notes (Press F2)</label>
-                <input type="text" name="searchQuery" id="searchInput" value="@ViewBag.SearchQuery" class="form-control" placeholder="e.g. Utility, Damage..." autocomplete="off" />
-            </div>
-            <div class="col-md-1">
-                <a href="@Url.Action("Index", "FinanceAdmin")" class="btn btn-light w-100 border fw-bold shadow-sm text-muted btn-filter-clear">Clear</a>
-            </div>
-        </form>
+<form asp-action="Index" method="get" id="filterForm" class="d-flex gap-2 flex-wrap align-items-end mb-3">
+    <div><label class="form-label" for="startDate">From</label><input type="date" name="startDate" id="startDate" value="@ViewBag.StartDate" class="form-control" /></div>
+    <div><label class="form-label" for="endDate">To</label><input type="date" name="endDate" id="endDate" value="@ViewBag.EndDate" class="form-control" /></div>
+    <div class="flex-grow-1" style="max-width:420px">
+        <label class="form-label" for="searchInput">Search category or note</label>
+        <div class="input-group"><span class="input-group-text">@Html.Icon("search")</span><input type="search" name="searchQuery" id="searchInput" value="@ViewBag.SearchQuery" class="form-control" placeholder="For example: Utilities" autocomplete="off" /><span class="input-group-text"><kbd>F2</kbd></span></div>
     </div>
+    <a href="@Url.Action("Index", "FinanceAdmin")" class="btn btn-ghost">@Html.Icon("x") Reset</a>
+</form>
 
-    <div class="row g-4 mb-2">
-        <div class="col-md-6 col-xl-3"><div class="metric-card card-blue"><div class="metric-icon">🧾</div><div><div class="metric-value">@Model.Period.NetSales.ToString("N2")</div><div class="metric-label">Net sales (ex VAT, after refunds)</div></div></div></div>
-        <div class="col-md-6 col-xl-3"><div class="metric-card card-teal"><div class="metric-icon">📈</div><div><div class="metric-value">@Model.Period.GrossProfit.ToString("N2")</div><div class="metric-label">Gross profit (at cost of sale)</div></div></div></div>
-        <div class="col-md-6 col-xl-3"><div class="metric-card card-red"><div class="metric-icon">📄</div><div><div class="metric-value">@Model.OperatingExpenses.ToString("N2")</div><div class="metric-label">Operating expenses</div></div></div></div>
-        <div class="col-md-6 col-xl-3"><div class="metric-card card-orange"><div class="metric-icon">⚖️</div><div><div class="metric-value @(Model.Period.NetProfit < 0 ? "text-danger" : "")">@Model.Period.NetProfit.ToString("N2")</div><div class="metric-label">Net profit (period)</div></div></div></div>
-    </div>
-    <div class="small text-muted mb-4">
-        Period @Model.PeriodFrom.ToString("dd-MM-yyyy") to @Model.PeriodTo.ToString("dd-MM-yyyy"): capital in @Model.TotalCapitalInflow.ToString("N2") · stock bought @Model.InventoryCosts.ToString("N2") ·
-        stock losses @Model.Period.StockLosses.ToString("N2") · cash rounding @Model.Period.CashRounding.ToString("N2") · refunds @Model.Period.RefundsExVat.ToString("N2")
-        @if (Model.Period.UnknownCostSales > 0) { <span class="text-danger fw-bold"> · @Model.Period.UnknownCostSales sale(s) with unknown cost excluded from profit</span> }
-    </div>
+<div class="figures mb-2">
+    <div class="figure"><div class="figure-label">Net sales</div><div class="figure-value">@Html.Money(Model.Period.NetSales)</div><div class="figure-note">Without VAT, after refunds</div></div>
+    <div class="figure"><div class="figure-label">Gross profit</div><div class="figure-value">@Html.Money(Model.Period.GrossProfit)</div><div class="figure-note">Using cost at the time of sale</div></div>
+    <div class="figure"><div class="figure-label">Operating expenses</div><div class="figure-value">@Html.Money(Model.OperatingExpenses)</div></div>
+    <div class="figure @(Model.Period.NetProfit < 0 ? "is-bad" : "is-good")"><div class="figure-label">Net profit</div><div class="figure-value">@Html.Money(Model.Period.NetProfit)</div></div>
+</div>
+<p class="help mb-4">
+    In this period: capital in @Html.Money(Model.TotalCapitalInflow) · stock bought @Html.Money(Model.InventoryCosts) · stock losses @Html.Money(Model.Period.StockLosses) · cash rounding @Html.Money(Model.Period.CashRounding) · refunds @Html.Money(Model.Period.RefundsExVat)
+    @if (Model.Period.UnknownCostSales > 0) { <span class="text-danger fw-semibold"> · @Model.Period.UnknownCostSales sale(s) with unknown cost are left out of profit</span> }
+</p>
 
-    <div class="card border-0 shadow-sm rounded-4">
-        <div class="card-body p-0">
-            <div class="table-responsive" style="max-height: 600px; overflow-y: auto;">
-                <table class="table table-hover m-0 align-middle">
-                    <thead class="bg-dark text-white" style="position: sticky; top: 0; z-index: 1;">
-                        <tr>
-                            <th class="fw-bold px-4 py-3 text-nowrap" style="font-size: 0.8rem;">Date / Time</th>
-                            <th class="fw-bold px-4 py-3" style="font-size: 0.8rem;">Category</th>
-                            <th class="fw-bold px-4 py-3" style="font-size: 0.8rem;">Type</th>
-                            <th class="fw-bold px-4 py-3" style="font-size: 0.8rem;">Description</th>
-                            <th class="fw-bold px-4 py-3 text-end" style="font-size: 0.8rem;">Amount (BDT)</th>
-                            <th class="fw-bold px-4 py-3 text-center" style="font-size: 0.8rem;">Recorded By</th>
-                        </tr>
-                    </thead>
+<div class="row g-3 mb-4">
+    <div class="col-xl-8">
+        <div class="table-wrap h-100">
+            <div class="panel-head"><h2>Ledger</h2><span class="small text-muted">@Model.Entries.Count() entries</span></div>
+            <div class="table-responsive" style="max-height:560px">
+                <table class="table table-hover">
+                    <thead class="sticky-top"><tr><th>When</th><th>Category</th><th>Note</th><th class="text-end">Amount</th><th>By</th></tr></thead>
                     <tbody>
                         @if (!Model.Entries.Any())
                         {
-                            <tr><td colspan="6" class="text-center text-muted py-5 fw-bold">No ledger entries found for this period.</td></tr>
+                            <tr><td colspan="5"><div class="empty">@Html.Icon("finance")<div class="empty-title">Nothing recorded in this period</div><div class="small">Change the dates, or record a payment.</div></div></td></tr>
                         }
-                        else
+                        @foreach (var entry in Model.Entries)
                         {
-                            foreach (var entry in Model.Entries)
-                            {
-                                <tr>
-                                    <td class="px-4 py-3 text-muted fw-bold text-nowrap" style="font-size: 0.85rem;">@entry.TransactionDate.ToString("MMM dd, yyyy - hh:mm tt")</td>
-                                    <td class="px-4 py-3 fw-bold text-dark">@entry.Category</td>
-                                    <td class="px-4 py-3">
-                                        @if (entry.TransactionType == "Inflow")
-                                        {
-                                            <span class="badge bg-success">Inflow</span>
-                                        }
-                                        else
-                                        {
-
-                                            <span class="badge bg-danger">Outflow</span>
-                                        }
-                                    </td>
-                                    <td class="px-4 py-3 text-muted" style="max-width: 300px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="@entry.Description">
-                                        @(string.IsNullOrWhiteSpace(entry.Description) ? "—" : entry.Description)
-                                    </td>
-                                    <td class="px-4 py-3 text-end fw-bold @(entry.TransactionType == "Inflow" ? "text-success" : "text-danger")">
-                                        @(entry.TransactionType == "Outflow" ? "-" : "")@entry.Amount.ToString("N2")
-                                    </td>
-                                    <td class="px-4 py-3 text-center text-muted small font-monospace">@entry.RecordedBy</td>
-                                </tr>
-                            }
+                            var inflow = entry.TransactionType == "Inflow";
+                            <tr>
+                                <td class="text-muted small text-nowrap">@entry.TransactionDate.ToString("dd MMM, HH:mm")</td>
+                                <td class="fw-semibold"><span class="d-inline-flex align-items-center gap-1 @(inflow ? "text-success" : "text-danger")">@Html.Icon(inflow ? "arrow-down" : "arrow-up")</span> @entry.Category</td>
+                                <td class="text-muted small text-truncate" style="max-width:280px" title="@entry.Description">@(string.IsNullOrWhiteSpace(entry.Description) ? "–" : entry.Description)</td>
+                                <td class="text-end num fw-semibold @(inflow ? "text-success" : "")">@(inflow ? "+" : "−")@entry.Amount.ToString("N2")</td>
+                                <td class="small text-muted text-nowrap">@UiHelpers.Person(entry.RecordedBy)</td>
+                            </tr>
                         }
                     </tbody>
                 </table>
             </div>
         </div>
     </div>
+    <div class="col-xl-4">
+        <div class="card h-100">
+            <div class="panel-head"><h2>Capital payback</h2><span class="small text-muted">All time</span></div>
+            <div class="panel-body">
+                <div class="d-flex justify-content-between align-items-baseline mb-2">
+                    <span class="num" style="font-size:2.2rem;font-weight:600">@Model.PaybackPercentage.ToString("0.0")%</span>
+                    <span class="small text-muted">of capital earned back</span>
+                </div>
+                <div class="bar mb-3" style="height:10px"><span style="width:@payback.ToString("0.0", inv)%"></span></div>
+                <dl class="row small mb-0 gy-2">
+                    <dt class="col-7 fw-normal text-muted">Capital invested</dt><dd class="col-5 text-end num mb-0">@Model.LifetimeCapital.ToString("N2")</dd>
+                    <dt class="col-7 fw-normal text-muted">Net profit, all time</dt><dd class="col-5 text-end num mb-0 @(Model.LifetimeNetProfit < 0 ? "text-danger" : "text-success")">@Model.LifetimeNetProfit.ToString("N2")</dd>
+                    <dt class="col-7 fw-normal text-muted">Average profit per month</dt><dd class="col-5 text-end num mb-0">@Model.AverageMonthlyProfit.ToString("N2")</dd>
+                    <dt class="col-7 fw-normal text-muted">Net cash position</dt><dd class="col-5 text-end num mb-0 @(Model.Lifetime.NetCashPosition < 0 ? "text-danger" : "")">@Model.Lifetime.NetCashPosition.ToString("N2")</dd>
+                    <dt class="col-7 fw-normal text-muted">Customers owe (Due)</dt><dd class="col-5 text-end num mb-0">@Model.Lifetime.DueOutstanding.ToString("N2")</dd>
+                </dl>
+                <div class="divider-dashed my-3"></div>
+                <div class="fw-semibold">@Model.PaybackEstimate</div>
+                <div class="help">@if (Model.Lifetime.BusinessStart is { } started) { var months = Model.Lifetime.MonthsActive; <text>Business started @started.ToString("dd MMM yyyy"), @(months < 1 ? "less than a month ago" : months == 1 ? "1 month ago" : $"{months:0.#} months ago").</text> } else { <text>No capital or sales recorded yet.</text> }</div>
+            </div>
+        </div>
+    </div>
 </div>
 
-<div class="modal fade" id="addEntryModal" tabindex="-1" data-bs-backdrop="static">
-    <div class="modal-dialog modal-dialog-centered">
-        <div class="modal-content rounded-4 border-0 shadow-lg">
-            <div class="modal-header border-0 bg-dark text-white rounded-top-4">
-                <h5 class="modal-title fw-bold">Record Ledger Entry</h5>
-                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
-            </div>
+<div class="modal fade" id="addEntryModal" tabindex="-1" aria-labelledby="entryTitle" aria-hidden="true" data-bs-backdrop="static">
+    <div class="modal-dialog modal-dialog-centered" style="max-width:460px">
+        <div class="modal-content">
+            <div class="modal-header"><h2 class="modal-title" id="entryTitle">Record money in or out</h2><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button></div>
             <form asp-action="AddEntry" method="post" id="addEntryForm">
-                <div class="modal-body p-4">
-                    <div class="row g-3 mb-3">
-                        <div class="col-12">
-                            <label class="form-label fw-bold text-muted small text-uppercase">Category</label>
-                            <select name="category" id="categorySelect" class="form-select form-select-lg bg-light" required>
-                                <optgroup label="Money out">
-                                    @foreach (var c in SwiftCheckoutPOS.BLL.Services.MetricsService.ManualOutflow) { <option>@c</option> }
-                                </optgroup>
-                                <optgroup label="Money in">
-                                    @foreach (var c in SwiftCheckoutPOS.BLL.Services.MetricsService.ManualInflow) { <option>@c</option> }
-                                </optgroup>
-                            </select>
-                            <small class="text-muted">Stock purchases, cost of sales, adjustments and refunds are recorded automatically.</small>
-                        </div>
+                <div class="modal-body d-grid gap-3">
+                    <div>
+                        <label class="form-label" for="categorySelect">What is it?</label>
+                        <select name="category" id="categorySelect" class="form-select" required>
+                            <optgroup label="Money out">
+                                @foreach (var c in SwiftCheckoutPOS.BLL.Services.MetricsService.ManualOutflow) { <option>@c</option> }
+                            </optgroup>
+                            <optgroup label="Money in">
+                                @foreach (var c in SwiftCheckoutPOS.BLL.Services.MetricsService.ManualInflow) { <option>@c</option> }
+                            </optgroup>
+                        </select>
+                        <div class="form-text">Stock purchases, cost of sales, stock corrections and refunds are recorded automatically.</div>
                     </div>
-                    <div class="mb-3">
-                        <label class="form-label fw-bold text-muted small text-uppercase">Amount (BDT)</label>
-                        <input type="number" name="amount" id="amountInput" step="0.01" class="form-control form-control-lg bg-light fw-bold text-end" required autocomplete="off" placeholder="0.00" />
+                    <div>
+                        <label class="form-label" for="amountInput">Amount (৳)</label>
+                        <input type="number" name="amount" id="amountInput" step="0.01" min="0.01" class="form-control form-control-lg num text-end" required autocomplete="off" placeholder="0.00" inputmode="decimal" />
                     </div>
-                    <div class="mb-3">
-                        <label class="form-label fw-bold text-muted small text-uppercase">Description / Notes</label>
-                        <input type="text" name="description" id="descInput" class="form-control form-control-lg bg-light" autocomplete="off" placeholder="e.g. June electricity bill..." />
+                    <div>
+                        <label class="form-label" for="descInput">Note</label>
+                        <input type="text" name="description" id="descInput" class="form-control" autocomplete="off" placeholder="For example: October electricity bill" maxlength="500" />
                     </div>
                 </div>
-                <div class="modal-footer border-0 p-4 pt-0 d-flex gap-2">
-                    <button type="button" class="btn btn-light border fw-bold flex-grow-1 py-2" data-bs-dismiss="modal">Cancel (ESC)</button>
-                    <button type="submit" class="btn btn-primary fw-bold flex-grow-1 py-2">Save Record (ENTER)</button>
-                </div>
+                <div class="modal-footer"><button type="button" class="btn btn-quiet" data-bs-dismiss="modal">Cancel <kbd>Esc</kbd></button><button type="submit" class="btn btn-primary">Save <kbd>Enter</kbd></button></div>
             </form>
         </div>
     </div>
 </div>
 
-<script>
-    const form = document.getElementById('filterForm');
-    const searchInput = document.getElementById('searchInput');
-    const startDate = document.getElementById('startDate');
-    const endDate = document.getElementById('endDate');
-    let debounceTimer;
-
-    document.addEventListener("DOMContentLoaded", function () {
-        if (searchInput && searchInput.value.length > 0) {
-            searchInput.focus();
-            var val = searchInput.value;
-            searchInput.value = '';
-            searchInput.value = val;
-        }
-    });
-
-    startDate.addEventListener('change', () => form.submit());
-    endDate.addEventListener('change', () => form.submit());
-
-    searchInput.addEventListener('input', function () {
-        clearTimeout(debounceTimer);
-        debounceTimer = setTimeout(() => { form.submit(); }, 800);
-    });
-
-    document.addEventListener('keydown', function (e) {
-        if (e.key === 'Insert') {
-            e.preventDefault();
-            document.getElementById('newEntryBtn').click();
-        }
-        if (e.key === 'F2') {
-            e.preventDefault();
-            searchInput.focus();
-            searchInput.select();
-        }
-    });
-
-    var addModal = document.getElementById('addEntryModal');
-    addModal.addEventListener('shown.bs.modal', function () {
-        document.getElementById('amountInput').focus();
-    });
-</script>
+@section Scripts {
+    <script>
+        (function () {
+            var form = document.getElementById('filterForm'), search = document.getElementById('searchInput'), timer;
+            if (search.value) { var v = search.value; search.focus(); search.value = ''; search.value = v; }
+            ['startDate', 'endDate'].forEach(function (id) { document.getElementById(id).addEventListener('change', function () { form.submit(); }); });
+            search.addEventListener('input', function () { clearTimeout(timer); timer = setTimeout(function () { form.submit(); }, 600); });
+            document.addEventListener('keydown', function (e) {
+                if (document.querySelector('.modal.show')) return;
+                if (e.key === 'Insert') { e.preventDefault(); document.getElementById('newEntryBtn').click(); }
+                if (e.key === 'F2') { e.preventDefault(); search.focus(); search.select(); }
+            });
+            document.getElementById('addEntryModal').addEventListener('shown.bs.modal', function () { document.getElementById('amountInput').focus(); });
+        })();
+    </script>
+}

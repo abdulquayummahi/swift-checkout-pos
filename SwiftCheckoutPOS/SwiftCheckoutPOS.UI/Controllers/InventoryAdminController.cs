@@ -230,14 +230,14 @@ namespace SwiftCheckoutPOS.UI.Controllers
         [HttpPost]
         public IActionResult QuickAddCategory([FromForm] string categoryName)
         {
-            try { _inventoryService.AddCategory(categoryName); return Json(new { success = true }); }
+            try { var id = _inventoryService.AddCategory(categoryName); return Json(new { success = true, id }); }
             catch (Exception ex) { return Json(new { success = false, message = this.SafeError(ex) }); }
         }
 
         [HttpPost]
         public IActionResult QuickAddVendor([FromForm] string vendorName)
         {
-            try { _inventoryService.AddVendor(vendorName); return Json(new { success = true }); }
+            try { var id = _inventoryService.AddVendor(vendorName); return Json(new { success = true, id }); }
             catch (Exception ex) { return Json(new { success = false, message = this.SafeError(ex) }); }
         }
 

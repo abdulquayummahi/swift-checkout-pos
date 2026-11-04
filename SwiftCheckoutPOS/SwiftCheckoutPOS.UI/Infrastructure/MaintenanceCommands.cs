@@ -13,6 +13,7 @@ namespace SwiftCheckoutPOS.UI.Infrastructure;
 ///   SwiftCheckoutPOS.UI.exe --restore-drill [name]  (PR-Q84 test restore into a separate database; live data unchanged)
 ///   SwiftCheckoutPOS.UI.exe --restore name      (replaces live data; safety backup first; stop the service first)
 ///   SwiftCheckoutPOS.UI.exe --recreate-database (deletes and recreates an old/test database; copy saved first)
+///   SwiftCheckoutPOS.UI.exe --seed-demo         (fills an EMPTY database with a demo shop to try the system)
 /// </summary>
 public static class MaintenanceCommands
 {
@@ -70,6 +71,30 @@ public static class MaintenanceCommands
             Console.WriteLine(pending.Count == 0 ? "Database is up to date." : $"Applying {pending.Count} migration(s): {string.Join(", ", pending)}");
             context.Database.Migrate();
             Console.WriteLine("Done.");
+            return true;
+        }
+        if (args.Contains("--seed-demo"))
+        {
+            var (state, _) = Inspect(connectionString);
+            if (state != SchemaState.Current) { Console.WriteLine("Create or update the database first: run with --migrate (or --recreate-database for an old one)."); Environment.ExitCode = 3; return true; }
+            if (!DemoDataSeeder.IsEmpty(connectionString))
+            {
+                Console.WriteLine("This database already has products or sales. Demo data is only added to an empty database,");
+                Console.WriteLine("so it can never mix with real records. Use --recreate-database first if the data is not needed.");
+                Environment.ExitCode = 1;
+                return true;
+            }
+            var database = new Microsoft.Data.SqlClient.SqlConnectionStringBuilder(connectionString).InitialCatalog;
+            Console.WriteLine($"This fills database '{database}' with a demo shop: staff, 31 products, 20 customers and about six weeks of sales.");
+            Console.WriteLine("Use it to try the system out. Do not use it for the real shop.");
+            Console.Write("Type DEMO to continue: ");
+            if (Console.ReadLine()?.Trim() != "DEMO") { Console.WriteLine("Not confirmed. Nothing changed."); return true; }
+            var seeder = new DemoDataSeeder(connectionString, Console.WriteLine);
+            seeder.Run();
+            Console.WriteLine();
+            Console.WriteLine("Sign in with:");
+            Console.WriteLine($"  Admin    {DemoDataSeeder.Owner.Username,-8} {DemoDataSeeder.Owner.Password}   (only if this run created it; otherwise use your own Admin)");
+            foreach (var s in DemoDataSeeder.Staff) Console.WriteLine($"  {s.Role,-8} {s.Username,-8} {s.Password}");
             return true;
         }
         if (args.Contains("--recreate-database"))

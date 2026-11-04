@@ -1,135 +1,128 @@
-<!-- Project: SwiftCheckoutPOS.UI -->
-<!-- File: Views/BackupAdmin/Index.cshtml -->
 @model SwiftCheckoutPOS.BLL.DTOs.BackupPageDTO
 @{
-    ViewData["Title"] = "Backup & Recovery";
+    ViewData["Title"] = "Backup";
     var config = Model.Config;
     var status = Model.Status;
+    var newest = Model.History.FirstOrDefault(s => s.Verified);
 }
-
-<div class="d-flex justify-content-between align-items-center mb-4">
-    <h2 class="fw-bold text-dark m-0">Backup &amp; Recovery</h2>
-    <form asp-action="TriggerManualBackup" method="post" class="m-0">
-        <button type="submit" class="btn btn-warning fw-bold px-4 shadow-sm text-dark">Back up now</button>
-    </form>
+<div class="page-head">
+    <div>
+        <h1 class="page-title">Backup</h1>
+        <p class="page-sub">A checked copy of all sales, stock, customers and settings is made every day at @config.AutoBackupTime.ToString(@"hh\:mm"), or as soon as the PC is back on if it was off.</p>
+    </div>
+    <div class="page-actions">
+        <form asp-action="TriggerManualBackup" method="post" class="m-0">
+            <button type="submit" class="btn btn-primary" data-busy="Backing up…">@Html.Icon("backup") Back up now</button>
+        </form>
+    </div>
 </div>
 
-@if (TempData["Success"] != null)
-{
-    <div class="alert alert-success fw-bold shadow-sm border-0 py-2">@TempData["Success"]</div>
-}
-@if (TempData["Error"] != null)
-{
-    <div class="alert alert-danger fw-bold shadow-sm border-0 py-2">@TempData["Error"]</div>
-}
 @foreach (var warning in Model.Warnings)
 {
-    <div class="alert alert-warning border-0 shadow-sm py-2 mb-2">@warning</div>
+    <div class="alert alert-warning mb-2">@Html.Icon("alert") <span>@warning</span></div>
 }
 
-<div class="row g-4 mb-4">
-    <div class="col-lg-5">
-        <div class="card shadow-sm border-0 rounded-3 mb-4">
-            <div class="card-header bg-dark text-white py-3"><h6 class="mb-0 fw-bold">Settings</h6></div>
-            <div class="card-body p-4 bg-light">
-                <form asp-action="SaveConfiguration" method="post">
-                    <div class="mb-3">
-                        <label class="form-label fw-bold" for="targetDirectory">Backup folder</label>
-                        <input type="text" id="targetDirectory" name="targetDirectory" class="form-control font-monospace" value="@config.TargetDirectory" placeholder="@Model.EffectiveTarget" />
-                        <small class="text-muted d-block mt-1">Leave empty for the default: <span class="font-monospace">@Model.EffectiveTarget</span>. Must be outside the program folder.</small>
-                    </div>
-                    <div class="mb-3 form-check form-switch">
-                        <input class="form-check-input" type="checkbox" role="switch" id="isAutoBackupEnabled" name="isAutoBackupEnabled" value="true" @(config.IsAutoBackupEnabled ? "checked" : "") />
-                        <label class="form-check-label fw-bold" for="isAutoBackupEnabled">Automatic daily backup (runs late if the PC was off)</label>
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label fw-bold" for="autoBackupTime">Daily time</label>
-                        <input type="time" id="autoBackupTime" name="autoBackupTime" class="form-control w-50" value="@config.AutoBackupTime.ToString(@"hh\:mm")" />
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label fw-bold" for="usbCopyDirectory">USB drive folder (optional)</label>
-                        <input type="text" id="usbCopyDirectory" name="usbCopyDirectory" class="form-control font-monospace" value="@config.UsbCopyDirectory" placeholder="E:\" />
-                        <small class="text-muted d-block mt-1">When this drive is plugged in, every new backup is also copied there.</small>
-                    </div>
-                    <button type="submit" class="btn btn-primary fw-bold w-100">Save settings</button>
-                </form>
-            </div>
-        </div>
+<div class="figures my-4">
+    <div class="figure @(newest is null ? "is-bad" : "")">
+        <div class="figure-label">@Html.Icon("check-circle") Newest checked backup</div>
+        <div class="figure-value" style="font-size:1.35rem">@(newest?.CreatedAt.ToString("dd MMM, HH:mm") ?? "None yet")</div>
+        <div class="figure-note">@(newest is null ? "Press Back up now" : newest.SizeMB + " MB · " + newest.Kind)</div>
+    </div>
+    <div class="figure @(status.LastUsbCopyAt is null ? "is-warn" : "")">
+        <div class="figure-label">@Html.Icon("usb") Last copy on USB</div>
+        <div class="figure-value" style="font-size:1.35rem">@(status.LastUsbCopyAt?.ToString("dd MMM, HH:mm") ?? "Never")</div>
+        <div class="figure-note">Copy daily and keep the drive away from this PC</div>
+    </div>
+    <div class="figure @(status.LastDrillAt is null || !status.LastDrillPassed ? "is-warn" : "")">
+        <div class="figure-label">@Html.Icon("shield") Last restore test</div>
+        <div class="figure-value" style="font-size:1.35rem">@(status.LastDrillAt?.ToString("dd MMM yyyy") ?? "Never")</div>
+        <div class="figure-note">@(status.LastDrillAt is null ? "Due monthly" : status.LastDrillPassed ? "Passed" : "Failed")</div>
+    </div>
+</div>
 
-        <div class="card shadow-sm border-0 rounded-3 mb-4">
-            <div class="card-header bg-dark text-white py-3"><h6 class="mb-0 fw-bold">USB copy (daily, keep the drive away from this PC)</h6></div>
-            <div class="card-body p-4 bg-light">
-                <p class="mb-2">Last copy: <strong>@(status.LastUsbCopyAt?.ToString("dd MMM yyyy HH:mm") ?? "never")</strong> @(status.LastUsbCopySet is null ? "" : "(" + status.LastUsbCopySet + ")")</p>
-                @if (status.LastUsbError is not null) { <p class="text-danger mb-2">Last error: @status.LastUsbError</p> }
-                <form asp-action="CopyToUsb" method="post" class="d-flex gap-2">
-                    <input type="text" name="usbDirectory" class="form-control font-monospace" value="@config.UsbCopyDirectory" placeholder="E:\" aria-label="USB folder" />
-                    <button type="submit" class="btn btn-outline-dark fw-bold text-nowrap">Copy newest</button>
-                </form>
-            </div>
-        </div>
-
-        <div class="card shadow-sm border-0 rounded-3">
-            <div class="card-header bg-dark text-white py-3"><h6 class="mb-0 fw-bold">Restore</h6></div>
-            <div class="card-body p-4 bg-light small">
-                <p class="mb-2">Last restore drill: <strong>@(status.LastDrillAt?.ToString("dd MMM yyyy HH:mm") ?? "never")</strong> — @(status.LastDrillResult ?? "not run yet")</p>
-                <p class="mb-1">Restoring replaces today's data, so it is done by the owner with the program stopped, in an administrator console in the program folder:</p>
-                <ul class="mb-0">
-                    <li><span class="font-monospace">SwiftCheckoutPOS.UI.exe --restore-drill</span> — monthly test (PR-Q84); does not change live data.</li>
-                    <li><span class="font-monospace">SwiftCheckoutPOS.UI.exe --restore &lt;backup name&gt;</span> — real restore; makes a safety backup first.</li>
-                </ul>
-                <p class="mt-2 mb-0">Full steps: DATA_RECOVERY_PLAN.md.</p>
+<div class="row g-3">
+    <div class="col-xl-7">
+        <div class="table-wrap h-100">
+            <div class="panel-head"><h2>Backups on this PC</h2><span class="small text-muted font-monospace text-truncate" style="max-width:50%" title="@Model.EffectiveTarget">@Model.EffectiveTarget</span></div>
+            <div class="table-responsive" style="max-height:560px">
+                <table class="table table-hover">
+                    <thead class="sticky-top"><tr><th>Made</th><th>Kind</th><th class="text-end">Size</th><th>Check</th><th class="text-end">Download</th></tr></thead>
+                    <tbody>
+                        @if (!Model.History.Any())
+                        {
+                            <tr><td colspan="5"><div class="empty">@Html.Icon("backup")<div class="empty-title">No backups yet</div><div class="small">Press Back up now to make the first one.</div></div></td></tr>
+                        }
+                        @foreach (var set in Model.History)
+                        {
+                            <tr>
+                                <td><div class="num">@set.CreatedAt.ToString("dd MMM yyyy, HH:mm")</div><div class="small text-muted font-monospace">@set.SetName</div></td>
+                                <td>@set.Kind</td>
+                                <td class="text-end num">@(set.SizeBytes > 0 ? set.SizeMB + " MB" : "–")</td>
+                                <td>
+                                    @if (set.Verified) { <span class="status is-ok">Verified</span> }
+                                    else { <span class="status is-bad" title="@set.Error">@(set.Legacy ? "Not verified" : "Failed")</span> }
+                                </td>
+                                <td class="actions">
+                                    @if (set.Verified || set.Legacy) { <a asp-action="DownloadBackup" asp-route-fileName="@set.BackupFile" class="btn btn-ghost btn-sm" title="Database backup">@Html.Icon("download") .bak</a> }
+                                    @if (set.FilesArchive is not null) { <a asp-action="DownloadBackup" asp-route-fileName="@set.FilesArchive" class="btn btn-ghost btn-sm" title="Pictures and settings">@Html.Icon("image") files</a> }
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
             </div>
         </div>
     </div>
-
-    <div class="col-lg-7">
-        <div class="card shadow-sm border-0 rounded-3 h-100">
-            <div class="card-header bg-dark text-white py-3"><h6 class="mb-0 fw-bold">Backups in @Model.EffectiveTarget</h6></div>
-            <div class="card-body p-0">
-                <div class="table-responsive" style="max-height: 640px; overflow-y: auto;">
-                    <table class="table table-hover mb-0 align-middle">
-                        <thead class="table-light sticky-top">
-                            <tr>
-                                <th class="py-3 ps-4">Made</th>
-                                <th class="py-3">Name</th>
-                                <th class="py-3">Kind</th>
-                                <th class="py-3 text-end">Size</th>
-                                <th class="py-3">Check</th>
-                                <th class="py-3 text-center pe-4">Download</th>
-                            </tr>
-                        </thead>
-                        <tbody class="bg-white">
-                            @if (!Model.History.Any())
-                            {
-                                <tr><td colspan="6" class="text-center py-5 text-muted fw-bold">No backups yet.</td></tr>
-                            }
-                            @foreach (var set in Model.History)
-                            {
-                                <tr>
-                                    <td class="ps-4 text-muted small">@set.CreatedAt.ToString("yyyy-MM-dd HH:mm")</td>
-                                    <td class="font-monospace small">@set.SetName</td>
-                                    <td>@set.Kind</td>
-                                    <td class="text-end">@(set.SizeBytes > 0 ? set.SizeMB + " MB" : "-")</td>
-                                    <td>
-                                        @if (set.Verified) { <span class="badge bg-success">Verified</span> }
-                                        else { <span class="badge bg-danger" title="@set.Error">@(set.Legacy ? "Not verified" : "Failed")</span> }
-                                    </td>
-                                    <td class="text-center pe-4 text-nowrap">
-                                        @if (set.Verified || set.Legacy)
-                                        {
-                                            <a asp-action="DownloadBackup" asp-route-fileName="@set.BackupFile" class="btn btn-sm btn-outline-primary fw-bold">.bak</a>
-                                        }
-                                        @if (set.FilesArchive is not null)
-                                        {
-                                            <a asp-action="DownloadBackup" asp-route-fileName="@set.FilesArchive" class="btn btn-sm btn-outline-secondary fw-bold">files</a>
-                                        }
-                                    </td>
-                                </tr>
-                            }
-                        </tbody>
-                    </table>
-                </div>
+    <div class="col-xl-5 d-grid gap-3 align-content-start">
+        <section class="card">
+            <div class="panel-head"><h2>Copy to a USB drive</h2></div>
+            <div class="panel-body">
+                @if (status.LastUsbError is not null) { <div class="alert alert-danger py-2">@Html.Icon("circle-x") <span>@status.LastUsbError</span></div> }
+                <form asp-action="CopyToUsb" method="post">
+                    <label class="form-label" for="usbDirectory">USB drive</label>
+                    <div class="d-flex gap-2">
+                        <input id="usbDirectory" type="text" name="usbDirectory" class="form-control font-monospace" value="@config.UsbCopyDirectory" placeholder="E:\" />
+                        <button type="submit" class="btn btn-quiet text-nowrap" data-busy="Copying…">@Html.Icon("usb") Copy newest</button>
+                    </div>
+                    <div class="form-text">The copy is checked against the original. @(status.LastUsbCopySet is null ? "" : "Last: " + status.LastUsbCopySet + ".")</div>
+                </form>
             </div>
-        </div>
+        </section>
+        <section class="card">
+            <div class="panel-head"><h2>Settings</h2></div>
+            <form asp-action="SaveConfiguration" method="post" class="panel-body d-grid gap-3">
+                <div>
+                    <label class="form-label" for="targetDirectory">Backup folder</label>
+                    <input type="text" id="targetDirectory" name="targetDirectory" class="form-control font-monospace" value="@config.TargetDirectory" placeholder="@Model.EffectiveTarget" />
+                    <div class="form-text">Leave empty for the standard folder. It must be outside the program folder.</div>
+                </div>
+                <div class="d-flex gap-3 align-items-end">
+                    <div class="form-check form-switch flex-grow-1 mb-2">
+                        <input class="form-check-input" type="checkbox" role="switch" id="isAutoBackupEnabled" name="isAutoBackupEnabled" value="true" @(config.IsAutoBackupEnabled ? "checked" : "") />
+                        <label class="form-check-label fw-semibold" for="isAutoBackupEnabled">Daily automatic backup</label>
+                    </div>
+                    <div>
+                        <label class="form-label" for="autoBackupTime">At</label>
+                        <input type="time" id="autoBackupTime" name="autoBackupTime" class="form-control" value="@config.AutoBackupTime.ToString(@"hh\:mm")" />
+                    </div>
+                </div>
+                <div>
+                    <label class="form-label" for="usbCopyDirectory">Copy every new backup to this USB drive when it is plugged in (optional)</label>
+                    <input type="text" id="usbCopyDirectory" name="usbCopyDirectory" class="form-control font-monospace" value="@config.UsbCopyDirectory" placeholder="E:\" />
+                </div>
+                <div class="d-flex justify-content-end"><button type="submit" class="btn btn-primary">Save settings</button></div>
+            </form>
+        </section>
+        <section class="card">
+            <div class="panel-head"><h2>Restoring</h2></div>
+            <div class="panel-body small">
+                <p>Restoring replaces today's data, so the owner does it with the program stopped, in an administrator command prompt in the program folder:</p>
+                <dl class="mb-2">
+                    <dt class="font-monospace fw-semibold">SwiftCheckoutPOS.UI.exe --restore-drill</dt><dd class="text-muted">Monthly test into a separate database. Live data is not touched.</dd>
+                    <dt class="font-monospace fw-semibold">SwiftCheckoutPOS.UI.exe --restore &lt;backup name&gt;</dt><dd class="text-muted mb-0">Real restore. A safety backup of the current data is made first.</dd>
+                </dl>
+                <p class="text-muted mb-0">@(status.LastDrillResult ?? "No restore test has been run yet.") Full steps are in DATA_RECOVERY_PLAN.md.</p>
+            </div>
+        </section>
     </div>
 </div>

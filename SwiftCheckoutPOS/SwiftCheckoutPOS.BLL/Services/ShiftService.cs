@@ -36,6 +36,7 @@ public sealed class ShiftService(ShiftRepository shifts, AtomicUnit unit, IAppro
     public const decimal DifferenceApprovalLimit = 1000m; // PR-Q88
     public static bool CanSeeFigures(string role) => role is "Manager" or "Admin";
 
+    public (DateTime OpenedAt, string OpenedBy)? OpenShiftHeader() => shifts.OpenShiftHeader();
     public ShiftSummaryDTO? Current() { var s = shifts.OpenShift(); return s is null ? null : Summarize(s); }
     public IReadOnlyList<ShiftSummaryDTO> Recent(int take = 20) => shifts.Recent(take).Select(s => Summarize(shifts.Find(s.ShiftId)!)).ToList();
 

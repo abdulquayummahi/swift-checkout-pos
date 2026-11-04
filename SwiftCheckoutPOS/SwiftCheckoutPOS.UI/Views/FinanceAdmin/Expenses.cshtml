@@ -1,31 +1,47 @@
 @model List<SwiftCheckoutPOS.BLL.DTOs.LedgerEntryDTO>
-@{ ViewData["Title"] = "Record expense"; }
-<div class="container py-4" style="max-width: 760px;">
-    <h2 class="fw-bold">Record an operating expense</h2>
-    <p class="text-muted">Financial reports are visible to the Admin only. You can record expenses and see the ones you entered today.</p>
-    @if (TempData["Error"] != null) { <div class="alert alert-danger fw-bold">@TempData["Error"]</div> }
-    @if (TempData["Success"] != null) { <div class="alert alert-success fw-bold">@TempData["Success"]</div> }
-    <form asp-action="AddEntry" method="post" class="card card-body shadow-sm border-0 mb-4">
-        <div class="row g-2">
+@{
+    ViewData["Title"] = "Expenses";
+    ViewData["Narrow"] = true;
+}
+<div class="page-head">
+    <div>
+        <h1 class="page-title">Record an expense</h1>
+        <p class="page-sub">Shop running costs such as rent, bills and transport. Reports and totals are for the Admin; you see the expenses you entered today.</p>
+    </div>
+</div>
+
+<div class="card mb-4">
+    <form asp-action="AddEntry" method="post" class="panel-body">
+        <div class="row g-3">
             <div class="col-md-4">
-                <select name="category" class="form-select" required>
+                <label class="form-label" for="expCategory">Type</label>
+                <select id="expCategory" name="category" class="form-select" required>
                     @foreach (var c in SwiftCheckoutPOS.BLL.Services.MetricsService.OpexCategories) { <option>@c</option> }
                 </select>
             </div>
-            <div class="col-md-3"><input type="number" name="amount" step="0.01" min="0.01" class="form-control" placeholder="Amount (BDT)" required /></div>
-            <div class="col-md-5"><input type="text" name="description" maxlength="500" class="form-control" placeholder="Description" /></div>
+            <div class="col-md-3">
+                <label class="form-label" for="expAmount">Amount (৳)</label>
+                <input id="expAmount" type="number" name="amount" step="0.01" min="0.01" class="form-control num" required inputmode="decimal" />
+            </div>
+            <div class="col-md-5">
+                <label class="form-label" for="expNote">Note</label>
+                <input id="expNote" type="text" name="description" maxlength="500" class="form-control" placeholder="For example: van hire for delivery" />
+            </div>
         </div>
-        <button class="btn btn-primary fw-bold mt-3">Save expense</button>
+        <div class="d-flex justify-content-end mt-3"><button class="btn btn-primary" data-busy="Saving…">@Html.Icon("check") Save expense</button></div>
     </form>
-    <h6 class="fw-bold">Your entries today</h6>
-    <table class="table table-sm bg-white shadow-sm">
-        <thead><tr><th>Time</th><th>Category</th><th>Description</th><th class="text-end">Amount</th></tr></thead>
+</div>
+
+<h2 class="section-title mt-0">Your expenses today</h2>
+<div class="table-wrap">
+    <table class="table">
+        <thead><tr><th>Time</th><th>Type</th><th>Note</th><th class="text-end">Amount</th></tr></thead>
         <tbody>
-        @foreach (var e in Model)
-        {
-            <tr><td>@e.TransactionDate.ToString("HH:mm")</td><td>@e.Category</td><td>@e.Description</td><td class="text-end">@e.Amount.ToString("N2")</td></tr>
-        }
-        @if (Model.Count == 0) { <tr><td colspan="4" class="text-muted">Nothing yet today.</td></tr> }
+            @foreach (var e in Model)
+            {
+                <tr><td class="num text-muted">@e.TransactionDate.ToString("HH:mm")</td><td class="fw-semibold">@e.Category</td><td class="text-muted">@e.Description</td><td class="text-end num">@e.Amount.ToString("N2")</td></tr>
+            }
+            @if (Model.Count == 0) { <tr><td colspan="4"><div class="empty py-4">@Html.Icon("finance")<div class="empty-title">Nothing yet today</div></div></td></tr> }
         </tbody>
     </table>
 </div>

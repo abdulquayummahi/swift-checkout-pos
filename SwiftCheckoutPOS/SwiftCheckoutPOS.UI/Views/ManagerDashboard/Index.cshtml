@@ -1,44 +1,76 @@
 @{
-    ViewData["Title"] = "Shop Dashboard";
+    ViewData["Title"] = "Overview";
     var low = (List<SwiftCheckoutPOS.BLL.DTOs.ProductDTO>)ViewBag.LowStock;
     var held = (List<SwiftCheckoutPOS.BLL.DTOs.HeldOrderDTO>)ViewBag.Held;
     var shift = (SwiftCheckoutPOS.BLL.Services.ShiftSummaryDTO?)ViewBag.Shift;
 }
-<div class="container py-4">
-    <h2 class="fw-bold mb-3">Shop Dashboard</h2>
-    <div class="row g-3 mb-4">
-        <div class="col-md-4"><div class="card card-body shadow-sm border-0">
-            <div class="text-muted small fw-bold">Till shift</div>
-            <div class="fs-5 fw-bold">@(shift == null ? "No shift open" : $"Open since {shift.OpenedAt:HH:mm} ({shift.OpenedBy})")</div>
-            <a asp-controller="Shift" asp-action="Index" class="small">Go to shift</a>
-        </div></div>
-        <div class="col-md-4"><div class="card card-body shadow-sm border-0">
-            <div class="text-muted small fw-bold">Held orders</div><div class="fs-3 fw-bold">@held.Count</div>
-        </div></div>
-        <div class="col-md-4"><div class="card card-body shadow-sm border-0">
-            <div class="text-muted small fw-bold">Low stock items</div><div class="fs-3 fw-bold @(low.Count > 0 ? "text-danger" : "")">@low.Count</div>
-        </div></div>
+<div class="page-head">
+    <div>
+        <h1 class="page-title">Overview</h1>
+        <p class="page-sub">What needs attention in the shop right now.</p>
     </div>
-    <h5 class="fw-bold">Low stock (available at or below reorder level)</h5>
-    <table class="table table-sm bg-white shadow-sm">
-        <thead><tr><th>Barcode</th><th>Product</th><th class="text-end">Available</th><th class="text-end">Held</th><th class="text-end">Reorder at</th></tr></thead>
-        <tbody>
-        @foreach (var p in low)
-        {
-            <tr><td class="font-monospace">@p.Barcode</td><td>@p.ProductName</td><td class="text-end fw-bold">@(p.StockQuantity - p.ReservedQuantity)</td><td class="text-end">@p.ReservedQuantity</td><td class="text-end">@p.ReorderLevel</td></tr>
-        }
-        @if (low.Count == 0) { <tr><td colspan="5" class="text-muted">Nothing is low.</td></tr> }
-        </tbody>
-    </table>
-    <h5 class="fw-bold mt-4">Held orders</h5>
-    <table class="table table-sm bg-white shadow-sm">
-        <thead><tr><th>Since</th><th>Customer</th><th class="text-end">Items</th><th>Status</th></tr></thead>
-        <tbody>
-        @foreach (var h in held)
-        {
-            <tr><td>@h.SaleDate.ToString("dd-MM HH:mm")</td><td>@(h.CustomerName ?? "Walk-in")</td><td class="text-end">@h.TotalQuantity</td><td>@h.Status</td></tr>
-        }
-        @if (held.Count == 0) { <tr><td colspan="4" class="text-muted">No held orders.</td></tr> }
-        </tbody>
-    </table>
+    <div class="page-actions">
+        <a asp-controller="InventoryAdmin" asp-action="Index" class="btn btn-quiet">@Html.Icon("products") Products and stock</a>
+        <a asp-controller="Checkout" asp-action="Index" class="btn btn-primary">@Html.Icon("till") Go to the till</a>
+    </div>
+</div>
+
+<div class="figures mb-4">
+    <a class="figure text-decoration-none text-reset" asp-controller="Shift" asp-action="Index">
+        <div class="figure-label">@Html.Icon("shift") Till shift</div>
+        <div class="figure-value @(shift == null ? "text-warning" : "")" style="font-size:1.45rem">@(shift == null ? "Not open" : $"Open since {shift.OpenedAt:HH:mm}")</div>
+        <div class="figure-note">@(shift == null ? "Payments need an open shift" : $"Opened by {UiHelpers.Person(shift.OpenedBy)}")</div>
+    </a>
+    <div class="figure"><div class="figure-label">@Html.Icon("pause") Held orders</div><div class="figure-value">@held.Count</div><div class="figure-note">Stock stays reserved while held</div></div>
+    <div class="figure @(low.Count > 0 ? "is-warn" : "")"><div class="figure-label">@Html.Icon("package-x") Low stock</div><div class="figure-value">@low.Count</div><div class="figure-note">At or below the reorder level</div></div>
+</div>
+
+<div class="row g-3">
+    <div class="col-xl-7">
+        <div class="card h-100">
+            <div class="panel-head"><h2>Low stock</h2><a asp-controller="InventoryAdmin" asp-action="Index" class="btn btn-ghost btn-sm">Restock @Html.Icon("chevron-right")</a></div>
+            @if (low.Count == 0)
+            {
+                <div class="empty">@Html.Icon("check-circle")<div class="empty-title">Nothing is running low</div><div class="small">Products appear here when available stock reaches their reorder level.</div></div>
+            }
+            else
+            {
+                <div class="table-responsive"><table class="table">
+                    <thead><tr><th>Product</th><th class="text-end">Available</th><th class="text-end">Held</th><th class="text-end">Reorder at</th></tr></thead>
+                    <tbody>
+                        @foreach (var p in low)
+                        {
+                            <tr>
+                                <td><div class="fw-semibold">@p.ProductName</div><div class="small text-muted font-monospace">@p.Barcode</div></td>
+                                <td class="text-end num fw-semibold @(p.StockQuantity - p.ReservedQuantity <= 0 ? "text-danger" : "text-warning")">@(p.StockQuantity - p.ReservedQuantity)</td>
+                                <td class="text-end num">@p.ReservedQuantity</td>
+                                <td class="text-end num">@p.ReorderLevel</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table></div>
+            }
+        </div>
+    </div>
+    <div class="col-xl-5">
+        <div class="card h-100">
+            <div class="panel-head"><h2>Held orders</h2></div>
+            @if (held.Count == 0)
+            {
+                <div class="empty">@Html.Icon("pause")<div class="empty-title">No held orders</div><div class="small">Orders put aside at the till show here.</div></div>
+            }
+            else
+            {
+                <ul class="list-group list-group-flush">
+                    @foreach (var h in held)
+                    {
+                        <li class="list-group-item d-flex justify-content-between align-items-center px-4 py-3">
+                            <div><div class="fw-semibold">@(h.CustomerName ?? "Walk-in customer")</div><div class="small text-muted">Since @h.SaleDate.ToString("dd MMM, HH:mm") · @h.TotalQuantity items</div></div>
+                            <span class="status @(h.Status == "Held" ? "is-warn" : "is-ok")">@h.Status</span>
+                        </li>
+                    }
+                </ul>
+            }
+        </div>
+    </div>
 </div>

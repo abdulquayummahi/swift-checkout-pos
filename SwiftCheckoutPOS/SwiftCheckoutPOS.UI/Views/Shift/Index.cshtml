@@ -1,112 +1,147 @@
 @model SwiftCheckoutPOS.BLL.Services.ShiftSummaryDTO?
 @{
-    ViewData["Title"] = "Till Shift";
+    ViewData["Title"] = "Till shift";
     var canSee = (bool)ViewBag.CanSeeFigures;
     var recent = (IReadOnlyList<SwiftCheckoutPOS.BLL.Services.ShiftSummaryDTO>)ViewBag.Recent;
 }
-<div class="container py-4" style="max-width: 900px;">
-    <div class="d-flex justify-content-between align-items-center mb-3">
-        <h2 class="fw-bold m-0">Till Shift</h2>
-        <a asp-controller="Checkout" asp-action="Index" class="btn btn-outline-dark fw-bold">Back to Checkout</a>
+<div class="page-head">
+    <div>
+        <h1 class="page-title">Till shift</h1>
+        <p class="page-sub">@(Model == null ? "Open a shift with the cash in the drawer before taking payments." : $"Open since {Model.OpenedAt:dd MMM, HH:mm}, opened by {UiHelpers.Person(Model.OpenedBy)}.")</p>
     </div>
-    @if (TempData["Error"] != null) { <div class="alert alert-danger fw-bold">@TempData["Error"]</div> }
-    @if (TempData["Warning"] != null) { <div class="alert alert-warning fw-bold">@TempData["Warning"]</div> }
-    @if (TempData["Success"] != null) { <div class="alert alert-success fw-bold">@TempData["Success"]</div> }
+    <div class="page-actions">
+        <a asp-controller="Checkout" asp-action="Index" class="btn btn-primary">@Html.Icon("till") Go to the till</a>
+    </div>
+</div>
 
-    @if (Model == null)
-    {
-        <div class="card shadow-sm border-0">
-            <div class="card-body p-4">
-                <h5 class="fw-bold">No shift is open</h5>
-                <p class="text-muted">Count the cash in the drawer and enter it as the opening float.</p>
-                <form asp-action="Open" method="post" class="d-flex gap-2" style="max-width: 420px;">
-                    <input type="number" name="openingFloat" step="0.01" min="0" class="form-control form-control-lg" placeholder="Opening float (BDT)" required autofocus />
-                    <button class="btn btn-success btn-lg fw-bold text-nowrap">Open shift</button>
-                </form>
-            </div>
-        </div>
-    }
-    else
-    {
-        <div class="card shadow-sm border-0 mb-3">
-            <div class="card-body">
-                <div class="d-flex justify-content-between">
-                    <div><span class="badge bg-success">OPEN</span> Shift #@Model.ShiftId opened @Model.OpenedAt.ToString("dd-MM-yyyy HH:mm") by @Model.OpenedBy</div>
-                    <div class="fw-bold">Float: BDT @Model.OpeningFloat.ToString("N2")</div>
+@if (Model == null)
+{
+    <div class="card" style="max-width:560px">
+        <div class="panel-body">
+            <h2 class="h5">Open a shift</h2>
+            <p class="text-muted">Count the cash in the drawer and enter it as the opening float.</p>
+            <form asp-action="Open" method="post">
+                <label class="form-label" for="openingFloat">Opening float (৳)</label>
+                <div class="d-flex gap-2">
+                    <input id="openingFloat" type="number" name="openingFloat" step="0.01" min="0" class="form-control form-control-lg num" required autofocus inputmode="decimal" />
+                    <button class="btn btn-primary btn-lg text-nowrap" data-busy="Opening…">@Html.Icon("play") Open shift</button>
                 </div>
-                @if (canSee)
-                {
-                    <table class="table table-sm mt-3 mb-0">
-                        <tr><td>Cash sales</td><td class="text-end">@Model.CashSales.ToString("N2")</td></tr>
-                        <tr><td>Cash due collections</td><td class="text-end">@Model.CashDueCollections.ToString("N2")</td></tr>
-                        <tr><td>Cash refunds</td><td class="text-end">-@Model.CashRefunds.ToString("N2")</td></tr>
-                        <tr><td>Paid in / out</td><td class="text-end">@Model.PaidIn.ToString("N2") / -@Model.PaidOut.ToString("N2")</td></tr>
-                        <tr class="fw-bold"><td>Expected cash in drawer</td><td class="text-end">BDT @Model.ExpectedCash.ToString("N2")</td></tr>
-                    </table>
-                }
-            </div>
+            </form>
         </div>
+    </div>
+}
+else
+{
+    <div class="figures mb-4">
+        <div class="figure"><div class="figure-label">Opening float</div><div class="figure-value">@Html.Money(Model.OpeningFloat)</div></div>
+        @if (canSee)
+        {
+            <div class="figure"><div class="figure-label">Cash sales</div><div class="figure-value">@Html.Money(Model.CashSales)</div></div>
+            <div class="figure"><div class="figure-label">Due collected in cash</div><div class="figure-value">@Html.Money(Model.CashDueCollections)</div></div>
+            <div class="figure"><div class="figure-label">Cash refunds</div><div class="figure-value @(Model.CashRefunds > 0 ? "text-danger" : "")">@Html.Money(-Model.CashRefunds)</div></div>
+            <div class="figure"><div class="figure-label">Paid in / paid out</div><div class="figure-value" style="font-size:1.35rem">@Html.Money(Model.PaidIn) / @Html.Money(-Model.PaidOut)</div></div>
+            <div class="figure is-good"><div class="figure-label">Expected in drawer</div><div class="figure-value">@Html.Money(Model.ExpectedCash)</div></div>
+        }
+        else
+        {
+            <div class="figure"><div class="figure-label">Shift</div><div class="figure-value">#@Model.ShiftId</div><div class="figure-note">Expected cash is shown to Managers only, so the count stays blind.</div></div>
+        }
+    </div>
 
-        <div class="row g-3">
-            <div class="col-md-6">
-                <div class="card shadow-sm border-0 h-100"><div class="card-body">
-                    <h6 class="fw-bold">Cash paid in / out</h6>
-                    <form asp-action="Cash" method="post">
-                        <div class="d-flex gap-2 mb-2">
-                            <select name="type" class="form-select" style="max-width: 140px;"><option value="PaidOut">Paid out</option><option value="PaidIn">Paid in</option></select>
-                            <input type="number" name="amount" step="0.01" min="0.01" class="form-control" placeholder="Amount" required />
+    <div class="row g-3">
+        <div class="col-lg-6">
+            <div class="card h-100">
+                <div class="panel-head"><h2>Cash paid in or out</h2></div>
+                <div class="panel-body">
+                    <form asp-action="Cash" method="post" class="d-grid gap-3">
+                        <div class="segmented w-100" role="radiogroup" aria-label="Direction">
+                            <label class="flex-fill text-center m-0"><input type="radio" class="btn-check" name="type" value="PaidOut" id="po" checked /><span class="d-block py-1 rounded-2">Paid out of the drawer</span></label>
+                            <label class="flex-fill text-center m-0"><input type="radio" class="btn-check" name="type" value="PaidIn" id="pi" /><span class="d-block py-1 rounded-2">Paid into the drawer</span></label>
                         </div>
-                        <input type="text" name="reason" maxlength="200" class="form-control mb-2" placeholder="Reason (required)" required />
-                        <button class="btn btn-outline-dark fw-bold w-100">Record</button>
+                        <div class="row g-2">
+                            <div class="col-5">
+                                <label class="form-label" for="cashAmount">Amount (৳)</label>
+                                <input id="cashAmount" type="number" name="amount" step="0.01" min="0.01" class="form-control num" required inputmode="decimal" />
+                            </div>
+                            <div class="col-7">
+                                <label class="form-label" for="cashReason">Reason</label>
+                                <input id="cashReason" type="text" name="reason" maxlength="200" class="form-control" placeholder="For example: tea for staff" required />
+                            </div>
+                        </div>
+                        <button class="btn btn-quiet">Record</button>
                     </form>
                     @if (canSee)
                     {
-                        <hr />
-                        <form asp-action="NoSale" method="post" class="d-flex gap-2">
-                            <input type="text" name="reason" maxlength="200" class="form-control" placeholder="Reason to open drawer" required />
-                            <button class="btn btn-outline-secondary fw-bold text-nowrap">No sale</button>
+                        <hr class="my-4" />
+                        <form asp-action="NoSale" method="post">
+                            <label class="form-label" for="noSaleReason">Open the drawer without a sale</label>
+                            <div class="d-flex gap-2">
+                                <input id="noSaleReason" type="text" name="reason" maxlength="200" class="form-control" placeholder="Reason, for example: give change" required />
+                                <button class="btn btn-quiet text-nowrap">@Html.Icon("drawer") No sale</button>
+                            </div>
+                            <div class="help mt-1">Every drawer opening is written to the activity log.</div>
                         </form>
                     }
-                </div></div>
-            </div>
-            <div class="col-md-6">
-                <div class="card shadow-sm border-0 h-100"><div class="card-body">
-                    <h6 class="fw-bold">Close shift (blind count)</h6>
-                    <form asp-action="Close" method="post" onsubmit="return confirm('Close this shift with the counted amount?');">
-                        <input type="number" name="countedCash" step="0.01" min="0" class="form-control form-control-lg mb-2" placeholder="Cash counted in drawer (BDT)" required />
-                        <input type="text" name="notes" maxlength="200" class="form-control mb-2" placeholder="Note (optional)" />
-                        <details class="mb-2">
-                            <summary class="small fw-bold">Manager / Admin approval (needed if over/short by more than BDT 1,000)</summary>
-                            <div class="d-flex gap-2 mt-2">
-                                <input type="text" name="approverUsername" class="form-control" placeholder="Approver username" autocomplete="off" />
-                                <input type="password" name="approverPassword" class="form-control" placeholder="Password" autocomplete="new-password" />
-                            </div>
-                        </details>
-                        <button class="btn btn-danger fw-bold w-100">Close shift</button>
-                    </form>
-                </div></div>
+                </div>
             </div>
         </div>
-    }
+        <div class="col-lg-6">
+            <div class="card h-100">
+                <div class="panel-head"><h2>Close the shift</h2></div>
+                <div class="panel-body">
+                    <form asp-action="Close" method="post" class="d-grid gap-3" data-confirm="Close the shift with this count?" data-confirm-text="After closing, payments need a new shift." data-confirm-ok="Close shift" data-confirm-danger>
+                        <div>
+                            <label class="form-label" for="countedCash">Cash counted in the drawer (৳)</label>
+                            <input id="countedCash" type="number" name="countedCash" step="0.01" min="0" class="form-control form-control-lg num" required inputmode="decimal" />
+                            <div class="help mt-1">Count everything in the drawer, including the opening float.</div>
+                        </div>
+                        <div>
+                            <label class="form-label" for="closeNotes">Note (optional)</label>
+                            <input id="closeNotes" type="text" name="notes" maxlength="200" class="form-control" />
+                        </div>
+                        <details>
+                            <summary>Manager or Admin approval, needed when over or short by more than ৳1,000</summary>
+                            <div class="row g-2 mt-1">
+                                <div class="col-6"><input type="text" name="approverUsername" class="form-control" placeholder="Username" autocomplete="off" aria-label="Approver username" /></div>
+                                <div class="col-6"><input type="password" name="approverPassword" class="form-control" placeholder="Password" autocomplete="new-password" aria-label="Approver password" /></div>
+                            </div>
+                        </details>
+                        <button class="btn btn-danger">@Html.Icon("lock") Close shift</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+}
 
-    @if (canSee && recent.Count > 0)
-    {
-        <h5 class="fw-bold mt-4">Recent shifts</h5>
-        <table class="table table-sm bg-white shadow-sm">
-            <thead><tr><th>#</th><th>Opened</th><th>Closed</th><th class="text-end">Expected</th><th class="text-end">Counted</th><th class="text-end">Over/short</th><th>Approved by</th></tr></thead>
+@if (canSee && recent.Count > 0)
+{
+    <h2 class="section-title">Recent shifts</h2>
+    <div class="table-wrap"><div class="table-responsive">
+        <table class="table">
+            <thead><tr><th>Shift</th><th>Opened</th><th>Closed</th><th class="text-end">Expected</th><th class="text-end">Counted</th><th class="text-end">Over / short</th><th>Approved by</th></tr></thead>
             <tbody>
-            @foreach (var s in recent)
-            {
-                <tr>
-                    <td>@s.ShiftId</td><td>@s.OpenedAt.ToString("dd-MM HH:mm") @s.OpenedBy</td>
-                    <td>@(s.ClosedAt?.ToString("dd-MM HH:mm") ?? "open") @s.ClosedBy</td>
-                    <td class="text-end">@s.ExpectedCash.ToString("N2")</td>
-                    <td class="text-end">@(s.CountedCash?.ToString("N2") ?? "")</td>
-                    <td class="text-end @(s.Difference < 0 ? "text-danger" : "")">@(s.Difference?.ToString("N2") ?? "")</td>
-                    <td>@s.DifferenceApprovedBy</td>
-                </tr>
-            }
+                @foreach (var s in recent)
+                {
+                    <tr>
+                        <td class="num">#@s.ShiftId</td>
+                        <td>@s.OpenedAt.ToString("dd MMM, HH:mm") <span class="text-muted">· @UiHelpers.Person(s.OpenedBy)</span></td>
+                        <td>@if (s.ClosedAt is null) { <span class="status is-ok">Open</span> } else { @s.ClosedAt.Value.ToString("dd MMM, HH:mm") <span class="text-muted">· @UiHelpers.Person(s.ClosedBy)</span> }</td>
+                        <td class="text-end num">@s.ExpectedCash.ToString("N2")</td>
+                        <td class="text-end num">@(s.CountedCash?.ToString("N2") ?? "–")</td>
+                        <td class="text-end num @(s.Difference < 0 ? "text-danger" : s.Difference > 0 ? "text-warning" : "")">@(s.Difference?.ToString("N2") ?? "–")</td>
+                        <td>@(s.DifferenceApprovedBy is null ? "" : UiHelpers.Person(s.DifferenceApprovedBy))</td>
+                    </tr>
+                }
             </tbody>
         </table>
-    }
-</div>
+    </div></div>
+}
+
+@section Head {
+    <style>
+        .segmented label span { cursor: pointer; color: var(--ink-2); font-weight: 600; font-size: .8125rem; }
+        .segmented .btn-check:checked + span { background: var(--surface); color: var(--ink); box-shadow: 0 1px 2px rgba(0,0,0,.08), 0 0 0 1px var(--line); }
+        .segmented .btn-check:focus-visible + span { box-shadow: var(--focus); }
+    </style>
+}
