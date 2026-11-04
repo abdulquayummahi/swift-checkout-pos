@@ -207,6 +207,10 @@ public class CheckoutController(
             var change = result.Receipt.ReceiptPayments?.Sum(p => p.Change) ?? 0;
             TempData["Success"] = $"Transaction complete. Receipt: {result.ReceiptNumber} | Payment: {paymentMethod}"
                 + (change > 0 ? $" | Change: {SwiftCheckoutPOS.BLL.Pricing.Money.Bdt(change)}" : "");
+            // The till's "Sale complete" screen: change to hand back, amount paid and receipt number.
+            var paid = result.Receipt.ReceiptPayments ?? new List<ResolvedTenderDTO>();
+            TempData["SaleDone"] = new SaleDoneNotice(result.ReceiptNumber, result.Receipt.TotalAmount + (result.Receipt.ReceiptRounding ?? 0m),
+                paid.Sum(p => p.Tendered ?? 0m), change, paymentMethod).ToJson();
             ClearSavedSession();
             HttpContext.Session.SetString("LastReceipt", result.ReceiptNumber);
             if (!result.AlreadyCompleted) PrintCommittedSale(result.Receipt, plan.Lines.Any(l => l.Tender == "Cash"));

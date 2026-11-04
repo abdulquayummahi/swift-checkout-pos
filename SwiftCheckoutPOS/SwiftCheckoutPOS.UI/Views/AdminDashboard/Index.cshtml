@@ -4,6 +4,32 @@
     var filter = (string?)ViewBag.CurrentFilter ?? "today";
     var periods = new (string Value, string Text)[] { ("today", "Today"), ("7days", "7 days"), ("30days", "30 days"), ("6months", "6 months"), ("1year", "1 year"), ("lifetime", "All time") };
     var periodText = periods.FirstOrDefault(p => p.Value == filter).Text ?? "Today";
+
+    // Overview chart: one series (bill totals), bars from a zero baseline, a "nice" top value and three gridlines.
+    var trend = Model.Trend;
+    var peak = trend.Points.Count == 0 ? 0m : trend.Points.Max(p => p.Total);
+    decimal Nice(decimal max)
+    {
+        if (max <= 0) return 1000m;
+        var step = (decimal)Math.Pow(10, Math.Floor(Math.Log10((double)max)));
+        foreach (var m in new[] { 1m, 2m, 2.5m, 5m, 10m }) if (max <= m * step) return m * step;
+        return 10m * step;
+    }
+    var top = Nice(peak);
+    string Compact(decimal v) => v >= 1_000_000m ? (v / 1_000_000m).ToString("0.#") + "M" : v >= 1000m ? (v / 1000m).ToString("0.#") + "k" : v.ToString("0");
+    string Label(SwiftCheckoutPOS.BLL.DTOs.SalesTrendPointDTO p) => trend.Unit switch
+    {
+        "hour" => p.Start.ToString("HH:mm"), "day" => trend.Points.Count > 10 ? p.Start.ToString("dd MMM") : p.Start.ToString("ddd dd"),
+        "week" => p.Start.ToString("dd MMM"), _ => trend.Points.Select(x => x.Start.Year).Distinct().Count() > 1 ? p.Start.ToString("MMM yy") : p.Start.ToString("MMM")
+    };
+    string LongLabel(SwiftCheckoutPOS.BLL.DTOs.SalesTrendPointDTO p) => trend.Unit switch
+    {
+        "hour" => $"{p.Start:HH:mm}–{p.End:HH:mm}", "day" => p.Start.ToString("dddd dd MMM"),
+        "week" => $"{p.Start:dd MMM} – {p.End.AddDays(-1):dd MMM}", _ => p.Start.ToString("MMMM yyyy")
+    };
+    var every = Math.Max(1, (int)Math.Ceiling(trend.Points.Count / 8.0));
+    var chartTitle = trend.Unit switch { "hour" => "Sales by hour", "day" => "Sales by day", "week" => "Sales by week", _ => "Sales by month" };
+    decimal? change = trend.PreviousTotal is > 0m ? Math.Round((trend.Total - trend.PreviousTotal.Value) / trend.PreviousTotal.Value * 100m, 0) : null;
 }
 <div class="page-head">
     <div>
@@ -28,6 +54,76 @@
     <div class="figure"><div class="figure-label">Items sold</div><div class="figure-value">@Model.ProductsSold.ToString("N0")</div></div>
     <div class="figure"><div class="figure-label">New customers</div><div class="figure-value">@Model.NewCustomers.ToString("N0")</div></div>
 </div>
+
+<section class="card trend mb-4" aria-labelledby="trendTitle">
+    <div class="trend-head">
+        <div>
+            <h2 class="h6 mb-1" id="trendTitle">@chartTitle</h2>
+            <div class="help">Bill totals of saved sales, VAT included, before refunds</div>
+        </div>
+        <div class="text-end">
+            <div class="trend-total">@Html.Money(trend.Total)</div>
+            @if (trend.PreviousTotal is not null)
+            {
+                if (change is { } pct)
+                {
+                    <div class="delta @(pct > 0 ? "is-up" : pct < 0 ? "is-down" : "")">
+                        @Html.Icon(pct >= 0 ? "trending-up" : "trending-down")
+                        @(pct > 0 ? "Up" : pct < 0 ? "Down" : "Same as") @(pct == 0 ? "" : Math.Abs(pct).ToString("0") + "% on") @trend.PreviousLabel
+                    </div>
+                }
+                else
+                {
+                    <div class="delta">No sales in @trend.PreviousLabel</div>
+                }
+            }
+        </div>
+    </div>
+    @if (trend.Sales == 0)
+    {
+        <div class="empty py-4">@Html.Icon("reports")<div class="empty-title">No sales in this period yet</div><div class="small">The chart fills in as sales are saved at the till.</div></div>
+    }
+    else
+    {
+        <div class="trend-chart">
+            <div class="trend-y" aria-hidden="true">
+                <span style="top:0">@Compact(top)</span><span style="top:50%">@Compact(top / 2)</span><span style="top:100%">0</span>
+            </div>
+            <div class="trend-plot" role="group" aria-label="@chartTitle. Each bar shows its amount when selected; the table below lists them.">
+                <div class="trend-grid" style="top:0"></div><div class="trend-grid" style="top:50%"></div>
+                @foreach (var p in trend.Points)
+                {
+                    var h = top == 0 ? 0 : Math.Round(p.Total / top * 100m, 1);
+                    <button type="button" class="trend-col" style="--h:@h.ToString(System.Globalization.CultureInfo.InvariantCulture)%"
+                            aria-label="@LongLabel(p): @("৳" + p.Total.ToString("N2")), @p.Sales @(p.Sales == 1 ? "sale" : "sales")">
+                        <span class="trend-bar"></span>
+                        <span class="trend-tip">@LongLabel(p)<br /><strong>@("৳" + p.Total.ToString("N2"))</strong> · @p.Sales @(p.Sales == 1 ? "sale" : "sales")</span>
+                    </button>
+                }
+            </div>
+            <div class="trend-x" aria-hidden="true">
+                @for (var i = 0; i < trend.Points.Count; i++)
+                {
+                    <span>@((i % every == 0 || i == trend.Points.Count - 1) && (i == trend.Points.Count - 1 || trend.Points.Count - 1 - i >= every) ? Label(trend.Points[i]) : "")</span>
+                }
+            </div>
+        </div>
+        <details class="trend-table">
+            <summary>Show as a table</summary>
+            <div class="table-responsive mt-2" style="max-height:280px">
+                <table class="table table-sm mb-0">
+                    <thead class="sticky-top"><tr><th>@(trend.Unit switch { "hour" => "Hour", "day" => "Day", "week" => "Week", _ => "Month" })</th><th class="text-end">Sales</th><th class="text-end">Bill total</th></tr></thead>
+                    <tbody>
+                        @foreach (var p in trend.Points.Where(x => x.Sales > 0))
+                        {
+                            <tr><td>@LongLabel(p)</td><td class="text-end num">@p.Sales</td><td class="text-end num">@p.Total.ToString("N2")</td></tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </details>
+    }
+</section>
 
 <div class="row g-3">
     <div class="col-xl-4">

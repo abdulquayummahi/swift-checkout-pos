@@ -41,6 +41,13 @@ namespace SwiftCheckoutPOS.DAL.Repositories
                 .ToList();
         }
 
+        /// <summary>Date and bill total of every completed or part-refunded sale in [from, toExclusive): the Overview chart.</summary>
+        public List<(DateTime SaleDate, decimal TotalAmount)> GetSaleTotals(DateTime from, DateTime toExclusive) =>
+            _context.Sales.AsNoTracking()
+                .Where(s => s.SaleDate >= from && s.SaleDate < toExclusive && (s.OrderStatus == "Completed" || s.OrderStatus == "PartiallyRefunded"))
+                .Select(s => new { s.SaleDate, s.TotalAmount })
+                .AsEnumerable().Select(s => (s.SaleDate, s.TotalAmount)).ToList();
+
         // ARCHITECT FIX: Added DateTime cutoff filter to utilize the new SQL Index
         public IEnumerable<Sale> GetHeldOrders(DateTime? sinceDate = null)
         {

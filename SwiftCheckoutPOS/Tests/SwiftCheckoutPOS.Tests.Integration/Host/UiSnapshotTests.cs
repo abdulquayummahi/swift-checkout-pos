@@ -79,7 +79,7 @@ public sealed class UiSnapshotTests : IDisposable
         var pages = new (string Url, string Name)[]
         {
             ("/Checkout/Index", "till"), ("/Shift/Index", "shift"), ("/Refund/Index", "refund"),
-            ("/AdminDashboard/Index", "dashboard-admin"), ("/ManagerDashboard/Index", "dashboard-manager"),
+            ("/AdminDashboard/Index", "dashboard-admin"), ("/AdminDashboard/Index?filter=30days", "dashboard-30days"), ("/ManagerDashboard/Index", "dashboard-manager"),
             ("/InventoryAdmin/Index", "inventory"), ("/InventoryAdmin/Create", "inventory-create"), ($"/InventoryAdmin/Edit/{ids[0]}", "inventory-edit"),
             ("/Customer/Index", "customers"), ("/FinanceAdmin/Index", "finance"), ("/ReportAdmin/Index", "reports"),
             ("/UserAdmin/Index", "users"), ("/UserAdmin/Create", "users-create"), ("/SettingsAdmin/Index", "settings"),
@@ -92,7 +92,21 @@ public sealed class UiSnapshotTests : IDisposable
             var customerId = c.Customers.OrderByDescending(x => x.Sales.Count).First().CustomerId;
             await Save(client, $"/Customer/Details/{customerId}", "customer-details");
         }
+        // Last, because it ends the order: a cash sale, then the till's "Sale complete" screen with the change.
+        var tillHtml = await client.GetStringAsync("/Checkout/Index");
+        string Field(string name) => Regex.Match(tillHtml, $"name=\"{name}\"[^>]*value=\"([^\"]*)\"").Groups[1].Value;
+        var finish = await Post(client, "/Checkout/Finalize", Token(tillHtml), new()
+        {
+            ["paymentMethod"] = "Cash", ["invoiceNumber"] = Field("invoiceNumber"), ["cartVersion"] = Field("cartVersion"), ["cashTendered"] = "2000"
+        });
+        var doneHtml = await finish.Content.ReadAsStringAsync();
+        File.WriteAllText(Path.Combine(output, "till-done.html"), doneHtml);
+        Assert.Contains("Sale complete", doneHtml);
+        Assert.Contains("Give change", doneHtml);
+
         Assert.Contains("Aromatic rice", File.ReadAllText(Path.Combine(output, "till.html")));
+        Assert.Contains("Sales by hour", File.ReadAllText(Path.Combine(output, "dashboard-admin.html")));
+        Assert.Contains("Sales by day", File.ReadAllText(Path.Combine(output, "dashboard-30days.html")));
         Assert.Contains("SCP-", File.ReadAllText(Path.Combine(output, "dashboard-admin.html")));
     }
 

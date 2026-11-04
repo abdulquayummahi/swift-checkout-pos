@@ -118,9 +118,10 @@ for a signed-out visitor: the authorization fallback policy once blocked them an
 
 `Host/DemoDataTests.cs` runs the `--seed-demo` seeder on the test database and checks the sales, receipts, stock and
 ledger stay consistent and the till still works afterwards. `Host/UiSnapshotTests.cs` renders every screen with demo data
-and saves the HTML to `bin/Debug/net10.0/ui-snapshots/` for visual review (light, dark and phone widths).
+and saves the HTML to `bin/Debug/net10.0/ui-snapshots/` for visual review (light, dark and phone widths). It ends with a
+cash sale and checks the till's "Sale complete" screen, and checks the Overview sales chart for today and for 30 days.
 
-Latest run (2026-11-04): 39/39 unit, 150/150 integration.
+Latest run (2026-11-04): 41/41 unit, 150/150 integration.
 
 ## Executed verification
 

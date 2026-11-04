@@ -12,6 +12,15 @@
     var itemCount = cart.Items.Sum(i => i.Quantity);
     var invariant = System.Globalization.CultureInfo.InvariantCulture;
     var approvalNeeded = (TempData.Peek("Error") as string)?.StartsWith("APPROVAL REQUIRED") == true;
+    // Units of each product already in this order: a count badge on its tile (as Shopify and Odoo do).
+    var inOrder = cart.Items.GroupBy(i => i.ProductId).ToDictionary(g => g.Key, g => g.Sum(i => i.Quantity));
+    // "Sale complete" screen after a saved sale; it replaces the success toast.
+    var done = SaleDoneNotice.From(TempData["SaleDone"] as string);
+    if (done is not null) { TempData.Remove("Success"); }
+    // One of eight category colours, fixed per category (never by position), so a category keeps its colour.
+    string Cat(int categoryId) => categoryId > 0 ? $"cat-{(categoryId - 1) % 8 + 1}" : "cat-0";
+    var categoryIds = Model.AvailableProducts.Where(p => !string.IsNullOrWhiteSpace(p.CategoryName))
+        .GroupBy(p => p.CategoryName!).ToDictionary(g => g.Key, g => g.First().CategoryId);
 
     // Products without a picture get a short monogram so tiles stay compact and still easy to tell apart.
     string Mono(string name) => string.Concat(name.Split(' ', StringSplitOptions.RemoveEmptyEntries).Where(w => char.IsLetter(w[0])).Take(2).Select(w => char.ToUpperInvariant(w[0])));
@@ -50,9 +59,10 @@
             <a class="shift-pill hide-sm @(shift is null ? "is-closed" : "is-open")" asp-controller="Shift" asp-action="Index">
                 @(shift is null ? "No shift open" : $"Shift since {shift.Value.OpenedAt:HH:mm}")
             </a>
-            <button type="button" class="btn btn-quiet btn-sm" data-bs-toggle="modal" data-bs-target="#heldOrdersModal">
-                @Html.Icon("pause") Held <span class="badge bg-secondary">@Model.HeldOrders.Count</span>
+            <button type="button" class="btn btn-quiet btn-sm" data-bs-toggle="modal" data-bs-target="#heldOrdersModal" title="Held orders">
+                @Html.Icon("pause") <span class="hide-xs">Held</span> <span class="badge bg-secondary">@Model.HeldOrders.Count</span>
             </button>
+            <button type="button" class="btn btn-quiet btn-sm btn-icon" data-bs-toggle="modal" data-bs-target="#keysModal" title="Keyboard shortcuts (F1)" aria-label="Keyboard shortcuts">@Html.Icon("keyboard")</button>
             <div class="dropdown">
                 <button type="button" class="btn btn-quiet btn-sm" data-bs-toggle="dropdown" aria-expanded="false">More @Html.Icon("chevron-down")</button>
                 <ul class="dropdown-menu dropdown-menu-end">
@@ -91,22 +101,27 @@
             {
                 <div class="alert alert-warning mb-3">@Html.Icon("alert") <span>Receipt @cart.InvoiceNumber is waiting for confirmation with @cart.PendingPaymentMethod. Take the same payment again; do not start a new sale.</span></div>
             }
-            @if (categories.Count > 1)
-            {
-                <div class="catalog-filters" role="toolbar" aria-label="Filter by category">
-                    <button type="button" class="chip is-active" data-category="" aria-pressed="true">All</button>
+            <div class="catalog-filters" role="toolbar" aria-label="Show products">
+                <button type="button" class="chip is-active" data-category="" aria-pressed="true">@Html.Icon("grid") All</button>
+                <button type="button" class="chip" data-category="*fav" aria-pressed="false">@Html.Icon("star") Favourites</button>
+                <button type="button" class="chip" data-category="*recent" aria-pressed="false">@Html.Icon("history") Recent</button>
+                @if (categories.Count > 1)
+                {
+                    <span class="chip-sep" aria-hidden="true"></span>
                     @foreach (var c in categories)
                     {
-                        <button type="button" class="chip" data-category="@c.ToLowerInvariant()" aria-pressed="false">@c</button>
+                        <button type="button" class="chip @Cat(categoryIds[c])" data-category="@c.ToLowerInvariant()" aria-pressed="false"><span class="dot" aria-hidden="true"></span>@c</button>
                     }
-                </div>
-            }
+                }
+            </div>
             <div class="catalog-grid" id="productList">
                 @foreach (var product in Model.AvailableProducts)
                 {
                     var low = product.StockQuantity <= Math.Max(product.ReorderLevel, 3);
-                    <button type="button" class="tile product-item" data-name="@product.ProductName.ToLowerInvariant()" data-barcode="@product.Barcode"
-                            data-category="@(product.CategoryName?.ToLowerInvariant() ?? "")" data-form="add-@product.ProductId" title="@product.ProductName · @product.Barcode">
+                    var count = inOrder.GetValueOrDefault(product.ProductId);
+                    <div class="tile-wrap @Cat(product.CategoryId)" data-id="@product.ProductId" data-name="@product.ProductName.ToLowerInvariant()" data-barcode="@product.Barcode"
+                         data-category="@(product.CategoryName?.ToLowerInvariant() ?? "")">
+                    <button type="button" class="tile product-item @(count > 0 ? "is-in-order" : "")" data-form="add-@product.ProductId" title="@product.ProductName · @product.Barcode">
                         @if (string.IsNullOrWhiteSpace(product.ImagePath))
                         {
                             <span class="tile-mono" aria-hidden="true">@Mono(product.ProductName)</span>
@@ -122,15 +137,18 @@
                                 <span class="tile-stock @(low ? "is-low" : "")">@product.StockQuantity @product.UnitOfMeasure</span>
                             </span>
                         </span>
+                        @if (count > 0) { <span class="tile-count" aria-label="@count in this order">@count</span> }
                     </button>
+                    <button type="button" class="tile-pin" aria-pressed="false" aria-label="Pin @product.ProductName to Favourites" title="Pin to Favourites">@Html.Icon("star")</button>
+                    </div>
                     <form asp-action="AddById" method="post" id="add-@product.ProductId" class="d-none add-form" onsubmit="return validateStockBeforeAdd(event, @product.StockQuantity);">
                         <input type="hidden" name="productId" value="@product.ProductId" />
                     </form>
                 }
                 <div class="empty catalog-empty" id="catalogEmpty" @(Model.AvailableProducts.Any() ? "hidden" : "")>
                     @Html.Icon("search")
-                    <div class="empty-title">@(Model.AvailableProducts.Any() ? "No product matches" : "No products in stock")</div>
-                    <div class="small">@(Model.AvailableProducts.Any() ? "Check the spelling, or scan the barcode." : "Add products or restock them in Products and stock.")</div>
+                    <div class="empty-title" id="catalogEmptyTitle">@(Model.AvailableProducts.Any() ? "No product matches" : "No products in stock")</div>
+                    <div class="small" id="catalogEmptyText">@(Model.AvailableProducts.Any() ? "Check the spelling, or scan the barcode." : "Add products or restock them in Products and stock.")</div>
                 </div>
             </div>
         </section>
@@ -143,8 +161,8 @@
                         <div class="order-no">@cart.InvoiceNumber</div>
                     </div>
                     <div class="order-actions">
-                        <form asp-action="HoldOrder" method="post" class="m-0">
-                            <button type="submit" class="btn btn-quiet btn-sm" @(cart.Items.Any() ? "" : "disabled") title="Put this order aside; its stock stays reserved">@Html.Icon("pause") Hold</button>
+                        <form asp-action="HoldOrder" method="post" class="m-0" id="holdForm">
+                            <button type="submit" class="btn btn-quiet btn-sm" @(cart.Items.Any() ? "" : "disabled") title="Put this order aside; its stock stays reserved (F3)">@Html.Icon("pause") Hold <kbd>F3</kbd></button>
                         </form>
                         <form asp-action="ClearCart" method="post" class="m-0" data-confirm="Clear this order?" data-confirm-text="All lines are removed and the reserved stock is released." data-confirm-ok="Clear order" data-confirm-danger>
                             <button type="submit" class="btn btn-ghost btn-sm" @(cart.Items.Any() ? "" : "disabled")>@Html.Icon("trash") Clear</button>
@@ -197,14 +215,14 @@
                 }
                 @foreach (var item in cart.Items)
                 {
-                    <div class="line">
+                    <div class="line" data-product="@item.ProductId" data-qty="@item.Quantity">
                         <div class="line-name" title="@item.ProductName">@item.ProductName</div>
                         <div class="line-total">@item.LineTotal.ToString("N2")</div>
                         <div class="line-unit">@item.UnitPrice.ToString("N2") each</div>
                         <div class="line-controls">
                             <div class="stepper">
                                 <form asp-action="UpdateQuantity" method="post"><input type="hidden" name="productId" value="@item.ProductId" /><input type="hidden" name="change" value="-1" /><button type="submit" aria-label="One less @item.ProductName">@Html.Icon("minus")</button></form>
-                                <span class="qty" aria-label="Quantity">@item.Quantity</span>
+                                <button type="button" class="qty" title="Type a quantity" aria-label="Quantity @item.Quantity of @item.ProductName. Press to type a new quantity">@item.Quantity</button>
                                 <form asp-action="UpdateQuantity" method="post"><input type="hidden" name="productId" value="@item.ProductId" /><input type="hidden" name="change" value="1" /><button type="submit" aria-label="One more @item.ProductName">@Html.Icon("plus")</button></form>
                             </div>
                             <form asp-action="RemoveItem" method="post" class="m-0">
@@ -255,11 +273,15 @@
                     <input type="hidden" name="approverPassword" id="hApproverPassword" />
                 </form>
 
-                <div class="tenders" role="group" aria-label="Take payment">
-                    <button type="button" id="btnPayCash" class="tender is-main" onclick="initiatePayment('Cash')" @(canPay ? "" : "disabled")>@Html.Icon("cash") Cash <kbd>F4</kbd></button>
-                    <button type="button" id="btnPayCard" class="tender" onclick="initiatePayment('Card')" @(canPay ? "" : "disabled")>@Html.Icon("card") Card <kbd>F7</kbd></button>
-                    <button type="button" id="btnPayMfs" class="tender" onclick="initiatePayment('bKash')" @(canPay ? "" : "disabled")>@Html.Icon("phone") bKash <kbd>F8</kbd></button>
-                    <button type="button" id="btnPayNagad" class="tender" onclick="initiatePayment('Nagad')" @(canPay ? "" : "disabled")>@Html.Icon("phone") Nagad <kbd>F10</kbd></button>
+                <button type="button" id="btnPayCash" class="charge" onclick="initiatePayment('Cash')" @(canPay ? "" : "disabled")>
+                    <span class="charge-label">@Html.Icon("cash") Charge</span>
+                    <span class="charge-amt"><span class="cur">৳</span>@cart.TotalAmount.ToString("N2")</span>
+                    <kbd>F4</kbd>
+                </button>
+                <div class="tenders-alt" role="group" aria-label="Other ways to pay">
+                    <button type="button" id="btnPayCard" class="tender-alt" onclick="initiatePayment('Card')" @(canPay ? "" : "disabled")>@Html.Icon("card") Card <kbd>F7</kbd></button>
+                    <button type="button" id="btnPayMfs" class="tender-alt" onclick="initiatePayment('bKash')" @(canPay ? "" : "disabled")>@Html.Icon("phone") bKash <kbd>F8</kbd></button>
+                    <button type="button" id="btnPayNagad" class="tender-alt" onclick="initiatePayment('Nagad')" @(canPay ? "" : "disabled")>@Html.Icon("phone") Nagad <kbd>F10</kbd></button>
                 </div>
                 <div class="foot-options">
                     <div class="form-check form-switch m-0">
@@ -272,48 +294,73 @@
     </div>
 </div>
 
-<!-- Take payment -->
+<!-- Take payment: one sheet for every method (Square / Loyverse / Odoo pattern) -->
 <div class="modal fade" id="paymentModal" tabindex="-1" aria-labelledby="paymentTitle" aria-hidden="true" data-bs-backdrop="static">
-    <div class="modal-dialog modal-dialog-centered" style="max-width:480px">
+    <div class="modal-dialog pay-dialog">
         <div class="modal-content">
             <div class="modal-header">
                 <h2 class="modal-title" id="paymentTitle">Take payment</h2>
-                <span class="pay-method" id="modalPaymentType">Cash</span>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cancel"></button>
             </div>
-            <div class="modal-body">
-                <div id="modalAmountContainer" class="pay-amount"><span class="cur">৳</span><span id="modalAmount">@cart.TotalAmount.ToString("N2")</span></div>
-                <div class="text-center text-muted small mb-3" id="cashRoundingNote"></div>
-                <div class="mb-3" id="cashTenderedGroup">
-                    <label class="form-label" for="cashTenderedInput">Cash received (optional, to work out change)</label>
-                    <input type="number" step="0.01" min="0" class="form-control form-control-lg num" id="cashTenderedInput" autocomplete="off" inputmode="decimal" />
-                    <div class="d-flex gap-2 mt-2 flex-wrap" id="quickCash"></div>
-                    <div class="change-line mt-2" id="changeDisplay" aria-live="polite"></div>
-                </div>
-                <div class="mb-3" id="referenceGroup">
-                    <label class="form-label" for="referenceInput">Reference (card last 4 digits or bKash/Nagad TrxID, optional)</label>
-                    <input type="text" maxlength="50" class="form-control" id="referenceInput" autocomplete="off" />
-                </div>
-                <details class="mb-2" id="splitDetails">
-                    <summary>Split with a second method, or put part on Due</summary>
-                    <div class="row g-2 mt-1">
-                        <div class="col-5">
-                            <select class="form-select" id="secondTenderInput" aria-label="Second method">
-                                <option value="">None</option>
-                                <option>Cash</option><option>Card</option><option>bKash</option><option>Nagad</option><option>Due</option>
-                            </select>
+            <div class="modal-body pay-body">
+                <div class="pay-main">
+                    <div class="pay-due-label" id="payDueLabel">Amount due</div>
+                    <div id="modalAmountContainer" class="pay-amount"><span class="cur">৳</span><span id="modalAmount">@cart.TotalAmount.ToString("N2")</span></div>
+                    <div class="text-center text-muted small" id="cashRoundingNote"></div>
+                    <div class="pay-tabs" role="radiogroup" aria-label="Payment method">
+                        <button type="button" class="pay-tab" role="radio" aria-checked="true" data-method="Cash">@Html.Icon("cash") Cash <kbd>F4</kbd></button>
+                        <button type="button" class="pay-tab" role="radio" aria-checked="false" data-method="Card">@Html.Icon("card") Card <kbd>F7</kbd></button>
+                        <button type="button" class="pay-tab" role="radio" aria-checked="false" data-method="bKash">@Html.Icon("phone") bKash <kbd>F8</kbd></button>
+                        <button type="button" class="pay-tab" role="radio" aria-checked="false" data-method="Nagad">@Html.Icon("phone") Nagad <kbd>F10</kbd></button>
+                    </div>
+                    <div id="cashTenderedGroup">
+                        <div class="d-flex justify-content-between align-items-baseline">
+                            <label class="form-label" for="cashTenderedInput">Cash received</label>
+                            <button type="button" class="btn btn-link btn-sm p-0 text-decoration-none" id="clearTendered">Clear</button>
                         </div>
-                        <div class="col-7"><input type="number" step="0.01" min="0.01" class="form-control" id="secondAmountInput" placeholder="Amount (the first method pays the rest)" aria-label="Second amount" /></div>
-                        <div class="col-12"><input type="text" maxlength="50" class="form-control" id="secondReferenceInput" placeholder="Reference for the second method (optional)" aria-label="Second reference" /></div>
-                        <div class="col-12 help">Due needs a registered customer and a Manager or Admin, and the customer's total due must stay within ৳2,500.</div>
+                        <input type="text" class="form-control form-control-lg num pay-input" id="cashTenderedInput" autocomplete="off" inputmode="decimal" placeholder="Optional: to work out the change" />
+                        <div class="quick-cash" id="quickCash" aria-label="Quick amounts"></div>
+                        <div class="change-line" id="changeDisplay" aria-live="polite"></div>
                     </div>
-                </details>
-                <details class="mb-1" id="approvalDetails" @(approvalNeeded ? "open" : "")>
-                    <summary class="@(approvalNeeded ? "text-danger" : "")">Manager or Admin approval</summary>
-                    <div class="row g-2 mt-1">
-                        <div class="col-6"><input type="text" class="form-control" id="approverUsernameInput" placeholder="Username" autocomplete="off" aria-label="Approver username" /></div>
-                        <div class="col-6"><input type="password" class="form-control" id="approverPasswordInput" placeholder="Password" autocomplete="new-password" aria-label="Approver password" /></div>
+                    <div id="referenceGroup">
+                        <label class="form-label" for="referenceInput" id="referenceLabel">Reference (optional)</label>
+                        <input type="text" maxlength="50" class="form-control form-control-lg" id="referenceInput" autocomplete="off" />
                     </div>
-                </details>
+                    <details class="mt-3" id="splitDetails">
+                        <summary>Split with a second method, or put part on Due</summary>
+                        <div class="row g-2 mt-1">
+                            <div class="col-5">
+                                <select class="form-select" id="secondTenderInput" aria-label="Second method">
+                                    <option value="">None</option>
+                                    <option>Cash</option><option>Card</option><option>bKash</option><option>Nagad</option><option>Due</option>
+                                </select>
+                            </div>
+                            <div class="col-7"><input type="text" inputmode="decimal" class="form-control num" id="secondAmountInput" placeholder="Amount (the first method pays the rest)" aria-label="Second amount" /></div>
+                            <div class="col-12"><input type="text" maxlength="50" class="form-control" id="secondReferenceInput" placeholder="Reference for the second method (optional)" aria-label="Second reference" /></div>
+                            <div class="col-12 help">Due needs a registered customer and a Manager or Admin, and the customer's total due must stay within ৳2,500.</div>
+                        </div>
+                    </details>
+                    <details class="mt-2" id="approvalDetails" @(approvalNeeded ? "open" : "")>
+                        <summary class="@(approvalNeeded ? "text-danger" : "")">Manager or Admin approval</summary>
+                        <div class="row g-2 mt-1">
+                            <div class="col-6"><input type="text" class="form-control" id="approverUsernameInput" placeholder="Username" autocomplete="off" aria-label="Approver username" /></div>
+                            <div class="col-6"><input type="password" class="form-control" id="approverPasswordInput" placeholder="Password" autocomplete="new-password" aria-label="Approver password" /></div>
+                        </div>
+                    </details>
+                </div>
+                <div class="pay-side">
+                    <div class="numpad" id="numpad" aria-label="Number pad">
+                        @foreach (var k in new[] { "7", "8", "9", "4", "5", "6", "1", "2", "3", "00", "0" })
+                        {
+                            <button type="button" tabindex="-1" data-key="@k">@k</button>
+                        }
+                        <button type="button" tabindex="-1" data-key="back" aria-label="Delete the last digit">@Html.Icon("delete")</button>
+                    </div>
+                    <div class="pay-tip" id="payTip" hidden>
+                        @Html.Icon("phone")
+                        <div id="payTipText"></div>
+                    </div>
+                </div>
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-quiet" data-bs-dismiss="modal">Cancel <kbd>Esc</kbd></button>
@@ -434,6 +481,69 @@
     </div>
 </div>
 
+<!-- Sale complete: the change in big type, then straight on to the next customer (Loyverse / Square pattern) -->
+@if (done is not null)
+{
+    <div class="modal fade" id="doneModal" tabindex="-1" aria-labelledby="doneTitle" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered" style="max-width:440px">
+            <div class="modal-content">
+                <div class="modal-body done">
+                    @Html.Icon("check-circle", "done-icon")
+                    <h2 class="done-title" id="doneTitle">Sale complete</h2>
+                    @if (done.Change > 0)
+                    {
+                        <div class="done-label">Give change</div>
+                        <div class="done-change"><span class="cur">৳</span>@done.Change.ToString("N2")</div>
+                    }
+                    else
+                    {
+                        <div class="done-label">Paid in full</div>
+                        <div class="done-change"><span class="cur">৳</span>@done.Total.ToString("N2")</div>
+                    }
+                    <div class="done-meta">
+                        Total @Html.Money(done.Total) · @done.Payment
+                        @if (done.Tendered > 0) { <text> · @Html.Money(done.Tendered) received</text> }
+                    </div>
+                    <div class="done-meta font-monospace mt-1">@done.Receipt</div>
+                </div>
+                <div class="modal-footer">
+                    <form asp-action="Reprint" method="post" class="m-0" id="doneReprint">
+                        <input type="hidden" name="receiptNumber" value="@done.Receipt" />
+                        <button type="submit" class="btn btn-quiet">@Html.Icon("printer") Print again <kbd>P</kbd></button>
+                    </form>
+                    <button type="button" class="btn btn-primary btn-lg flex-grow-1" data-bs-dismiss="modal" id="doneNext">New sale <kbd>Enter</kbd></button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+<!-- Keyboard shortcuts (Lightspeed-style cheat sheet) -->
+<div class="modal fade" id="keysModal" tabindex="-1" aria-labelledby="keysTitle" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered" style="max-width:520px">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 class="modal-title" id="keysTitle">@Html.Icon("keyboard") Keyboard shortcuts</h2>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <dl class="keys">
+                    <dt><kbd>F2</kbd></dt><dd>Find a product (or just scan)</dd>
+                    <dt><kbd>Enter</kbd></dt><dd>Add the first product that matches the search</dd>
+                    <dt><kbd>+</kbd> <kbd>−</kbd></dt><dd>One more or one less of the last item</dd>
+                    <dt><kbd>F4</kbd></dt><dd>Charge, paid in cash</dd>
+                    <dt><kbd>F7</kbd> <kbd>F8</kbd> <kbd>F10</kbd></dt><dd>Pay by card, bKash or Nagad</dd>
+                    <dt><kbd>F3</kbd></dt><dd>Hold this order (its stock stays reserved)</dd>
+                    <dt><kbd>F9</kbd></dt><dd>Show the receipt before saving: on or off</dd>
+                    <dt><kbd>Esc</kbd></dt><dd>Close a window</dd>
+                    <dt><kbd>F1</kbd></dt><dd>This list</dd>
+                </dl>
+                <p class="help mb-0">Tap a quantity in the order to type it. Tap ☆ on a product to pin it to Favourites on this PC.</p>
+            </div>
+        </div>
+    </div>
+</div>
+
 <partial name="_Toasts" />
 <script src="~/lib/bootstrap/dist/js/bootstrap.bundle.min.js"></script>
 <script src="~/js/app.js"></script>
@@ -442,98 +552,220 @@
         'use strict';
         var TOTAL = parseFloat('@cart.TotalAmount.ToString("0.00", invariant)');
         var searchInput = document.getElementById('searchInput');
-        var tiles = Array.prototype.slice.call(document.querySelectorAll('.product-item'));
+        var tiles = Array.prototype.slice.call(document.querySelectorAll('.tile-wrap'));
+        var byId = {}; tiles.forEach(function (t) { byId[t.dataset.id] = t; });
         var empty = document.getElementById('catalogEmpty');
         var category = '';
+
+        // ---- favourites and recent items: kept on this PC only (like Square favourites / Lightspeed quick keys) ----
+        function readList(key) { try { var v = JSON.parse(localStorage.getItem(key) || '[]'); return Array.isArray(v) ? v.map(String) : []; } catch (e) { return []; } }
+        function writeList(key, list) { try { localStorage.setItem(key, JSON.stringify(list)); } catch (e) { } }
+        var favourites = readList('scpos-favourites'), recent = readList('scpos-recent');
+        function paintPins() {
+            tiles.forEach(function (t) {
+                var on = favourites.indexOf(t.dataset.id) >= 0, pin = t.querySelector('.tile-pin');
+                pin.setAttribute('aria-pressed', on ? 'true' : 'false');
+                pin.title = on ? 'Remove from Favourites' : 'Pin to Favourites';
+            });
+        }
+        tiles.forEach(function (t) {
+            t.querySelector('.tile-pin').addEventListener('click', function (e) {
+                e.stopPropagation();
+                var i = favourites.indexOf(t.dataset.id);
+                if (i >= 0) favourites.splice(i, 1); else favourites.push(t.dataset.id);
+                writeList('scpos-favourites', favourites); paintPins();
+                if (category === '*fav') applyFilter();
+            });
+        });
+        paintPins();
 
         window.validateStockBeforeAdd = function (e, maxStock) {
             if (maxStock <= 0) { e.preventDefault(); scposToast('error', 'This product is out of stock.'); return false; }
             return true;
         };
-        function addTile(tile) { var f = document.getElementById(tile.dataset.form); if (f && validateStockBeforeAdd({ preventDefault: function () { } }, 1)) f.submit(); }
-        tiles.forEach(function (t) { t.addEventListener('click', function () { addTile(t); }); });
+        function addTile(wrap) {
+            var f = document.getElementById(wrap.querySelector('.product-item').dataset.form);
+            if (!f) return;
+            recent = [wrap.dataset.id].concat(recent.filter(function (id) { return id !== wrap.dataset.id; })).slice(0, 16);
+            writeList('scpos-recent', recent);
+            f.submit();
+        }
+        tiles.forEach(function (t) { t.querySelector('.product-item').addEventListener('click', function () { addTile(t); }); });
 
+        var emptyText = {
+            '*fav': ['No favourites yet', 'Tap the star on a product to pin it here.'],
+            '*recent': ['Nothing sold from this PC yet', 'Products you add appear here, newest first.'],
+            '': ['No product matches', 'Check the spelling, or scan the barcode.']
+        };
         function applyFilter() {
             var term = searchInput.value.trim().toLowerCase();
             var shown = 0;
             tiles.forEach(function (t) {
-                var match = (!category || t.dataset.category === category) && (!term || t.dataset.name.indexOf(term) >= 0 || t.dataset.barcode.indexOf(term) >= 0);
+                var inSet = !category ? true : category === '*fav' ? favourites.indexOf(t.dataset.id) >= 0
+                    : category === '*recent' ? recent.indexOf(t.dataset.id) >= 0 : t.dataset.category === category;
+                var match = inSet && (!term || t.dataset.name.indexOf(term) >= 0 || t.dataset.barcode.indexOf(term) >= 0);
                 t.hidden = !match;
+                t.style.order = category === '*recent' && match ? recent.indexOf(t.dataset.id) : '';
                 if (match) shown++;
             });
-            if (empty && tiles.length) empty.hidden = shown > 0;
+            if (empty && tiles.length) {
+                empty.hidden = shown > 0;
+                var text = emptyText[term ? '' : category] || emptyText[''];
+                document.getElementById('catalogEmptyTitle').textContent = text[0];
+                document.getElementById('catalogEmptyText').textContent = text[1];
+                var use = empty.querySelector('use'); if (use) use.setAttribute('href', '/img/icons.svg#i-' + (term ? 'search' : category === '*fav' ? 'star' : category === '*recent' ? 'history' : 'search'));
+            }
             return shown;
         }
+        function visibleTiles() { return tiles.filter(function (t) { return !t.hidden; }).sort(function (a, b) { return (+a.style.order || 0) - (+b.style.order || 0); }); }
         searchInput.addEventListener('input', function (e) {
             var term = e.target.value.trim().toLowerCase();
             var exact = tiles.find(function (t) { return t.dataset.barcode === term; });
             if (exact) { e.target.value = ''; addTile(exact); return; }
             applyFilter();
         });
-        document.querySelectorAll('[data-category]').forEach(function (chip) {
-            if (!chip.classList.contains('chip')) return;
+        document.querySelectorAll('.chip[data-category]').forEach(function (chip) {
             chip.addEventListener('click', function () {
                 category = chip.dataset.category;
                 document.querySelectorAll('.chip[data-category]').forEach(function (c) { c.classList.toggle('is-active', c === chip); c.setAttribute('aria-pressed', c === chip ? 'true' : 'false'); });
+                try { sessionStorage.setItem('scpos-till-chip', category); } catch (e) { }
                 applyFilter();
             });
         });
+        try {
+            var lastChip = sessionStorage.getItem('scpos-till-chip');
+            var chipEl = lastChip ? document.querySelector('.chip[data-category="' + lastChip.replace(/"/g, '') + '"]') : null;
+            if (chipEl) chipEl.click();
+        } catch (e) { }
 
         window.capAndSubmitDiscount = function () { document.getElementById('discountForm').submit(); }; // limits are checked on the server
 
+        // ---- quantities: tap to type, or + / − for the last line (Square / Lightspeed) ------------------------
+        window.checkoutToken = function () { return document.querySelector('#finalizeForm input[name="__RequestVerificationToken"]').value; };
+        function post(action, fields) {
+            var f = document.createElement('form'); f.method = 'post'; f.action = action; f.className = 'd-none';
+            fields.__RequestVerificationToken = checkoutToken();
+            Object.keys(fields).forEach(function (k) { var i = document.createElement('input'); i.type = 'hidden'; i.name = k; i.value = fields[k]; f.appendChild(i); });
+            document.body.appendChild(f); f.submit();
+        }
+        function setQuantity(line, qty) {
+            var old = +line.dataset.qty;
+            if (isNaN(qty) || qty === old) return false;
+            if (qty <= 0) post('/Checkout/RemoveItem', { productId: line.dataset.product });
+            else post('/Checkout/UpdateQuantity', { productId: line.dataset.product, change: qty - old });
+            return true;
+        }
+        document.querySelectorAll('.line .qty').forEach(function (btn) {
+            btn.addEventListener('click', function () {
+                var line = btn.closest('.line'), input = document.createElement('input');
+                input.type = 'text'; input.inputMode = 'numeric'; input.className = 'qty-input'; input.value = line.dataset.qty;
+                input.setAttribute('aria-label', 'New quantity');
+                btn.replaceWith(input); input.focus(); input.select();
+                var finished = false;
+                function finish(save) {
+                    if (finished) return; finished = true;
+                    if (!(save && setQuantity(line, parseInt(input.value, 10)))) { input.replaceWith(btn); searchInput.focus(); }
+                }
+                input.addEventListener('keydown', function (e) {
+                    if (e.key === 'Enter') { e.preventDefault(); e.stopPropagation(); finish(true); }
+                    else if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); finish(false); }
+                });
+                input.addEventListener('blur', function () { finish(true); });
+            });
+        });
+        function bumpLast(delta) {
+            var lines = document.querySelectorAll('.line');
+            if (!lines.length) return false;
+            var last = lines[lines.length - 1];
+            setQuantity(last, +last.dataset.qty + delta);
+            return true;
+        }
+
+        // ---- payment sheet ------------------------------------------------------------------------------------
         var paymentModal = new bootstrap.Modal(document.getElementById('paymentModal'));
         var previewModal = new bootstrap.Modal(document.getElementById('previewModal'));
         var previewToggle = document.getElementById('showPreviewCheck');
         try { var saved = localStorage.getItem('swiftPos_invoicePreviewState'); if (saved !== null) previewToggle.checked = saved === 'true'; } catch (e) { }
         previewToggle.addEventListener('change', function () { try { localStorage.setItem('swiftPos_invoicePreviewState', this.checked); } catch (e) { } });
 
+        var tendered = document.getElementById('cashTenderedInput'), secondAmountInput = document.getElementById('secondAmountInput');
+        var padTarget = tendered;
+        [tendered, secondAmountInput].forEach(function (el) { el.addEventListener('focus', function () { padTarget = el; }); });
+        function num(v) { var n = parseFloat(String(v).replace(/,/g, '')); return isNaN(n) ? NaN : n; }
         function money(n) { return n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
-        function secondAmount() { return document.getElementById('secondTenderInput').value ? (parseFloat(document.getElementById('secondAmountInput').value) || 0) : 0; }
+        function method() { return document.getElementById('hiddenPaymentMethod').value || 'Cash'; }
+        function secondAmount() { return document.getElementById('secondTenderInput').value ? (num(secondAmountInput.value) || 0) : 0; }
         function cashDue() { return Math.round(TOTAL - secondAmount()); }
         function updateChange() {
-            var given = parseFloat(document.getElementById('cashTenderedInput').value);
-            var due = cashDue();
-            document.getElementById('changeDisplay').textContent = given >= due ? 'Change ৳' + money(given - due) : (given > 0 ? 'Short by ৳' + money(due - given) : '');
+            var given = num(tendered.value), due = cashDue(), box = document.getElementById('changeDisplay');
+            box.classList.remove('is-short');
+            if (given >= due) box.innerHTML = '<span>Change</span> <strong>৳' + money(given - due) + '</strong>';
+            else if (given > 0) { box.classList.add('is-short'); box.innerHTML = '<span>Short by</span> <strong>৳' + money(due - given) + '</strong>'; }
+            else box.textContent = '';
         }
+        // Exact, then the next amounts a customer is likely to hand over in taka notes.
         function buildQuickCash() {
             var box = document.getElementById('quickCash'); box.innerHTML = '';
-            var due = cashDue(), seen = {};
-            [due, Math.ceil(due / 100) * 100, Math.ceil(due / 500) * 500, Math.ceil(due / 1000) * 1000].forEach(function (v) {
-                if (v <= 0 || seen[v]) return; seen[v] = true;
-                var b = document.createElement('button'); b.type = 'button'; b.className = 'btn btn-quiet btn-sm num';
-                b.textContent = v === due ? 'Exact ৳' + money(v) : '৳' + money(v);
-                b.addEventListener('click', function () { var i = document.getElementById('cashTenderedInput'); i.value = v; updateChange(); i.focus(); });
+            var due = cashDue(), seen = {}, list = [due];
+            [10, 50, 100, 500, 1000].forEach(function (step) { var v = Math.ceil(due / step) * step; if (v === due) v += step; list.push(v); });
+            list.forEach(function (v, i) {
+                if (v <= 0 || seen[v] || Object.keys(seen).length >= 5) return; seen[v] = true;
+                var b = document.createElement('button'); b.type = 'button'; b.className = 'btn btn-quiet' + (i === 0 ? ' is-exact' : '');
+                b.textContent = i === 0 ? 'Exact' : '৳' + v.toLocaleString('en-US');
+                b.title = '৳' + money(v);
+                b.addEventListener('click', function () { tendered.value = v; updateChange(); tendered.focus(); });
                 box.appendChild(b);
             });
         }
-
-        window.initiatePayment = function (method) {
-            document.getElementById('modalPaymentType').textContent = method;
-            document.getElementById('hiddenPaymentMethod').value = method;
-            var isCash = method === 'Cash';
-            document.getElementById('cashTenderedGroup').style.display = isCash ? '' : 'none';
-            document.getElementById('referenceGroup').style.display = isCash ? 'none' : '';
+        var tips = {
+            Card: 'Take the card payment on the card machine, then type its last 4 digits (optional).',
+            bKash: 'Ask the customer to send the money by bKash, then type the TrxID from the confirmation SMS (optional).',
+            Nagad: 'Ask the customer to send the money by Nagad, then type the TxnID from the confirmation SMS (optional).'
+        };
+        function setMethod(m) {
+            document.getElementById('hiddenPaymentMethod').value = m;
+            document.querySelectorAll('.pay-tab').forEach(function (t) { t.setAttribute('aria-checked', t.dataset.method === m ? 'true' : 'false'); });
+            var isCash = m === 'Cash';
+            document.getElementById('cashTenderedGroup').hidden = !isCash;
+            document.getElementById('referenceGroup').hidden = isCash;
+            document.getElementById('numpad').hidden = !isCash;
+            document.getElementById('payTip').hidden = isCash;
+            document.getElementById('payTipText').textContent = tips[m] || '';
+            document.getElementById('referenceLabel').textContent = m === 'Card' ? 'Card: last 4 digits (optional)' : m + ' TrxID (optional)';
             var rounded = Math.round(TOTAL);
-            document.getElementById('cashRoundingNote').textContent = (isCash && rounded !== TOTAL) ? 'Cash to collect after rounding to whole taka: ৳' + money(rounded) : '';
+            document.getElementById('modalAmount').textContent = money(isCash ? rounded : TOTAL);
+            document.getElementById('cashRoundingNote').textContent = (isCash && rounded !== TOTAL) ? 'Bill ৳' + money(TOTAL) + ', rounded to whole taka for cash' : '';
             if (isCash) buildQuickCash();
             updateChange();
-            paymentModal.show();
-        };
+            var focusEl = document.getElementById(isCash ? 'cashTenderedInput' : 'referenceInput');
+            if (document.getElementById('paymentModal').classList.contains('show')) focusEl.focus();
+        }
+        window.initiatePayment = function (m) { setMethod(m); paymentModal.show(); };
+        document.querySelectorAll('.pay-tab').forEach(function (t) { t.addEventListener('click', function () { setMethod(t.dataset.method); }); });
         document.getElementById('paymentModal').addEventListener('shown.bs.modal', function () {
-            var cash = document.getElementById('hiddenPaymentMethod').value === 'Cash';
-            document.getElementById(cash ? 'cashTenderedInput' : 'referenceInput').focus();
+            document.getElementById(method() === 'Cash' ? 'cashTenderedInput' : 'referenceInput').focus();
         });
-        document.getElementById('cashTenderedInput').addEventListener('input', updateChange);
+        tendered.addEventListener('input', updateChange);
+        document.getElementById('clearTendered').addEventListener('click', function () { tendered.value = ''; updateChange(); tendered.focus(); });
         document.getElementById('secondTenderInput').addEventListener('change', function () { buildQuickCash(); updateChange(); });
-        document.getElementById('secondAmountInput').addEventListener('input', function () { buildQuickCash(); updateChange(); });
+        secondAmountInput.addEventListener('input', function () { buildQuickCash(); updateChange(); });
+        document.querySelectorAll('#numpad button').forEach(function (b) {
+            b.addEventListener('mousedown', function (e) { e.preventDefault(); }); // keep the cursor in the amount box
+            b.addEventListener('click', function () {
+                var k = b.dataset.key, v = padTarget.value;
+                padTarget.value = k === 'back' ? v.slice(0, -1) : (v === '0' ? '' : v) + k;
+                padTarget.dispatchEvent(new Event('input'));
+                padTarget.focus();
+            });
+        });
 
         function copyPaymentFields() {
             var v = function (id) { return document.getElementById(id).value; };
-            var method = v('hiddenPaymentMethod');
-            document.getElementById('hCashTendered').value = v('cashTenderedInput');
-            document.getElementById('hReference').value = method === 'Cash' ? '' : v('referenceInput');
+            var m = method();
+            document.getElementById('hCashTendered').value = m === 'Cash' && !isNaN(num(v('cashTenderedInput'))) ? num(v('cashTenderedInput')) : '';
+            document.getElementById('hReference').value = m === 'Cash' ? '' : v('referenceInput');
             document.getElementById('hSecondTender').value = v('secondTenderInput');
-            document.getElementById('hSecondAmount').value = v('secondTenderInput') ? v('secondAmountInput') : '';
+            document.getElementById('hSecondAmount').value = v('secondTenderInput') && !isNaN(num(v('secondAmountInput'))) ? num(v('secondAmountInput')) : '';
             document.getElementById('hSecondReference').value = v('secondTenderInput') ? v('secondReferenceInput') : '';
             document.getElementById('hApproverUsername').value = v('approverUsernameInput');
             document.getElementById('hApproverPassword').value = v('approverPasswordInput');
@@ -545,6 +777,10 @@
         }
         document.getElementById('confirmPaymentBtn').addEventListener('click', function () {
             var btn = this;
+            if (method() === 'Cash' && num(tendered.value) > 0 && num(tendered.value) < cashDue() && !document.getElementById('secondTenderInput').value) {
+                scposToast('error', 'The cash received is less than the amount due. Correct it, or split the rest with a second method.');
+                tendered.focus(); return;
+            }
             if (!previewToggle.checked) { saveSale(btn); return; }
             btn.disabled = true; btn.textContent = 'Preparing receipt…';
             fetch('/Checkout/GetInvoicePreview', { headers: { 'Accept': 'application/json' } })
@@ -558,39 +794,72 @@
         });
         document.getElementById('printFromPreviewBtn').addEventListener('click', function () { saveSale(this); });
 
-        window.checkoutToken = function () { return document.querySelector('#finalizeForm input[name="__RequestVerificationToken"]').value; };
+        // ---- sale complete ------------------------------------------------------------------------------------
+        var doneEl = document.getElementById('doneModal');
+        if (doneEl) {
+            var doneModal = new bootstrap.Modal(doneEl);
+            doneEl.addEventListener('shown.bs.modal', function () { document.getElementById('doneNext').focus(); });
+            doneEl.addEventListener('hidden.bs.modal', function () { searchInput.focus(); });
+            doneModal.show();
+        }
 
-        // Keyboard: function keys, Enter in search, and USB barcode scanners (fast key bursts ending in Enter).
+        // ---- keyboard: function keys, Enter in search, and USB barcode scanners (fast key bursts ending in Enter) ----
         var hidBuffer = '', lastKeyTime = Date.now(), SCANNER_THRESHOLD_MS = 30;
         function isOpen(id) { var el = document.getElementById(id); return el && el.classList.contains('show'); }
+        var payKeys = { F4: 'Cash', F7: 'Card', F8: 'bKash', F10: 'Nagad' };
+        function trackScanner(e) {
+            if (e.ctrlKey || e.altKey || e.metaKey || (e.key.length > 1 && e.key !== 'Enter')) return false;
+            var now = Date.now();
+            if (now - lastKeyTime > SCANNER_THRESHOLD_MS) hidBuffer = '';
+            lastKeyTime = now;
+            if (e.key !== 'Enter') { hidBuffer += e.key; return false; }
+            if (hidBuffer.length >= 4) { var code = hidBuffer; hidBuffer = ''; return code; }
+            return false;
+        }
         document.addEventListener('keydown', function (e) {
             if (isOpen('confirmDialog')) return;
+            if (isOpen('doneModal')) {
+                // The next customer's first scan closes the screen and goes straight into the new order.
+                var code = trackScanner(e);
+                if (code) { e.preventDefault(); bootstrap.Modal.getInstance(doneEl).hide(); processHardwareScan(code); return; }
+                if (e.key === 'Enter' || e.key === 'Escape') { e.preventDefault(); bootstrap.Modal.getInstance(doneEl).hide(); return; }
+                if (e.key === 'p' || e.key === 'P') { e.preventDefault(); document.getElementById('doneReprint').submit(); }
+                return;
+            }
             if (isOpen('previewModal')) { if (e.key === 'Enter') { e.preventDefault(); document.getElementById('printFromPreviewBtn').click(); } return; }
             if (isOpen('paymentModal')) {
+                if (payKeys[e.key]) { e.preventDefault(); setMethod(payKeys[e.key]); return; }
                 if (e.key === 'Enter' && document.activeElement.tagName !== 'SELECT' && document.activeElement.tagName !== 'SUMMARY') { e.preventDefault(); document.getElementById('confirmPaymentBtn').click(); }
                 return;
             }
             if (document.querySelector('.modal.show')) return;
-            var keys = { F4: 'btnPayCash', F7: 'btnPayCard', F8: 'btnPayMfs', F10: 'btnPayNagad' };
-            if (keys[e.key]) { e.preventDefault(); var b = document.getElementById(keys[e.key]); if (b && !b.disabled) b.click(); return; }
+            if (document.activeElement && document.activeElement.classList.contains('qty-input')) return;
+            if (payKeys[e.key]) {
+                e.preventDefault();
+                var b = document.getElementById({ Cash: 'btnPayCash', Card: 'btnPayCard', bKash: 'btnPayMfs', Nagad: 'btnPayNagad' }[payKeys[e.key]]);
+                if (b && !b.disabled) b.click();
+                return;
+            }
+            if (e.key === 'F1') { e.preventDefault(); bootstrap.Modal.getOrCreateInstance(document.getElementById('keysModal')).show(); return; }
             if (e.key === 'F2') { e.preventDefault(); searchInput.focus(); searchInput.select(); return; }
+            if (e.key === 'F3') { e.preventDefault(); var hold = document.getElementById('holdForm'); if (hold && !hold.querySelector('button').disabled) hold.submit(); return; }
             if (e.key === 'F9') { e.preventDefault(); previewToggle.checked = !previewToggle.checked; previewToggle.dispatchEvent(new Event('change')); scposToast('success', previewToggle.checked ? 'The receipt will be shown before saving.' : 'Sales save straight away.'); return; }
-            if (e.key === 'Enter' && document.activeElement === searchInput) {
+            var tag = document.activeElement.tagName;
+            var inSearch = document.activeElement === searchInput;
+            if ((e.key === '+' || e.key === '-') && (!inSearch || !searchInput.value) && !(tag === 'INPUT' && !inSearch) && tag !== 'TEXTAREA' && tag !== 'SELECT') {
+                if (bumpLast(e.key === '+' ? 1 : -1)) { e.preventDefault(); return; }
+            }
+            if (e.key === 'Enter' && inSearch) {
                 e.preventDefault();
                 if (!searchInput.value.trim()) return;
-                var first = tiles.find(function (t) { return !t.hidden; });
+                var first = visibleTiles()[0];
                 if (first) { searchInput.value = ''; addTile(first); }
                 else scposToast('error', 'No product matches "' + searchInput.value.trim() + '".');
                 return;
             }
-            var tag = document.activeElement.tagName;
-            if ((tag === 'INPUT' || tag === 'SELECT' || tag === 'TEXTAREA') && document.activeElement !== searchInput) return;
-            if (e.ctrlKey || e.altKey || e.metaKey || (e.key.length > 1 && e.key !== 'Enter')) return;
-            var now = Date.now();
-            if (now - lastKeyTime > SCANNER_THRESHOLD_MS) hidBuffer = '';
-            lastKeyTime = now;
-            if (e.key !== 'Enter') { hidBuffer += e.key; return; }
-            if (hidBuffer.length >= 4) { e.preventDefault(); processHardwareScan(hidBuffer); hidBuffer = ''; }
+            if ((tag === 'INPUT' || tag === 'SELECT' || tag === 'TEXTAREA') && !inSearch) return;
+            var scanned = trackScanner(e);
+            if (scanned) { e.preventDefault(); processHardwareScan(scanned); }
         }, true);
 
         function processHardwareScan(barcode) {

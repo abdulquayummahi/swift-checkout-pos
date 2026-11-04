@@ -397,6 +397,40 @@ internal static class Program
                 Check(controller.TriggerHardwarePrint() is JsonResult);
             })
             ,
+            ("Overview chart buckets bill totals by hour, day, week and month", () =>
+            {
+                var now = new DateTime(2026, 11, 4, 15, 30, 0);
+                var sales = new List<(DateTime, decimal)> { (now.Date.AddHours(9.5), 100m), (now.Date.AddHours(9.9), 50m), (now.Date.AddHours(6), 20m), (now.Date.AddDays(-1).AddHours(12), 70m) };
+                var hourly = SalesTrend.Build(sales, now.Date, now, "hour");
+                Equal(6, hourly.Points.First().Start.Hour);           // the usual 08:00 start stretches to the 06:00 sale
+                Equal(21, hourly.Points.Last().Start.Hour);
+                Equal(150m, hourly.Points.Single(p => p.Start.Hour == 9).Total);
+                Equal(170m, hourly.Total);                             // yesterday's sale is not in today's chart
+                var daily = SalesTrend.Build(sales, now.Date.AddDays(-6), now, "day");
+                Equal(7, daily.Points.Count);
+                Equal(70m, daily.Points[5].Total);
+                Equal(240m, daily.Total);
+                Equal(4, daily.Sales);
+                var weekly = SalesTrend.Build(sales, now.Date.AddMonths(-6), now, "week");
+                Equal(now.Date.AddDays(1), weekly.Points.Last().End);  // the last bar ends today
+                Equal(240m, weekly.Points.Last().Total);
+                Equal(now.Date.AddMonths(-6), weekly.Points.First().Start);
+                var monthly = SalesTrend.Build(sales, new DateTime(1753, 1, 1), now, "month");
+                Equal(1, monthly.Points.Count);                        // all time starts at the first sale's month
+                Equal(240m, monthly.Total);
+            }),
+            ("Saved cash sale hands the till its change and receipt number", () =>
+            {
+                var (repo, service, cart) = Ready();
+                var controller = Controller(service, cart, () => new FixturePrinter());
+                controller.Finalize("Cash", cart.InvoiceNumber, cart.Revision, cashTendered: 50m);
+                Equal(1, repo.Sales.Count);
+                var done = SwiftCheckoutPOS.UI.Models.SaleDoneNotice.From(controller.TempData["SaleDone"] as string);
+                Check(done is not null && !string.IsNullOrEmpty(done.Receipt) && done.Payment == "Cash");
+                Equal(50m, done!.Tendered);
+                Equal(50m - done.Total, done.Change);
+                Check(done.Total is 22m or 23m);                       // 22.50 rounded to whole taka for cash
+            }),
             ("BP-07 only login, setup, logout, access-denied and error pages allow anonymous access", () =>
             {
                 var anonymous = Actions().Where(a => a.Method.IsDefined(typeof(Microsoft.AspNetCore.Authorization.AllowAnonymousAttribute), true)

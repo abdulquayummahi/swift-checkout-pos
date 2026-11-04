@@ -30,8 +30,8 @@ namespace SwiftCheckoutPOS.BLL.Services
 
             switch (filter?.ToLower())
             {
-                case "7days": startDate = DateTime.Today.AddDays(-7); break;
-                case "30days": startDate = DateTime.Today.AddDays(-30); break;
+                case "7days": startDate = DateTime.Today.AddDays(-6); break;   // today and the six days before
+                case "30days": startDate = DateTime.Today.AddDays(-29); break;
                 case "6months": startDate = DateTime.Today.AddMonths(-6); break;
                 case "1year": startDate = DateTime.Today.AddYears(-1); break;
                 case "lifetime": startDate = new DateTime(1753, 1, 1); break;
@@ -93,6 +93,25 @@ namespace SwiftCheckoutPOS.BLL.Services
                     SaleItems = s.SaleItems.Select(si => new SaleItemDTO { ProductId = si.ProductId, ProductName = si.Product?.ProductName ?? "Unknown Item", Quantity = si.Quantity, UnitPrice = si.UnitPrice, LineTotal = si.LineTotal }).ToList()
                 };
             }).ToList();
+
+            // Overview chart: bill totals over the period, and the same total for the period before it.
+            var f = filter?.ToLower() ?? "today";
+            var unit = f switch { "7days" or "30days" => "day", "6months" => "week", "1year" or "lifetime" => "month", _ => "hour" };
+            dto.Trend = SalesTrend.Build(_salesRepo.GetSaleTotals(startDate, DateTime.Today.AddDays(1)), startDate, DateTime.Now, unit);
+            (DateTime From, DateTime To, string Label)? previous = f switch
+            {
+                "7days" => (startDate.AddDays(-7), startDate, "the previous 7 days"),
+                "30days" => (startDate.AddDays(-30), startDate, "the previous 30 days"),
+                "6months" => (startDate.AddMonths(-6), startDate, "the previous 6 months"),
+                "1year" => (startDate.AddYears(-1), startDate, "the year before"),
+                "lifetime" => null,
+                _ => (DateTime.Today.AddDays(-1), DateTime.Now.AddDays(-1), "the same time yesterday")
+            };
+            if (previous is { } prev)
+            {
+                dto.Trend.PreviousTotal = _salesRepo.GetSaleTotals(prev.From, prev.To).Sum(t => t.TotalAmount);
+                dto.Trend.PreviousLabel = prev.Label;
+            }
 
             return dto;
         }

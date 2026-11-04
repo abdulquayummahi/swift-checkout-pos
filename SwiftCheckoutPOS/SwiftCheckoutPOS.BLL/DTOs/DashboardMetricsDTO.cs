@@ -15,5 +15,6 @@ namespace SwiftCheckoutPOS.BLL.DTOs
 
         public List<TopProductDTO> TopProducts { get; set; } = new List<TopProductDTO>();
         public List<SaleDTO> RecentTransactions { get; set; } = new List<SaleDTO>();
+        public SalesTrendDTO Trend { get; set; } = new SalesTrendDTO();
     }
 }
