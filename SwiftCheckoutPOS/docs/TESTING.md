@@ -115,6 +115,7 @@ mode with the guarded test connection and a temporary `Paths:DataRoot`: every co
 sign-in and every main page render without error text or external assets; security headers, host filtering and a manual
 backup through the Backup page are checked. No port is opened. It also checks that the stylesheet, scripts and icons load
 for a signed-out visitor: the authorization fallback policy once blocked them and the sign-in page showed unstyled.
+The bundled fonts in `wwwroot/fonts` (SIL Open Font License, see `FONTS-LICENSE.txt` there) are checked the same way.
 
 Insights, Stock health, the search box, the alerts bell and the CSV exports are read-only. `DemoDataTests` checks their totals
 against the sales table (chart, weekday/hour map, staff, products, categories, stock value) and the privacy rules of the search

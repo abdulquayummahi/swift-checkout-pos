@@ -56,7 +56,7 @@ public sealed class HostSmokeTests : IDisposable
 
         // Signed-out screens (sign-in, setup, lock) must get their styles, scripts and icons.
         foreach (var (asset, type) in new[] { ("/lib/bootstrap/dist/css/bootstrap.min.css", "text/css"), ("/css/app.css", "text/css"),
-                     ("/js/app.js", "javascript"), ("/img/icons.svg", "image/svg+xml") })
+                     ("/js/app.js", "javascript"), ("/img/icons.svg", "image/svg+xml"), ("/fonts/HankenGrotesk.woff", "font-woff") })
         {
             var file = await client.GetAsync(asset);
             Assert.True(file.StatusCode == HttpStatusCode.OK, $"{asset} returned {(int)file.StatusCode} to a signed-out visitor");
