@@ -81,7 +81,7 @@ public sealed class UiSnapshotTests : IDisposable
             ("/Checkout/Index", "till"), ("/Shift/Index", "shift"), ("/Refund/Index", "refund"),
             ("/AdminDashboard/Index", "dashboard-admin"), ("/AdminDashboard/Index?filter=30days", "dashboard-30days"), ("/ManagerDashboard/Index", "dashboard-manager"),
             ("/InventoryAdmin/Index", "inventory"), ("/InventoryAdmin/Create", "inventory-create"), ($"/InventoryAdmin/Edit/{ids[0]}", "inventory-edit"),
-            ("/Customer/Index", "customers"), ("/FinanceAdmin/Index", "finance"), ("/ReportAdmin/Index", "reports"),
+            ("/Insights/Index", "insights"), ("/Insights/Index?period=7days", "insights-7days"), ("/Insights/Stock", "insights-stock"), ("/Customer/Index", "customers"), ("/FinanceAdmin/Index", "finance"), ("/ReportAdmin/Index", "reports"),
             ("/UserAdmin/Index", "users"), ("/UserAdmin/Create", "users-create"), ("/SettingsAdmin/Index", "settings"),
             ("/BackupAdmin/Index", "backup"), ("/AuditLog/Index", "audit"), ("/Account/Locked", "locked"),
             ("/Home/Error?code=404", "error-404"), ("/Account/AccessDenied", "access-denied")
@@ -105,6 +105,17 @@ public sealed class UiSnapshotTests : IDisposable
         Assert.Contains("Give change", doneHtml);
 
         Assert.Contains("Aromatic rice", File.ReadAllText(Path.Combine(output, "till.html")));
+        Assert.Contains("Busiest times", File.ReadAllText(Path.Combine(output, "insights.html")));
+        Assert.Contains("Suggested order", File.ReadAllText(Path.Combine(output, "insights-stock.html")));
+        // Search box and exports through the real pipeline.
+        Assert.Contains("\"group\":\"Products\"", await client.GetStringAsync("/Search/Find?q=rice"));
+        foreach (var export in new[] { "/Export/Products", "/Insights/ExportReorder", "/Insights/ExportProductSales?period=30days", "/Insights/ExportSales" })
+        {
+            var file = await client.GetAsync(export);
+            Assert.True(file.IsSuccessStatusCode, $"{export} returned {(int)file.StatusCode}");
+            Assert.Equal("text/csv", file.Content.Headers.ContentType?.MediaType);
+            Assert.Contains(".csv", file.Content.Headers.ContentDisposition?.FileName ?? file.Content.Headers.ContentDisposition?.FileNameStar ?? "");
+        }
         Assert.Contains("Sales by hour", File.ReadAllText(Path.Combine(output, "dashboard-admin.html")));
         Assert.Contains("Sales by day", File.ReadAllText(Path.Combine(output, "dashboard-30days.html")));
         Assert.Contains("SCP-", File.ReadAllText(Path.Combine(output, "dashboard-admin.html")));

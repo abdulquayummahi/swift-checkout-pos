@@ -116,12 +116,18 @@ sign-in and every main page render without error text or external assets; securi
 backup through the Backup page are checked. No port is opened. It also checks that the stylesheet, scripts and icons load
 for a signed-out visitor: the authorization fallback policy once blocked them and the sign-in page showed unstyled.
 
+Insights, Stock health, the search box, the alerts bell and the CSV exports are read-only. `DemoDataTests` checks their totals
+against the sales table (chart, weekday/hour map, staff, products, categories, stock value) and the privacy rules of the search
+(no receipts for a Cashier, no amounts without the financial view). `UiSnapshotTests` opens both pages, calls the search and
+downloads every export through the real pipeline. Unit cases cover the reorder rule, the day/hour buckets and CSV quoting
+(including cells that a spreadsheet would run as a formula).
+
 `Host/DemoDataTests.cs` runs the `--seed-demo` seeder on the test database and checks the sales, receipts, stock and
 ledger stay consistent and the till still works afterwards. `Host/UiSnapshotTests.cs` renders every screen with demo data
 and saves the HTML to `bin/Debug/net10.0/ui-snapshots/` for visual review (light, dark and phone widths). It ends with a
 cash sale and checks the till's "Sale complete" screen, and checks the Overview sales chart for today and for 30 days.
 
-Latest run (2026-11-04): 41/41 unit, 150/150 integration.
+Latest run (2026-11-11): 44/44 unit, 150/150 integration.
 
 ## Executed verification
 

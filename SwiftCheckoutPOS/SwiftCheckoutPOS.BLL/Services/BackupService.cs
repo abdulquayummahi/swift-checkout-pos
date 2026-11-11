@@ -291,7 +291,7 @@ namespace SwiftCheckoutPOS.BLL.Services
             if (status.LastUsbCopyAt is null || now - status.LastUsbCopyAt > TimeSpan.FromHours(30))
                 warnings.Add("Copy the newest backup to the USB drive today and keep the drive away from this PC.");
             if (status.LastDrillAt is null || now - status.LastDrillAt > TimeSpan.FromDays(31))
-                warnings.Add("A monthly restore test is due. How to run it is under \"Restoring\" below.");
+                warnings.Add("A monthly restore test is due. How to run it is under \"Restoring\" on the Backup page.");
             else if (!status.LastDrillPassed) warnings.Add("The last restore drill FAILED: " + status.LastDrillResult);
             if (config.LegacyTargetDirectory is not null)
                 warnings.Add($"Old backups may still be in {config.LegacyTargetDirectory}. Copy them to the backup folder or USB before upgrading.");

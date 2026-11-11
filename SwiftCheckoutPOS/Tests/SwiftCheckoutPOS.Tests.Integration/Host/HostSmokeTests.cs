@@ -132,7 +132,7 @@ public sealed class HostSmokeTests : IDisposable
 
         foreach (var page in new[] { "/Checkout", "/Shift", "/InventoryAdmin", "/InventoryAdmin/Create", "/Customer", "/FinanceAdmin",
                      "/ReportAdmin", "/SettingsAdmin", "/UserAdmin", "/UserAdmin/Create", "/BackupAdmin", "/AuditLog", "/AdminDashboard",
-                     "/ManagerDashboard", "/Refund", "/SalesAdmin", "/Reconciliation", "/Report/ZReport", "/Home", "/" })
+                     "/ManagerDashboard", "/Refund", "/SalesAdmin", "/Reconciliation", "/Report/ZReport", "/Home", "/", "/Insights", "/Insights/Stock" })
         {
             var response = await client.GetAsync(page.Length > 1 && page.Count(c => c == '/') == 1 ? page + "/Index" : page); // default action is Account/Login
             var html = await response.Content.ReadAsStringAsync();

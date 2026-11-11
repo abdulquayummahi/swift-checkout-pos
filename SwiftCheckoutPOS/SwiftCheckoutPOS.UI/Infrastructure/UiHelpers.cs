@@ -20,6 +20,21 @@ public static class UiHelpers
         return new HtmlString($"<span class=\"money{(css is null ? "" : " " + HtmlEncoder.Default.Encode(css))}\">{sign}<span class=\"cur\">৳</span>{text}</span>");
     }
 
+    /// <summary>
+    /// Change against the period before, as an arrow with words (never colour alone). <paramref name="points"/>: the
+    /// values are percentages, so the change is in percentage points. Green when the change is good for the shop.
+    /// </summary>
+    public static IHtmlContent Delta(this IHtmlHelper html, decimal now, decimal before, bool upIsGood = true, bool points = false)
+    {
+        if (before == 0 && !points) return new HtmlString(now == 0 ? "" : "<span class=\"delta\">no earlier sales to compare</span>");
+        var change = points ? Math.Round(now - before, 1) : Math.Round((now - before) / Math.Abs(before) * 100m, 0);
+        if (change == 0) return new HtmlString("<span class=\"delta\">same as the period before</span>");
+        var up = change > 0;
+        var icon = $"<svg class=\"icon\" aria-hidden=\"true\" focusable=\"false\"><use href=\"/img/icons.svg#i-trending-{(up ? "up" : "down")}\"></use></svg>";
+        var size = Math.Abs(change).ToString("0.#", CultureInfo.InvariantCulture) + (points ? " points" : "%");
+        return new HtmlString($"<span class=\"delta {(up == upIsGood ? "is-up" : "is-down")}\">{icon} {(up ? "Up" : "Down")} {size}</span>");
+    }
+
     /// <summary>Staff name for display: records store "User 12: Rahim Uddin" for exact attribution; people read "Rahim Uddin".</summary>
     public static string Person(string? actor) =>
         string.IsNullOrWhiteSpace(actor) ? "–" : System.Text.RegularExpressions.Regex.Replace(actor, @"^User \d+: ", "");

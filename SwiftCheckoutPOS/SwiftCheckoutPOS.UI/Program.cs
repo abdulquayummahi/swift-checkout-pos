@@ -123,6 +123,9 @@ builder.Services.AddScoped<AtomicUnit>();
 builder.Services.AddScoped<AuditService>();
 builder.Services.AddScoped<MetricsRepository>();
 builder.Services.AddScoped<MetricsService>();
+builder.Services.AddScoped<InsightsRepository>();
+builder.Services.AddScoped<InsightsService>();
+builder.Services.AddMemoryCache(); // the alerts bell keeps backup warnings for a minute
 builder.Services.AddScoped<ShiftRepository>();
 builder.Services.AddScoped<ShiftService>();
 builder.Services.AddScoped<UserRepository>();

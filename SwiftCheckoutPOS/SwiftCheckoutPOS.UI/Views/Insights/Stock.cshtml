@@ -1,0 +1,118 @@
+@model SwiftCheckoutPOS.BLL.Services.StockHealthDTO
+@using SwiftCheckoutPOS.BLL.Services
+@{
+    ViewData["Title"] = "Stock health";
+    string Cat(int id) => id > 0 ? $"cat-{(id - 1) % 8 + 1}" : "cat-0";
+    string Pct(decimal part, decimal whole) => whole <= 0 ? "0" : Math.Round(Math.Min(part / whole, 1m) * 100m, 1).ToString(System.Globalization.CultureInfo.InvariantCulture);
+    var valueMax = Model.ValueByCategory.Count == 0 ? 0m : Model.ValueByCategory.Max(v => v.Amount);
+    (string Text, string Css) Status(string s) => s switch
+    {
+        "Out" => ("Out of stock", "is-bad"), "Reorder" => ("Reorder now", "is-bad"), "Low" => ("Running low", "is-warn"),
+        "Slow" => ("Not selling", "is-warn"), _ => ("Healthy", "is-ok")
+    };
+    var toOrder = Model.Lines.Count(l => l.SuggestedOrder > 0);
+    var filters = new (string Key, string Text, int Count)[]
+    {
+        ("", "All", Model.Lines.Count), ("Out", "Out of stock", Model.Out), ("Reorder", "Reorder now", Model.Reorder),
+        ("Low", "Running low", Model.Low), ("Slow", "Not selling", Model.Slow)
+    };
+}
+<div class="page-head">
+    <div>
+        <h1 class="page-title">Stock health</h1>
+        <p class="page-sub">What to reorder and what is not selling, from the last @InsightsService.VelocityDays days of sales.</p>
+    </div>
+    <div class="page-actions">
+        <a asp-action="ExportReorder" class="btn btn-quiet @(toOrder == 0 ? "disabled" : "")" aria-disabled="@(toOrder == 0 ? "true" : null)">@Html.Icon("download") Reorder list (CSV)</a>
+        <a asp-controller="InventoryAdmin" asp-action="Index" class="btn btn-primary">@Html.Icon("products") Products and stock</a>
+    </div>
+</div>
+
+<div class="figures mb-4">
+    <div class="figure"><div class="figure-label">Stock value at cost</div><div class="figure-value">@Html.Money(Model.ValueAtCost)</div><div class="figure-note">@Model.Units.ToString("N0") units of @Model.Products products</div></div>
+    <div class="figure"><div class="figure-label">Value at selling price</div><div class="figure-value">@Html.Money(Model.ValueAtRetail)</div><div class="figure-note">@Html.Money(Model.ValueAtRetail - Model.ValueAtCost) more than cost</div></div>
+    <div class="figure @(Model.Out > 0 ? "is-bad" : "")"><div class="figure-label">@Html.Icon("package-x") Out of stock</div><div class="figure-value">@Model.Out</div><div class="figure-note">Cannot be sold now</div></div>
+    <div class="figure @(Model.Reorder > 0 ? "is-warn" : "")"><div class="figure-label">Reorder now</div><div class="figure-value">@Model.Reorder</div><div class="figure-note">At the reorder level, or under @InsightsService.ReorderWithinDays days left</div></div>
+    <div class="figure @(Model.Slow > 0 ? "is-warn" : "")"><div class="figure-label">Not selling</div><div class="figure-value">@Model.Slow</div><div class="figure-note">@Html.Money(Model.SlowValueAtCost) of stock with no sale in @InsightsService.VelocityDays days</div></div>
+</div>
+
+<div class="row g-4">
+    <div class="col-12">
+        <div class="d-flex gap-2 flex-wrap mb-3" role="toolbar" aria-label="Show">
+            @foreach (var f in filters)
+            {
+                <button type="button" class="chip @(f.Key == "" ? "is-active" : "")" data-stock-filter="@f.Key" aria-pressed="@(f.Key == "" ? "true" : "false")">@f.Text <span class="chip-count">@f.Count</span></button>
+            }
+        </div>
+        <div class="table-wrap">
+            <div class="table-responsive" style="max-height:70vh">
+                <table class="table table-hover" id="stockTable">
+                    <thead class="sticky-top">
+                        <tr><th>Product</th><th>Status</th><th class="text-end">Available</th><th class="text-end">Sold in @InsightsService.VelocityDays days</th><th>Stock lasts</th><th class="text-end">Suggested order</th><th><span class="visually-hidden">Restock</span></th></tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var l in Model.Lines)
+                        {
+                            var st = Status(l.Status);
+                            <tr data-status="@l.Status">
+                                <td><div class="fw-semibold">@l.Name</div><div class="small text-muted">@l.Category · @l.Vendor</div></td>
+                                <td class="text-nowrap"><span class="status @st.Css">@st.Text</span></td>
+                                <td class="text-end num fw-semibold">@l.Available <span class="text-muted fw-normal small">@l.Unit</span>@if (l.Reserved > 0) { <div class="small text-muted fw-normal">@l.Reserved held</div> }</td>
+                                <td class="text-end num">@l.Sold30</td>
+                                <td style="min-width:150px">
+                                    @if (l.DaysOfCover is { } days)
+                                    {
+                                        <div class="small num">@(days >= 365 ? "over a year" : days == 1 ? "1 day" : days + " days")</div>
+                                        <div class="bar mt-1 @(days < InsightsService.ReorderWithinDays ? "is-bad" : days < InsightsService.CoverTargetDays ? "is-warn" : "")"><span style="width:@Pct(days, 30)%"></span></div>
+                                    }
+                                    else
+                                    {
+                                        <span class="small text-muted">@(l.LastSold is { } lastSale ? $"last sold {lastSale:dd MMM yyyy}" : "never sold")</span>
+                                    }
+                                </td>
+                                <td class="text-end num fw-semibold">@(l.SuggestedOrder > 0 ? l.SuggestedOrder.ToString("N0") : "–")</td>
+                                <td class="text-end text-nowrap"><a class="btn btn-ghost btn-sm" asp-controller="InventoryAdmin" asp-action="Index" asp-route-searchQuery="@l.Barcode" title="Open @l.Name in Products and stock">Restock @Html.Icon("chevron-right")</a></td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+                <div class="empty" id="stockEmpty" hidden>@Html.Icon("check-circle")<div class="empty-title">Nothing in this group</div></div>
+            </div>
+        </div>
+        <p class="help mt-2">Suggested order = enough for @InsightsService.CoverTargetDays days at the recent pace, plus the product's reorder level, minus what is available. Refunded units are not counted as sold.</p>
+    </div>
+    <div class="col-xl-6">
+        <section class="card" aria-labelledby="valueTitle">
+            <div class="panel-head"><div><h2 id="valueTitle">Where the money sits</h2><div class="help fw-normal">Stock value at cost, by category</div></div></div>
+            <div class="panel-body">
+                @if (Model.ValueByCategory.Count == 0)
+                {
+                    <div class="empty">@Html.Icon("boxes")<div class="empty-title">No stock yet</div></div>
+                }
+                @foreach (var v in Model.ValueByCategory)
+                {
+                    <div class="hbar @Cat(v.Key)">
+                        <div class="hbar-top"><span class="hbar-name"><span class="dot" aria-hidden="true"></span>@v.Name</span><span class="hbar-value num">@Html.Money(v.Amount) <span class="hbar-share">@Pct(v.Amount, Model.ValueAtCost)%</span></span></div>
+                        <div class="hbar-track is-cat"><span style="width:@Pct(v.Amount, valueMax)%"></span></div>
+                    </div>
+                }
+            </div>
+        </section>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        (function () {
+            var rows = document.querySelectorAll('#stockTable tbody tr'), empty = document.getElementById('stockEmpty');
+            document.querySelectorAll('[data-stock-filter]').forEach(function (chip) {
+                chip.addEventListener('click', function () {
+                    var key = chip.dataset.stockFilter, shown = 0;
+                    document.querySelectorAll('[data-stock-filter]').forEach(function (c) { c.classList.toggle('is-active', c === chip); c.setAttribute('aria-pressed', c === chip ? 'true' : 'false'); });
+                    rows.forEach(function (r) { var on = !key || r.dataset.status === key; r.hidden = !on; if (on) shown++; });
+                    empty.hidden = shown > 0;
+                });
+            });
+        })();
+    </script>
+}

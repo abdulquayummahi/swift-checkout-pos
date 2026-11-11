@@ -44,6 +44,43 @@ public sealed class DemoDataTests
         var (from, to) = MetricsService.Days(DateTime.Today.AddDays(-8), DateTime.Today);
         Assert.True(metrics.Period(from, to).NetSales > 0);
 
+        // Insights and Stock health read the same data: their totals must agree with the sales table.
+        var insights = new InsightsService(new InsightsRepository(c), metrics);
+        var month = insights.Get("30days");
+        var counted = sold.Where(s => s.OrderStatus is "Completed" or "PartiallyRefunded" or "Refunded").ToList(); // voided sales never count
+        var monthSales = counted.Where(s => s.SaleDate >= month.From && s.SaleDate < month.ToExclusive).ToList();
+        Assert.Equal(monthSales.Sum(s => s.TotalAmount), month.Trend.Total);
+        Assert.Equal(monthSales.Sum(s => s.TotalAmount), month.Heat.Sum(h => h.Total));
+        Assert.Equal(monthSales.Count, month.Cashiers.Sum(x => x.Sales));
+        Assert.Equal(monthSales.Sum(s => s.TotalAmount), month.WalkInTotal + month.RegisteredTotal);
+        Assert.Equal(month.Now.ItemsSold, month.AllProducts.Sum(p => p.Units));
+        Assert.True(month.TopByRevenue.Count > 5 && month.TopByRevenue[0].Revenue >= month.TopByRevenue[1].Revenue);
+        Assert.Equal(month.AllProducts.Sum(p => p.Revenue), month.Categories.Sum(x => x.Revenue));
+        Assert.True(month.Tenders.Count > 0 && month.Customers.Count > 0);
+        var year = insights.Get("1year");
+        Assert.Equal("month", year.Trend.Unit);
+        Assert.Equal(counted.Sum(s => s.TotalAmount), year.Trend.Total);
+
+        var stock = insights.StockHealth();
+        Assert.Equal(c.Products.Count(p => p.IsActive), stock.Lines.Count);
+        Assert.Equal(c.Products.Where(p => p.IsActive).Sum(p => p.StockQuantity * p.CostPrice), stock.ValueAtCost);
+        Assert.All(stock.Lines.Where(l => l.Status == "Out"), l => Assert.True(l.Available <= 0));
+        Assert.Contains(stock.Lines, l => l.Sold30 > 0 && l.DaysOfCover is not null);
+
+        var anyProduct = c.Products.First();
+        Assert.Contains(insights.Search(anyProduct.ProductName[..4], manager: false, canViewFinancials: false), h => h.Group == "Products");
+        Assert.DoesNotContain(insights.Search(sold[0].ReceiptNumber, manager: false, canViewFinancials: false), h => h.Group == "Receipts");
+        Assert.Contains(insights.Search(sold[0].ReceiptNumber, manager: true, canViewFinancials: true), h => h.Group == "Receipts" && h.Detail.Contains('৳'));
+        Assert.DoesNotContain(insights.Search(sold[0].ReceiptNumber, manager: true, canViewFinancials: false), h => h.Detail.Contains('৳'));
+        var alerts = insights.Alerts(manager: true, admin: true, canViewFinancials: true, shiftOpen: true, heldRetentionHours: 72, backupWarnings: ["No backup yet."]);
+        Assert.Contains(alerts, a => a.Controller == "Checkout" && a.Text.StartsWith("2 orders are on hold"));
+        Assert.Contains(alerts, a => a.Controller == "BackupAdmin");
+        var csv = System.Text.Encoding.UTF8.GetString(insights.SalesCsv(from, to));
+        Assert.StartsWith("\uFEFFReceipt,Date,Status", csv);
+        Assert.Equal(sold.Count(s => s.SaleDate >= from && s.SaleDate < to) + 1, csv.Split('\n', StringSplitOptions.RemoveEmptyEntries).Length);
+        Assert.DoesNotContain("Cost", System.Text.Encoding.UTF8.GetString(insights.ProductsCsv(showCost: false)).Split('\n')[0]);
+        Assert.Contains("Cost", System.Text.Encoding.UTF8.GetString(insights.ProductsCsv(showCost: true)).Split('\n')[0]);
+
         // A real sale made now after seeding gets the next number for today without a clash.
         var checkout = FixtureData.Checkout(fixture);
         var id = c.Products.First(p => p.StockQuantity - p.ReservedQuantity > 5).ProductId;

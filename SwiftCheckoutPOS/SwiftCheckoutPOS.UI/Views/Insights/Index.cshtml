@@ -1,0 +1,259 @@
+@model SwiftCheckoutPOS.BLL.Services.InsightsDTO
+@using SwiftCheckoutPOS.BLL.Services
+@{
+    ViewData["Title"] = "Insights";
+    var now = Model.Now; var before = Model.Before;
+    var periodText = InsightsService.Periods.First(p => p.Key == Model.Period).Text;
+    var hasSales = now.SalesCount > 0;
+    // Weeks in Bangladesh start on Saturday.
+    var weekdays = new[] { DayOfWeek.Saturday, DayOfWeek.Sunday, DayOfWeek.Monday, DayOfWeek.Tuesday, DayOfWeek.Wednesday, DayOfWeek.Thursday, DayOfWeek.Friday };
+    var heat = Model.Heat.ToDictionary(h => (h.Day, h.Hour));
+    var heatMax = Model.Heat.Count == 0 ? 0m : Model.Heat.Max(h => h.Total);
+    // Five steps of one colour, light to dark: 0 = no sales.
+    int Step(decimal total) => total <= 0 || heatMax <= 0 ? 0 : Math.Clamp((int)Math.Ceiling(total / heatMax * 5m), 1, 5);
+    string Cat(int id) => id > 0 ? $"cat-{(id - 1) % 8 + 1}" : "cat-0";
+    string Pct(decimal part, decimal whole) => whole <= 0 ? "0" : Math.Round(part / whole * 100m, 1).ToString(System.Globalization.CultureInfo.InvariantCulture);
+    var tenderTotal = Model.Tenders.Sum(t => t.Amount);
+    var tenderMax = Model.Tenders.Count == 0 ? 0m : Model.Tenders.Max(t => t.Amount);
+    var categoryMax = Model.Categories.Count == 0 ? 0m : Model.Categories.Max(c => c.Revenue);
+    var categoryTotal = Model.Categories.Sum(c => c.Revenue);
+    var revenueMax = Model.TopByRevenue.Count == 0 ? 0m : Model.TopByRevenue.Max(p => p.Revenue);
+    var profitMax = Model.TopByProfit.Count == 0 ? 0m : Model.TopByProfit.Max(p => p.Profit ?? 0);
+    var cashierMax = Model.Cashiers.Count == 0 ? 0m : Model.Cashiers.Max(c => c.Total);
+    var customerMax = Model.Customers.Count == 0 ? 0m : Model.Customers.Max(c => c.Total);
+    var customerSplit = Model.WalkInTotal + Model.RegisteredTotal;
+}
+<div class="page-head">
+    <div>
+        <h1 class="page-title">Insights</h1>
+        <p class="page-sub">@Model.From.ToString("dd MMM yyyy") to @Model.ToExclusive.AddDays(-1).ToString("dd MMM yyyy"), compared with the @Model.Days days before.</p>
+    </div>
+    <div class="page-actions">
+        <nav class="segmented" aria-label="Period">
+            @foreach (var p in InsightsService.Periods)
+            {
+                <a asp-action="Index" asp-route-period="@p.Key" class="@(p.Key == Model.Period ? "is-active" : "")" aria-current="@(p.Key == Model.Period ? "page" : null)">@p.Text</a>
+            }
+        </nav>
+        <a asp-action="ExportProductSales" asp-route-period="@Model.Period" class="btn btn-quiet">@Html.Icon("download") Product sales (CSV)</a>
+    </div>
+</div>
+
+<div class="figures is-dense mb-4">
+    <div class="figure"><div class="figure-label">Net sales</div><div class="figure-value">@Html.Money(now.NetSales)</div><div class="figure-note">@Html.Delta(now.NetSales, before.NetSales)</div></div>
+    <div class="figure @(now.GrossProfit < 0 ? "is-bad" : "is-good")"><div class="figure-label">Gross profit</div><div class="figure-value">@Html.Money(now.GrossProfit)</div><div class="figure-note">@Html.Delta(now.GrossProfit, before.GrossProfit)</div></div>
+    <div class="figure"><div class="figure-label">Margin</div><div class="figure-value">@Model.MarginPercent.ToString("0.0")%</div><div class="figure-note">@Html.Delta(Model.MarginPercent, Model.MarginPercentBefore, points: true)</div></div>
+    <div class="figure"><div class="figure-label">Sales</div><div class="figure-value">@now.SalesCount.ToString("N0")</div><div class="figure-note">@Html.Delta(now.SalesCount, before.SalesCount)</div></div>
+    <div class="figure"><div class="figure-label">Average sale</div><div class="figure-value">@Html.Money(Model.AverageBasket)</div><div class="figure-note">@Html.Delta(Model.AverageBasket, Model.AverageBasketBefore)</div></div>
+    <div class="figure"><div class="figure-label">Items per sale</div><div class="figure-value">@Model.ItemsPerSale.ToString("0.0")</div><div class="figure-note">@now.ItemsSold.ToString("N0") items sold</div></div>
+    <div class="figure @(Model.RefundRatePercent >= 5 ? "is-warn" : "")"><div class="figure-label">Refunds</div><div class="figure-value">@Model.RefundRatePercent.ToString("0.0")%</div><div class="figure-note">@now.RefundCount of @now.SalesCount.ToString("N0") sales</div></div>
+</div>
+
+@if (!hasSales)
+{
+    <div class="card"><div class="empty py-5">@Html.Icon("insights")<div class="empty-title">No sales in the last @periodText yet</div><div class="small">Choose a longer period above, or come back after some sales are saved at the till.</div></div></div>
+}
+else
+{
+    <section class="card trend mb-4" aria-labelledby="trendTitle">
+        <div class="trend-head">
+            <div>
+                <h2 class="h6 mb-1" id="trendTitle">@(Model.Trend.Unit switch { "day" => "Sales by day", "week" => "Sales by week", _ => "Sales by month" })</h2>
+                <div class="help">Bill totals of saved sales, VAT included, before refunds</div>
+            </div>
+            @if (Model.BestDay is { } best)
+            {
+                <div class="text-end"><div class="help">Best day</div><div class="fw-semibold">@best.Day.ToString("ddd dd MMM") · @Html.Money(best.Total)</div></div>
+            }
+        </div>
+        <partial name="_TrendChart" model="Model.Trend" />
+    </section>
+
+    <div class="row g-4 mb-4">
+        <div class="col-xl-7">
+            <section class="card h-100" aria-labelledby="heatTitle">
+                <div class="panel-head">
+                    <div><h2 id="heatTitle">Busiest times</h2><div class="help fw-normal">Sales by weekday and hour. Darker means more money taken.</div></div>
+                    @if (Model.BusiestSlot is { } slot)
+                    {
+                        <div class="text-end small"><span class="text-muted">Peak</span><br /><strong>@slot.Day.ToString().Substring(0, 3) @slot.Hour.ToString("00"):00–@((slot.Hour + 1).ToString("00")):00</strong></div>
+                    }
+                </div>
+                <div class="panel-body">
+                    <div class="table-responsive">
+                        <table class="heat">
+                            <thead>
+                                <tr><th scope="col"><span class="visually-hidden">Day</span></th>
+                                    @for (var h = Model.FirstHour; h <= Model.LastHour; h++) { <th scope="col">@h.ToString("00")</th> }
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var day in weekdays)
+                                {
+                                    <tr>
+                                        <th scope="row">@day.ToString().Substring(0, 3)</th>
+                                        @for (var h = Model.FirstHour; h <= Model.LastHour; h++)
+                                        {
+                                            heat.TryGetValue((day, h), out var cell);
+                                            var label = cell is null ? $"{day} {h:00}:00, no sales" : $"{day} {h:00}:00–{h + 1:00}:00: ৳{cell.Total:N2}, {cell.Sales} {(cell.Sales == 1 ? "sale" : "sales")}";
+                                            <td title="@label"><span class="heat-cell heat-@Step(cell?.Total ?? 0)" aria-hidden="true"></span><span class="visually-hidden">@(cell is null ? "none" : cell.Total.ToString("N0"))</span></td>
+                                        }
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                    <div class="heat-legend" aria-hidden="true">Less <span class="heat-cell heat-0"></span><span class="heat-cell heat-1"></span><span class="heat-cell heat-2"></span><span class="heat-cell heat-3"></span><span class="heat-cell heat-4"></span><span class="heat-cell heat-5"></span> More</div>
+                </div>
+            </section>
+        </div>
+        <div class="col-xl-5">
+            <section class="card h-100" aria-labelledby="payTitle">
+                <div class="panel-head"><div><h2 id="payTitle">How customers paid</h2><div class="help fw-normal">Money taken at the till by method</div></div></div>
+                <div class="panel-body">
+                    @if (Model.Tenders.Count == 0)
+                    {
+                        <div class="empty">@Html.Icon("cash")<div class="empty-title">No payments in this period</div></div>
+                    }
+                    @foreach (var t in Model.Tenders)
+                    {
+                        <div class="hbar">
+                            <div class="hbar-top"><span class="hbar-name">@t.Name</span><span class="hbar-value num">@Html.Money(t.Amount) <span class="hbar-share">@Pct(t.Amount, tenderTotal)%</span></span></div>
+                            <div class="hbar-track"><span style="width:@Pct(t.Amount, tenderMax)%"></span></div>
+                        </div>
+                    }
+                    @if (now.DueCollected > 0)
+                    {
+                        <p class="help mt-3 mb-0">Also collected against customers' dues: @Html.Money(now.DueCollected).</p>
+                    }
+                </div>
+            </section>
+        </div>
+    </div>
+
+    <div class="row g-4 mb-4">
+        <div class="col-xl-5">
+            <section class="card h-100" aria-labelledby="catTitle">
+                <div class="panel-head"><div><h2 id="catTitle">Sales by category</h2><div class="help fw-normal">After discounts, VAT included</div></div></div>
+                <div class="panel-body">
+                    @foreach (var c in Model.Categories)
+                    {
+                        <div class="hbar @Cat(c.CategoryId)">
+                            <div class="hbar-top"><span class="hbar-name"><span class="dot" aria-hidden="true"></span>@c.Name</span><span class="hbar-value num">@Html.Money(c.Revenue) <span class="hbar-share">@Pct(c.Revenue, categoryTotal)%</span></span></div>
+                            <div class="hbar-track is-cat"><span style="width:@Pct(c.Revenue, categoryMax)%"></span></div>
+                            <div class="hbar-sub">@($"{c.Units:N0} units" + (c.Profit is { } cp ? $" · profit ৳{cp:N2}" : " · profit not known for some items"))</div>
+                        </div>
+                    }
+                </div>
+            </section>
+        </div>
+        <div class="col-xl-7">
+            <section class="card h-100" aria-labelledby="topTitle">
+                <div class="panel-head">
+                    <h2 id="topTitle">Best products</h2>
+                    <div class="segmented" role="tablist" aria-label="Rank products by">
+                        <button type="button" role="tab" class="is-active" aria-selected="true" data-rank="revenue">By sales</button>
+                        <button type="button" role="tab" aria-selected="false" data-rank="profit">By profit</button>
+                    </div>
+                </div>
+                <div class="table-responsive" data-rank-panel="revenue">
+                    <table class="table rank">
+                        <thead><tr><th>#</th><th>Product</th><th class="text-end">Units</th><th class="text-end">Sales</th><th class="text-end">Margin</th></tr></thead>
+                        <tbody>
+                            @for (var i = 0; i < Model.TopByRevenue.Count; i++)
+                            {
+                                var p = Model.TopByRevenue[i];
+                                <tr>
+                                    <td class="rank-no">@(i + 1)</td>
+                                    <td><div class="fw-semibold">@p.Name</div><div class="bar mt-1"><span style="width:@Pct(p.Revenue, revenueMax)%"></span></div></td>
+                                    <td class="text-end num">@p.Units.ToString("N0")</td>
+                                    <td class="text-end num fw-semibold">@p.Revenue.ToString("N2")</td>
+                                    <td class="text-end num text-muted">@(p.MarginPercent is { } m ? m.ToString("0.0") + "%" : "–")</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+                <div class="table-responsive" data-rank-panel="profit" hidden>
+                    <table class="table rank">
+                        <thead><tr><th>#</th><th>Product</th><th class="text-end">Units</th><th class="text-end">Profit</th><th class="text-end">Margin</th></tr></thead>
+                        <tbody>
+                            @for (var i = 0; i < Model.TopByProfit.Count; i++)
+                            {
+                                var p = Model.TopByProfit[i];
+                                <tr>
+                                    <td class="rank-no">@(i + 1)</td>
+                                    <td><div class="fw-semibold">@p.Name</div><div class="bar mt-1"><span style="width:@Pct(Math.Max(p.Profit ?? 0, 0), profitMax)%"></span></div></td>
+                                    <td class="text-end num">@p.Units.ToString("N0")</td>
+                                    <td class="text-end num fw-semibold">@((p.Profit ?? 0).ToString("N2"))</td>
+                                    <td class="text-end num text-muted">@(p.MarginPercent is { } m ? m.ToString("0.0") + "%" : "–")</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                    <p class="help px-4 pb-3 mb-0">Profit is sales minus the cost when each unit was sold. Products sold with no recorded cost are left out.</p>
+                </div>
+            </section>
+        </div>
+    </div>
+
+    <div class="row g-4">
+        <div class="col-xl-6">
+            <section class="card h-100" aria-labelledby="staffTitle">
+                <div class="panel-head"><div><h2 id="staffTitle">Sales by staff</h2><div class="help fw-normal">Who saved the sale at the till</div></div></div>
+                <div class="table-responsive">
+                    <table class="table rank">
+                        <thead><tr><th>Staff</th><th class="text-end">Sales</th><th class="text-end">Average sale</th><th class="text-end">Total</th></tr></thead>
+                        <tbody>
+                            @foreach (var c in Model.Cashiers)
+                            {
+                                <tr>
+                                    <td><div class="d-flex align-items-center gap-2"><span class="avatar" aria-hidden="true">@UiHelpers.Initials(UiHelpers.Person(c.Name))</span><div class="flex-grow-1"><div class="fw-semibold">@UiHelpers.Person(c.Name)</div><div class="bar mt-1"><span style="width:@Pct(c.Total, cashierMax)%"></span></div></div></div></td>
+                                    <td class="text-end num">@c.Sales.ToString("N0")</td>
+                                    <td class="text-end num">@c.AverageBasket.ToString("N2")</td>
+                                    <td class="text-end num fw-semibold">@c.Total.ToString("N2")</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+        </div>
+        <div class="col-xl-6">
+            <section class="card h-100" aria-labelledby="custTitle">
+                <div class="panel-head"><div><h2 id="custTitle">Customers</h2><div class="help fw-normal">Registered customers against walk-ins</div></div></div>
+                <div class="panel-body">
+                    <div class="split" role="img" aria-label="Registered customers @Pct(Model.RegisteredTotal, customerSplit)% of sales, walk-ins @Pct(Model.WalkInTotal, customerSplit)%">
+                        <span class="split-a" style="width:@Pct(Model.RegisteredTotal, customerSplit)%"></span><span class="split-b" style="width:@Pct(Model.WalkInTotal, customerSplit)%"></span>
+                    </div>
+                    <div class="split-key">
+                        <span><span class="key key-a" aria-hidden="true"></span>Registered <strong class="num">@Html.Money(Model.RegisteredTotal)</strong> (@Pct(Model.RegisteredTotal, customerSplit)%)</span>
+                        <span><span class="key key-b" aria-hidden="true"></span>Walk-in <strong class="num">@Html.Money(Model.WalkInTotal)</strong> (@Pct(Model.WalkInTotal, customerSplit)%)</span>
+                    </div>
+                    @if (Model.Customers.Count > 0)
+                    {
+                        <h3 class="h6 mt-4 mb-2">Top customers</h3>
+                        @foreach (var c in Model.Customers)
+                        {
+                            <div class="hbar">
+                                <div class="hbar-top"><a class="hbar-name" asp-controller="Customer" asp-action="Details" asp-route-id="@c.CustomerId">@c.Name</a><span class="hbar-value num">@Html.Money(c.Total) <span class="hbar-share">@c.Sales @(c.Sales == 1 ? "sale" : "sales")</span></span></div>
+                                <div class="hbar-track"><span style="width:@Pct(c.Total, customerMax)%"></span></div>
+                            </div>
+                        }
+                    }
+                </div>
+            </section>
+        </div>
+    </div>
+}
+
+@section Scripts {
+    <script>
+        document.querySelectorAll('[data-rank]').forEach(function (tab) {
+            tab.addEventListener('click', function () {
+                document.querySelectorAll('[data-rank]').forEach(function (t) { var on = t === tab; t.classList.toggle('is-active', on); t.setAttribute('aria-selected', on ? 'true' : 'false'); });
+                document.querySelectorAll('[data-rank-panel]').forEach(function (p) { p.hidden = p.dataset.rankPanel !== tab.dataset.rank; });
+            });
+        });
+    </script>
+}

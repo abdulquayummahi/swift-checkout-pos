@@ -15,6 +15,7 @@
         <button class="btn btn-quiet" data-bs-toggle="modal" data-bs-target="#restockModal" id="btnRestock">@Html.Icon("package-plus") Restock <kbd>F3</kbd></button>
         <button class="btn btn-quiet" data-bs-toggle="modal" data-bs-target="#rtvModal" id="btnRtv">@Html.Icon("truck") Return to supplier <kbd>F4</kbd></button>
         <button class="btn btn-quiet" data-bs-toggle="modal" data-bs-target="#adjustModal" id="btnAdjust">@Html.Icon("list") Correct a count <kbd>F6</kbd></button>
+        <a asp-controller="Export" asp-action="Products" class="btn btn-quiet" title="Download the product list as a spreadsheet">@Html.Icon("download") Export</a>
         <a asp-action="Create" class="btn btn-primary">@Html.Icon("plus") Add product</a>
     </div>
 </div>

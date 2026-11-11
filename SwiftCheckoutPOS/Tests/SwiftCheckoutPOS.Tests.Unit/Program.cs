@@ -419,6 +419,44 @@ internal static class Program
                 Equal(1, monthly.Points.Count);                        // all time starts at the first sale's month
                 Equal(240m, monthly.Total);
             }),
+            ("Stock health: reorder rule and suggested order", () =>
+            {
+                Equal("Out", InsightsService.Assess(0, 5, 30).Status);
+                Equal(19, InsightsService.Assess(0, 5, 30).SuggestedOrder);      // 14 days at 1 a day + reorder level 5
+                Equal("Reorder", InsightsService.Assess(5, 5, 0).Status);         // at the reorder level, even with no sales
+                Equal("Reorder", InsightsService.Assess(6, 2, 30).Status);        // 6 days left at 1 a day
+                Equal(10, InsightsService.Assess(6, 2, 30).SuggestedOrder);
+                Equal("Low", InsightsService.Assess(10, 2, 30).Status);           // 10 days left: under two weeks
+                Equal(10, InsightsService.Assess(10, 2, 30).DaysOfCover);
+                Equal("Slow", InsightsService.Assess(40, 2, 0).Status);           // on the shelf, nothing sold in 30 days
+                Equal(0, InsightsService.Assess(40, 2, 0).SuggestedOrder);
+                Equal("Healthy", InsightsService.Assess(40, 2, 30).Status);
+                Check(InsightsService.Assess(40, 2, 0).DaysOfCover is null);
+            }),
+            ("Insights: weekday and hour map and daily points keep every taka", () =>
+            {
+                var monday = new DateTime(2026, 11, 2, 10, 15, 0);
+                var sales = new List<(DateTime, decimal)> { (monday, 100m), (monday.AddMinutes(30), 50m), (monday.AddDays(7).AddHours(1), 25m), (monday.AddDays(1), 10m) };
+                var heat = InsightsService.Heat(sales);
+                Equal(150m, heat.Single(h => h.Day == DayOfWeek.Monday && h.Hour == 10).Total);
+                Equal(2, heat.Single(h => h.Day == DayOfWeek.Monday && h.Hour == 10).Sales);
+                Equal(185m, heat.Sum(h => h.Total));
+                var days = InsightsService.Daily(sales, monday.Date, monday.Date.AddDays(3));
+                Equal(3, days.Count);
+                Equal(150m, days[0].Total); Equal(10m, days[1].Total); Equal(0m, days[2].Total);
+            }),
+            ("Spreadsheet export quotes text and never lets a cell run as a formula", () =>
+            {
+                Equal("\"Rice, 5 kg\"", Csv.Cell("Rice, 5 kg"));
+                Equal("\"He said \"\"hi\"\"\"", Csv.Cell("He said \"hi\""));
+                Equal("'=SUM(A1)", Csv.Cell("=SUM(A1)"));
+                Equal("'+8801700000000", Csv.Cell("+8801700000000"));
+                Equal("-12.50", Csv.Cell(-12.5m));                                  // numbers stay numbers
+                Equal("1234.50", Csv.Cell(1234.5m));
+                Equal("2026-11-04 09:05", Csv.Cell(new DateTime(2026, 11, 4, 9, 5, 0)));
+                var bytes = Csv.Write(["A", "B"], new[] { new object?[] { "x", 1 } });
+                Check(bytes[0] == 0xEF && bytes[1] == 0xBB && bytes[2] == 0xBF);
+            }),
             ("Saved cash sale hands the till its change and receipt number", () =>
             {
                 var (repo, service, cart) = Ready();

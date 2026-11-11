@@ -1,5 +1,9 @@
 @inject SwiftCheckoutPOS.BLL.Services.SettingsService Settings
 @inject SwiftCheckoutPOS.BLL.Services.ShiftService Shifts
+@inject SwiftCheckoutPOS.BLL.Services.InsightsService Insights
+@inject SwiftCheckoutPOS.BLL.Services.BackupService Backups
+@inject Microsoft.Extensions.Caching.Memory.IMemoryCache Cache
+@using Microsoft.Extensions.Caching.Memory
 @{
     var signedIn = User.Identity?.IsAuthenticated == true;
     var controller = ViewContext.RouteData.Values["Controller"]?.ToString();
@@ -9,33 +13,52 @@
     var canFin = signedIn && Settings.CanViewFinancials(role);
     var shift = signedIn ? Shifts.OpenShiftHeader() : null;
     var dashboard = isAdmin ? "AdminDashboard" : "ManagerDashboard";
-    var groups = new List<(string Title, List<(string Controller, string Text, string Icon, bool Show)> Links)>
+    var action = ViewContext.RouteData.Values["Action"]?.ToString();
+    var groups = new List<(string Title, List<(string Controller, string Action, string Text, string Icon, bool Show)> Links)>
     {
         ("Selling", new()
         {
-            ("Shift", "Till shift", "shift", true),
-            ("Refund", "Refunds and voids", "refund", isManager),
+            ("Shift", "Index", "Till shift", "shift", true),
+            ("Refund", "Index", "Refunds and voids", "refund", isManager),
         }),
         ("Shop", new()
         {
-            (dashboard, "Overview", "dashboard", isManager),
-            ("InventoryAdmin", "Products and stock", "products", isManager),
-            ("Customer", "Customers", "customers", isManager),
+            (dashboard, "Index", "Overview", "dashboard", isManager),
+            ("Insights", "Index", "Insights", "insights", isManager && canFin),
+            ("InventoryAdmin", "Index", "Products and stock", "products", isManager),
+            ("Insights", "Stock", "Stock health", "boxes", isManager && canFin),
+            ("Customer", "Index", "Customers", "customers", isManager),
         }),
         ("Money", new()
         {
-            ("FinanceAdmin", canFin ? "Finance" : "Expenses", "finance", isManager),
-            ("ReportAdmin", "Reports", "reports", isManager && canFin),
+            ("FinanceAdmin", "Index", canFin ? "Finance" : "Expenses", "finance", isManager),
+            ("ReportAdmin", "Index", "Reports", "reports", isManager && canFin),
         }),
         ("Admin", new()
         {
-            ("UserAdmin", "Staff accounts", "users", isAdmin),
-            ("SettingsAdmin", "Settings", "settings", isManager),
-            ("BackupAdmin", "Backup", "backup", isAdmin),
-            ("AuditLog", "Activity log", "audit", isAdmin),
+            ("UserAdmin", "Index", "Staff accounts", "users", isAdmin),
+            ("SettingsAdmin", "Index", "Settings", "settings", isManager),
+            ("BackupAdmin", "Index", "Backup", "backup", isAdmin),
+            ("AuditLog", "Index", "Activity log", "audit", isAdmin),
         }),
     };
     var active = controller is "ManagerDashboard" or "AdminDashboard" ? dashboard : controller;
+    bool IsActive(string c, string a) => active == c && (c != "Insights" || (a == "Stock") == (action == "Stock"));
+
+    // Alerts bell: things that need attention now. Backup warnings read the backup folder, so they are kept for a minute.
+    var alerts = new List<SwiftCheckoutPOS.BLL.Services.AlertDTO>();
+    if (signedIn)
+    {
+        var backupWarnings = !isAdmin ? null : Cache.GetOrCreate("layout-backup-warnings", e =>
+        {
+            e.AbsoluteExpirationRelativeToNow = TimeSpan.FromSeconds(60);
+            try { return Backups.GetPage().Warnings.ToList(); } catch (Exception) { return new List<string>(); }
+        });
+        // A page must still open if the alerts cannot be read (for example on the error page while the database is busy).
+        try { alerts = Insights.Alerts(isManager, isAdmin, canFin, shift is not null, Settings.GetHeldOrderRetentionHours(), backupWarnings); }
+        catch (Exception) { alerts = new(); }
+    }
+    var urgent = alerts.Count(a => a.Level != "info");
 }
 <!DOCTYPE html>
 <html lang="en" data-bs-theme="light">
@@ -73,7 +96,7 @@
                         <div class="nav-group-title">@group.Title</div>
                         @foreach (var l in shown)
                         {
-                            <a class="side-link @(active == l.Controller ? "is-active" : "")" asp-controller="@l.Controller" asp-action="Index" aria-current="@(active == l.Controller ? "page" : null)">@Html.Icon(l.Icon) @l.Text</a>
+                            <a class="side-link @(IsActive(l.Controller, l.Action) ? "is-active" : "")" asp-controller="@l.Controller" asp-action="@l.Action" aria-current="@(IsActive(l.Controller, l.Action) ? "page" : null)" data-nav="@l.Text">@Html.Icon(l.Icon) @l.Text</a>
                         }
                     </nav>
                 }
@@ -94,7 +117,30 @@
                     <a class="shift-pill @(shift is null ? "is-closed" : "is-open")" asp-controller="Shift" asp-action="Index">
                         @(shift is null ? "No shift open" : $"Shift open since {shift.Value.OpenedAt:HH:mm}")
                     </a>
+                    <button type="button" class="search-trigger" data-palette-open aria-label="Search products, customers, receipts and pages">
+                        @Html.Icon("search") <span class="search-trigger-text">Search or jump to…</span> <kbd>Ctrl</kbd><kbd>K</kbd>
+                    </button>
                     <div class="topbar-actions">
+                        <div class="dropdown">
+                            <button type="button" class="btn btn-ghost btn-icon bell" data-bs-toggle="dropdown" data-bs-auto-close="outside" aria-expanded="false"
+                                    aria-label="@(alerts.Count == 0 ? "Alerts: nothing needs attention" : $"Alerts: {alerts.Count} to look at")">
+                                @Html.Icon("bell")
+                                @if (alerts.Count > 0) { <span class="bell-count @(urgent > 0 ? "" : "is-info")">@alerts.Count</span> }
+                            </button>
+                            <div class="dropdown-menu dropdown-menu-end alerts-menu">
+                                <div class="alerts-title">Needs attention</div>
+                                @if (alerts.Count == 0)
+                                {
+                                    <div class="alerts-empty">@Html.Icon("check-circle") Nothing needs attention right now.</div>
+                                }
+                                @foreach (var a in alerts)
+                                {
+                                    <a class="alert-row is-@a.Level" asp-controller="@a.Controller" asp-action="@a.Action">
+                                        @Html.Icon(a.Icon) <span>@a.Text</span> @Html.Icon("chevron-right", "alert-go")
+                                    </a>
+                                }
+                            </div>
+                        </div>
                         <button type="button" class="btn btn-ghost btn-icon" data-theme-toggle aria-pressed="false" title="Switch to dark mode">@Html.Icon("moon")</button>
                         <form asp-controller="Account" asp-action="LockNow" method="post" class="m-0">
                             <input type="hidden" name="returnUrl" value="@(Context.Request.Path + Context.Request.QueryString)" />
@@ -111,6 +157,24 @@
     else
     {
         <main id="main">@RenderBody()</main>
+    }
+
+    @if (signedIn)
+    {
+        <div class="modal fade palette" id="palette" tabindex="-1" aria-label="Search" aria-hidden="true">
+            <div class="modal-dialog">
+                <div class="modal-content">
+                    <div class="palette-input">
+                        @Html.Icon("search")
+                        <input type="search" id="paletteInput" autocomplete="off" spellcheck="false" placeholder="Search products, customers, receipts or pages"
+                               role="combobox" aria-expanded="true" aria-controls="paletteList" aria-autocomplete="list" />
+                        <kbd>Esc</kbd>
+                    </div>
+                    <div class="palette-list" id="paletteList" role="listbox" aria-label="Results"></div>
+                    <div class="palette-foot"><span><kbd>↑</kbd><kbd>↓</kbd> move</span><span><kbd>Enter</kbd> open</span><span><kbd>Ctrl</kbd><kbd>K</kbd> search from any page</span></div>
+                </div>
+            </div>
+        </div>
     }
 
     <partial name="_Toasts" />

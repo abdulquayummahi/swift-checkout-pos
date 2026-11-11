@@ -9,6 +9,7 @@
         <p class="page-sub">@Model.AppliedStartDate.ToString("dd MMM yyyy") to @Model.AppliedEndDate.ToString("dd MMM yyyy")</p>
     </div>
     <div class="page-actions">
+        <a asp-controller="Insights" asp-action="ExportSales" asp-route-startDate="@Model.AppliedStartDate.ToString("yyyy-MM-dd")" asp-route-endDate="@Model.AppliedEndDate.ToString("yyyy-MM-dd")" class="btn btn-quiet" title="Download these sales as a spreadsheet">@Html.Icon("download") Export (CSV)</a>
         <button class="btn btn-primary" id="btnPreviewZReport">@Html.Icon("printer") Z-report for these dates <kbd>F8</kbd></button>
     </div>
 </div>

@@ -122,4 +122,61 @@
         var btn = e.submitter;
         if (btn && btn.dataset.busy) { setTimeout(function () { btn.disabled = true; btn.textContent = btn.dataset.busy; }, 0); }
     });
+
+    // ---- search box (Ctrl+K): pages, products, customers, receipts ------------------------------
+    var paletteEl = document.getElementById('palette');
+    if (paletteEl && window.bootstrap) {
+        var palette = new bootstrap.Modal(paletteEl), pInput = document.getElementById('paletteInput'), pList = document.getElementById('paletteList');
+        var pages = [{ group: 'Pages', title: 'Open the till', detail: 'Sell and take payment', url: '/Checkout/Index', icon: 'till' }];
+        document.querySelectorAll('.sidebar a[data-nav]').forEach(function (a) {
+            var use = a.querySelector('use');
+            pages.push({ group: 'Pages', title: a.dataset.nav, detail: '', url: a.getAttribute('href'), icon: use ? use.getAttribute('href').split('#i-')[1] : 'chevron-right' });
+        });
+        var hits = [], current = 0, timer = null, seq = 0;
+        function render(items, note) {
+            hits = items; current = 0; pList.innerHTML = '';
+            var group = null;
+            items.forEach(function (h, i) {
+                if (h.group !== group) { group = h.group; var g = document.createElement('div'); g.className = 'palette-group'; g.textContent = group; pList.appendChild(g); }
+                var a = document.createElement('a'); a.className = 'palette-item' + (i === 0 ? ' is-current' : ''); a.href = h.url; a.setAttribute('role', 'option'); a.dataset.index = i;
+                a.innerHTML = '<svg class="icon" aria-hidden="true"><use href="/img/icons.svg#i-' + String(h.icon).replace(/[^a-z0-9-]/g, '') + '"></use></svg><span class="palette-text"><span class="palette-title"></span><span class="palette-detail"></span></span>';
+                a.querySelector('.palette-title').textContent = h.title; a.querySelector('.palette-detail').textContent = h.detail || '';
+                pList.appendChild(a);
+            });
+            if (note) { var n = document.createElement('div'); n.className = 'palette-note'; n.textContent = note; pList.appendChild(n); }
+        }
+        function mark(i) {
+            var items = pList.querySelectorAll('.palette-item'); if (!items.length) return;
+            current = (i + items.length) % items.length;
+            items.forEach(function (el, k) { el.classList.toggle('is-current', k === current); el.setAttribute('aria-selected', k === current ? 'true' : 'false'); });
+            items[current].scrollIntoView({ block: 'nearest' });
+        }
+        function search() {
+            var q = pInput.value.trim(), lower = q.toLowerCase();
+            var matched = pages.filter(function (p) { return !lower || p.title.toLowerCase().indexOf(lower) >= 0; });
+            if (q.length < 2) { render(matched, q ? 'Type one more letter to search products, customers and receipts.' : ''); return; }
+            var mine = ++seq;
+            render(matched, 'Searching…');
+            fetch('/Search/Find?q=' + encodeURIComponent(q), { headers: { 'Accept': 'application/json' } })
+                .then(function (r) { if (!r.ok) throw new Error(); return r.json(); })
+                .then(function (found) { if (mine !== seq) return; var all = found.concat(matched); render(all, all.length ? '' : 'Nothing matches "' + q + '".'); })
+                .catch(function () { if (mine === seq) render(matched, 'The search did not complete. Try again.'); });
+        }
+        pInput.addEventListener('input', function () { clearTimeout(timer); timer = setTimeout(search, 160); });
+        pInput.addEventListener('keydown', function (e) {
+            if (e.key === 'ArrowDown') { e.preventDefault(); mark(current + 1); }
+            else if (e.key === 'ArrowUp') { e.preventDefault(); mark(current - 1); }
+            else if (e.key === 'Enter') { e.preventDefault(); if (hits[current]) window.location.href = hits[current].url; }
+        });
+        pList.addEventListener('mousemove', function (e) { var it = e.target.closest('.palette-item'); if (it && +it.dataset.index !== current) mark(+it.dataset.index); });
+        paletteEl.addEventListener('shown.bs.modal', function () { pInput.focus(); pInput.select(); });
+        paletteEl.addEventListener('show.bs.modal', function () { pInput.value = ''; search(); });
+        document.addEventListener('click', function (e) { if (e.target.closest('[data-palette-open]')) palette.show(); });
+        document.addEventListener('keydown', function (e) {
+            if ((e.ctrlKey || e.metaKey) && !e.shiftKey && !e.altKey && (e.key === 'k' || e.key === 'K')) {
+                e.preventDefault();
+                if (!document.querySelector('.modal.show')) palette.show();
+            }
+        });
+    }
 })();
