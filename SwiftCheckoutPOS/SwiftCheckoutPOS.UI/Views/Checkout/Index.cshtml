@@ -12,6 +12,10 @@
     var itemCount = cart.Items.Sum(i => i.Quantity);
     var invariant = System.Globalization.CultureInfo.InvariantCulture;
     var approvalNeeded = (TempData.Peek("Error") as string)?.StartsWith("APPROVAL REQUIRED") == true;
+    // A sale that needs approval comes back with the payment window open on the same method and the reason inside it
+    // (instead of a message in the corner that the cashier then has to act on by reopening the window).
+    var approvalFor = approvalNeeded && TempData["ApprovalFor"] is string method && method is "Cash" or "Card" or "bKash" or "Nagad" ? TempData["ApprovalFor"] as string : null;
+    var approvalText = approvalFor is null ? null : (TempData["Error"] as string)!["APPROVAL REQUIRED:".Length..].Trim();
     // Units of each product already in this order: a count badge on its tile (as Shopify and Odoo do).
     var inOrder = cart.Items.GroupBy(i => i.ProductId).ToDictionary(g => g.Key, g => g.Sum(i => i.Quantity));
     // "Sale complete" screen after a saved sale; it replaces the success toast.
@@ -340,6 +344,10 @@
                             <div class="col-12 help">Due needs a registered customer and a Manager or Admin, and the customer's total due must stay within ৳2,500.</div>
                         </div>
                     </details>
+                    @if (approvalText is not null)
+                    {
+                        <div class="alert alert-warning mt-3 mb-0" role="alert" id="approvalAlert">@Html.Icon("alert") <span><strong>Approval needed.</strong> @(char.ToUpper(approvalText[0]) + approvalText[1..])</span></div>
+                    }
                     <details class="mt-2" id="approvalDetails" @(approvalNeeded ? "open" : "")>
                         <summary class="@(approvalNeeded ? "text-danger" : "")">Manager or Admin approval</summary>
                         <div class="row g-2 mt-1">
@@ -742,9 +750,12 @@
         }
         window.initiatePayment = function (m) { setMethod(m); paymentModal.show(); };
         document.querySelectorAll('.pay-tab').forEach(function (t) { t.addEventListener('click', function () { setMethod(t.dataset.method); }); });
+        var approvalFor = '@(approvalFor ?? "")';
         document.getElementById('paymentModal').addEventListener('shown.bs.modal', function () {
+            if (approvalFor) { approvalFor = ''; document.getElementById('approverUsernameInput').focus(); return; }
             document.getElementById(method() === 'Cash' ? 'cashTenderedInput' : 'referenceInput').focus();
         });
+        if (approvalFor) initiatePayment(approvalFor);
         tendered.addEventListener('input', updateChange);
         document.getElementById('clearTendered').addEventListener('click', function () { tendered.value = ''; updateChange(); tendered.focus(); });
         document.getElementById('secondTenderInput').addEventListener('change', function () { buildQuickCash(); updateChange(); });

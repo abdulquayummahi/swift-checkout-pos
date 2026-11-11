@@ -226,6 +226,9 @@ public class CheckoutController(
                 try { SaveActiveSession(pendingCart); } catch (Exception sessionError) { LogFailure(sessionError); }
             }
             ReportFailure(ex);
+            // Approval needed: the till reopens the payment window on the same method with the reason, ready for the approver.
+            if (ex is CheckoutValidationException && ex.Message.StartsWith("APPROVAL REQUIRED", StringComparison.Ordinal) && plan.Lines.Count > 0)
+                TempData["ApprovalFor"] = plan.Lines[0].Tender;
         }
         return RedirectToAction(nameof(Index));
     }
